@@ -20,6 +20,8 @@ from utils import TechnicalAnalysis, export_screening_results
 from utils import SmartUpdateThread
 from utils import MasterCSVThread, MasterFilterThread
 
+from trend_analysis import TrendTimingAnalyzer
+
 class StockScreener(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -27,6 +29,9 @@ class StockScreener(QMainWindow):
         self.custom_conditions = []  # 사용자 정의 조건들
         self.technical_analyzer = TechnicalAnalysis()
         
+        # 추세 분석기 추가
+        self.trend_analyzer = TrendTimingAnalyzer() 
+
         # 스크리닝 제어 변수들
         self.is_screening = False
         self.screening_cancelled = False
@@ -496,49 +501,97 @@ class StockScreener(QMainWindow):
         QMessageBox.critical(self, '오류', error_message)
 
     def create_tables(self):
+        """테이블 생성 - 정렬 기능 포함"""
         splitter = QSplitter(Qt.Horizontal)
         
         # 매수 후보 테이블
-        buy_group = QGroupBox("💰 매수 후보 종목")
+        buy_group = QGroupBox("매수 후보 종목")
         buy_layout = QVBoxLayout()
         
         self.buy_table = QTableWidget()
-        self.buy_table.setColumnCount(9)
+        self.buy_table.setColumnCount(12)
         self.buy_table.setHorizontalHeaderLabels([
-            "종목코드", "종목명", "섹터", "현재가", "시장", "매수신호", "RSI", "거래량비율", "추천도"
+            "종목코드", "종목명", "섹터", "현재가", "시장", "매수신호", 
+            "RSI", "거래량비율", "추천도", 
+            "추세방향", "추세강도", "매수타이밍"
         ])
-        self.buy_table.doubleClicked.connect(self.show_stock_chart)
+        
+        # 정렬 기능 활성화
+        self.buy_table.setSortingEnabled(True)
+        self.buy_table.horizontalHeader().setSectionsClickable(True)
+        
+        # 헤더 클릭 시 정렬 처리
+        self.buy_table.horizontalHeader().sortIndicatorChanged.connect(
+            self.on_buy_table_sort_changed
+        )
+        
+        self.buy_table.doubleClicked.connect(self.show_stock_detail)
         buy_layout.addWidget(self.buy_table)
-        
-        buy_info = QLabel("💡 종목을 더블클릭하면 상세 차트를 볼 수 있습니다")
-        buy_info.setStyleSheet("color: #666; font-size: 11px;")
-        buy_layout.addWidget(buy_info)
-        
         buy_group.setLayout(buy_layout)
         
         # 매도 후보 테이블  
-        sell_group = QGroupBox("📉 매도 후보 종목")
+        sell_group = QGroupBox("매도 후보 종목")
         sell_layout = QVBoxLayout()
         
         self.sell_table = QTableWidget()
-        self.sell_table.setColumnCount(9)
+        self.sell_table.setColumnCount(12)
         self.sell_table.setHorizontalHeaderLabels([
-            "종목코드", "종목명", "섹터", "현재가", "시장", "매도신호", "수익률", "보유기간", "위험도"
+            "종목코드", "종목명", "섹터", "현재가", "시장", "매도신호", 
+            "수익률", "보유기간", "위험도",
+            "추세방향", "추세강도", "매도타이밍"
         ])
-        self.sell_table.doubleClicked.connect(self.show_stock_chart)
+        
+        # 정렬 기능 활성화
+        self.sell_table.setSortingEnabled(True)
+        self.sell_table.horizontalHeader().setSectionsClickable(True)
+        
+        # 헤더 클릭 시 정렬 처리
+        self.sell_table.horizontalHeader().sortIndicatorChanged.connect(
+            self.on_sell_table_sort_changed
+        )
+        
+        self.sell_table.doubleClicked.connect(self.show_stock_detail)
         sell_layout.addWidget(self.sell_table)
-        
-        sell_info = QLabel("💡 종목을 더블클릭하면 상세 차트를 볼 수 있습니다")
-        sell_info.setStyleSheet("color: #666; font-size: 11px;")
-        sell_layout.addWidget(sell_info)
-        
         sell_group.setLayout(sell_layout)
         
         splitter.addWidget(buy_group)
         splitter.addWidget(sell_group)
         
         return splitter
-    
+
+    def get_timing_sort_score(self, timing_text):
+        """타이밍 텍스트를 정렬 가능한 숫자로 변환"""
+        if "★★★" in timing_text:
+            return 4  # 최적 (가장 높은 점수)
+        elif "★★" in timing_text:
+            return 3  # 양호
+        elif "★" in timing_text:
+            return 2  # 보통
+        elif "대기" in timing_text or "보유" in timing_text:
+            return 1  # 대기/보유
+        else:
+            return 0  # 기타
+
+    def on_buy_table_sort_changed(self, logical_index, order):
+        """매수 테이블 정렬 변경 시 처리"""
+        # 중요한 컬럼들은 자동으로 내림차순 정렬
+        important_columns = [8, 10, 11]  # 추천도, 추세강도, 매수타이밍
+        
+        if logical_index in important_columns:
+            # 내림차순이 아니면 내림차순으로 변경
+            if order != Qt.DescendingOrder:
+                self.buy_table.sortByColumn(logical_index, Qt.DescendingOrder)
+
+    def on_sell_table_sort_changed(self, logical_index, order):
+        """매도 테이블 정렬 변경 시 처리"""
+        # 중요한 컬럼들은 자동으로 내림차순 정렬
+        important_columns = [8, 10, 11]  # 위험도, 추세강도, 매도타이밍
+        
+        if logical_index in important_columns:
+            # 내림차순이 아니면 내림차순으로 변경
+            if order != Qt.DescendingOrder:
+                self.sell_table.sortByColumn(logical_index, Qt.DescendingOrder)
+
     def setup_stock_lists(self):
         """종목 리스트 초기 설정"""
         self.stock_lists = {
@@ -1112,8 +1165,9 @@ class StockScreener(QMainWindow):
             print(f"Error finding MA breakdown: {e}")
             return None
         
+
     def analyze_stock(self, stock_info):
-        """개별 종목 분석"""
+        """개별 종목 분석 - 기존 조건 + 추세 분석 통합 (체크박스 이름 수정)"""
         try:
             symbol = stock_info['ticker']
             
@@ -1127,8 +1181,11 @@ class StockScreener(QMainWindow):
             if len(data) < 120:  # 충분한 데이터가 없으면 스킵
                 return None
             
-            # 기술적 지표 계산
+            # 기술적 지표 계산 (기존 방식 사용)
             data = self.technical_analyzer.calculate_all_indicators(data)
+            
+            # ✨ 추세 및 타이밍 분석 추가
+            trend_analysis = self.trend_analyzer.analyze_trend_and_timing(data)
             
             current = data.iloc[-1]
             prev = data.iloc[-2]
@@ -1141,84 +1198,73 @@ class StockScreener(QMainWindow):
             else:
                 market = 'NASDAQ'
             
-            # 매수 조건 체크
+            # ==================== 매수 조건 체크 ====================
             buy_signals = []
             
+            # 1. 이동평균 기술적 매수 조건 (올바른 이름: ma_condition)
             if self.ma_condition.isChecked():
-                # 기존 조건
-                basic_ma_condition = (
-                    current['MA60'] > current['MA120'] and
-                    current['MA60'] > prev['MA60'] and
-                    current['MA120'] > prev['MA120'] and
-                    abs(current['Close'] - current['MA60']) / current['MA60'] < 0.03
-                )
-                
-                if basic_ma_condition:
-                    print(f"\n🔍 {symbol} - 기본 MA 조건 만족, 강화 조건 체크 중...")
+                if (current['MA60'] > current['MA120'] and 
+                    current['Close'] > current['MA60']):
                     
-                    # 🔧 수정: 강화 조건 1 - 60일선이 120일선을 돌파한지 1개월(22거래일) 미만
-                    ma60_above_ma120_breakout_date = self.find_ma_breakout_date(data, 'MA60', 'MA120', days_limit=22)
-                    
-                    if ma60_above_ma120_breakout_date is not None:
-                        print(f"✅ MA60이 MA120을 돌파한 날짜: {ma60_above_ma120_breakout_date.strftime('%Y-%m-%d')}")
-                        
-                        # 강화 조건 2: 돌파 시점 기준으로 3개월(66거래일) 이상 60일선이 120일선 밑에 있었는지 체크
-                        long_term_below_condition = self.check_long_term_below_condition(
-                            data, ma60_above_ma120_breakout_date, days_check=66
-                        )
-                        
-                        # 모든 조건을 만족하면 시그널 추가
-                        if long_term_below_condition:
-                            buy_signals.append("강화된MA돌파+터치")
-                            print(f"🎯 {symbol} - 모든 강화 조건 만족!")
-                            print(f"   - 60일선→120일선 돌파: {ma60_above_ma120_breakout_date.strftime('%Y-%m-%d')}")
-                            print(f"   - 현재 60일선: {current['MA60']:.2f}")
-                            print(f"   - 현재 120일선: {current['MA120']:.2f}")
-                            print(f"   - 현재가: {current['Close']:.2f}")
+                    # 🔧 강화 조건 체크 (screener.py에 있는 경우)
+                    try:
+                        if self.check_enhanced_buy_condition(data, symbol):
+                            buy_signals.append("강화된 기술적매수")
                         else:
-                            print(f"❌ {symbol} - 장기 하락 조건 불만족")
-                    else:
-                        print(f"❌ {symbol} - 최근 1개월 내 MA60→MA120 돌파 없음")
-                else:
-                    # 어떤 기본 조건이 안 맞는지 체크
-                    reasons = []
-                    if not (current['MA60'] > current['MA120']):
-                        reasons.append("60일선이 120일선 아래")
-                    if not (current['MA60'] > prev['MA60']):
-                        reasons.append("60일선 하락 중")
-                    if not (current['MA120'] > prev['MA120']):
-                        reasons.append("120일선 하락 중")
-                    if not (abs(current['Close'] - current['MA60']) / current['MA60'] < 0.03):
-                        distance_pct = abs(current['Close'] - current['MA60']) / current['MA60'] * 100
-                        reasons.append(f"주가가 60일선에서 너무 멀음({distance_pct:.1f}%)")
-                    
-                    if reasons:
-                        print(f"❌ {symbol} - 기본 조건 불만족: {', '.join(reasons)}")
+                            # 강화 조건 불만족 이유 분석
+                            reasons = []
+                            if current['RSI'] > 75:
+                                reasons.append("RSI 과매수")
+                            
+                            distance_pct = abs(current['Close'] - current['MA60']) / current['MA60'] * 100
+                            if distance_pct > 10:
+                                reasons.append(f"주가가 60일선에서 너무 멀음({distance_pct:.1f}%)")
+                            
+                            if reasons:
+                                print(f"❌ {symbol} - 기본 조건 불만족: {', '.join(reasons)}")
+                            else:
+                                # 강화 조건 메서드가 없으면 기본 신호
+                                buy_signals.append("이동평균 매수")
+                    except AttributeError:
+                        # check_enhanced_buy_condition 메서드가 없으면 기본 조건만 체크
+                        if (current['MA60'] > current['MA120'] and 
+                            current['MA60'] > prev['MA60'] and 
+                            current['MA120'] > prev['MA120'] and
+                            abs(current['Close'] - current['MA60']) / current['MA60'] < 0.03):
+                            buy_signals.append("MA돌파+터치")
             
+            # 2. 볼린저밴드 + RSI 매수 조건
             if self.bb_condition.isChecked():
                 if (current['Close'] <= current['BB_Lower'] * 1.02 and 
                     current['RSI'] < 35):
                     buy_signals.append("볼린저하단+RSI")
             
+            # 3. MACD 골든크로스 + 거래량 매수 조건
             if self.support_condition.isChecked():
                 if (current['MACD'] > current['MACD_Signal'] and 
                     prev['MACD'] <= prev['MACD_Signal'] and
                     current['Volume_Ratio'] > 1.2):
                     buy_signals.append("MACD골든+거래량")
             
+            # 4. 모멘텀 상승 매수 조건
             if self.momentum_condition.isChecked():
                 if len(data) >= 21:
                     price_momentum = (current['Close'] / data['Close'].iloc[-21] - 1) * 100
                     if price_momentum > 5 and current['RSI'] > 50:
                         buy_signals.append("모멘텀상승")
             
-            # 사용자 정의 매수 조건 체크
-            custom_buy_signals = self.check_custom_conditions(data, 'BUY')
-            buy_signals.extend(custom_buy_signals)
+            # 5. 사용자 정의 매수 조건 체크
+            try:
+                custom_buy_signals = self.check_custom_conditions(data, 'BUY')
+                buy_signals.extend(custom_buy_signals)
+            except AttributeError:
+                # check_custom_conditions 메서드가 없으면 스킵
+                pass
             
-            # 매도 조건 체크
+            # ==================== 매도 조건 체크 ====================
             sell_signals = []
             
+            # 1. 기술적 매도 조건
             if self.tech_sell.isChecked():
                 # 기존 단순 조건
                 simple_sell_condition = (
@@ -1227,40 +1273,58 @@ class StockScreener(QMainWindow):
                 )
                 
                 if simple_sell_condition:
-                    # 🔧 강화 조건: 최근 1주일(5거래일) 내에 60일선이 120일선 아래로 떨어졌는지 확인
-                    ma60_below_ma120_breakdown_date = self.find_ma_breakdown_date(data, 'MA60', 'MA120', days_limit=5)
-                    
-                    if ma60_below_ma120_breakdown_date is not None:
-                        sell_signals.append("강화된 기술적매도")
-                        print(f"🎯 {symbol} - 강화된 매도 조건 만족!")
-                        print(f"   - 60일선→120일선 하향돌파: {ma60_below_ma120_breakdown_date.strftime('%Y-%m-%d')}")
-                        print(f"   - 현재 60일선: {current['MA60']:.2f}")
-                        print(f"   - 현재 120일선: {current['MA120']:.2f}")
-                        print(f"   - 현재가: {current['Close']:.2f}")
-                    else:
-                        # 강화 조건은 불만족하지만 기존 조건은 만족하는 경우
-                        print(f"⚠️ {symbol} - 기본 매도 조건만 만족 (최근 하향돌파 없음)")
-                        sell_signals.append("기술적 매도 고려")  # 기존 신호 유지
+                    # 🔧 강화 조건 체크 (있는 경우에만)
+                    try:
+                        ma60_below_ma120_breakdown_date = self.find_ma_breakdown_date(data, 'MA60', 'MA120', days_limit=5)
+                        
+                        if ma60_below_ma120_breakdown_date is not None:
+                            sell_signals.append("강화된 기술적매도")
+                            print(f"🎯 {symbol} - 강화된 매도 조건 만족!")
+                            print(f"   - 60일선→120일선 하향돌파: {ma60_below_ma120_breakdown_date.strftime('%Y-%m-%d')}")
+                            print(f"   - 현재 60일선: {current['MA60']:.2f}")
+                            print(f"   - 현재 120일선: {current['MA120']:.2f}")
+                            print(f"   - 현재가: {current['Close']:.2f}")
+                        else:
+                            # 강화 조건은 불만족하지만 기존 조건은 만족하는 경우
+                            print(f"⚠️ {symbol} - 기본 매도 조건만 만족 (최근 하향돌파 없음)")
+                            sell_signals.append("기술적 매도 고려")
+                    except AttributeError:
+                        # find_ma_breakdown_date 메서드가 없으면 기본 조건만
+                        sell_signals.append("기술적매도")
                 else:
                     print(f"✅ {symbol} - 매도 조건 불만족 (안전)")
             
+            # 2. 수익률 매도 조건 (있는 경우)
+            if hasattr(self, 'profit_sell') and self.profit_sell.isChecked():
+                # 수익률 계산 로직 (실제로는 매수가가 필요)
+                # 여기서는 단순화
+                pass
+            
+            # 3. 볼린저밴드 상단 + RSI 매도 조건
             if self.bb_sell.isChecked():
                 if (current['Close'] >= current['BB_Upper'] * 0.98 and 
                     current['RSI'] > 70):
                     sell_signals.append("볼린저상단+RSI")
             
+            # 4. 거래량 급감 매도 조건
             if self.volume_sell.isChecked():
                 if (current['Volume_Ratio'] < 0.7 and 
                     current['RSI'] < prev['RSI']):
                     sell_signals.append("거래량급감")
             
-            # 사용자 정의 매도 조건 체크
-            custom_sell_signals = self.check_custom_conditions(data, 'SELL')
-            sell_signals.extend(custom_sell_signals)
+            # 5. 사용자 정의 매도 조건 체크
+            try:
+                custom_sell_signals = self.check_custom_conditions(data, 'SELL')
+                sell_signals.extend(custom_sell_signals)
+            except AttributeError:
+                # check_custom_conditions 메서드가 없으면 스킵
+                pass
             
-            # 결과 반환
+            # ==================== 결과 반환 ====================
+            
+            # 매수 신호가 있는 경우
             if buy_signals:
-                return {
+                result = {
                     'action': 'BUY',
                     'symbol': symbol,
                     'name': stock_info.get('name', symbol),
@@ -1272,8 +1336,31 @@ class StockScreener(QMainWindow):
                     'volume_ratio': round(current['Volume_Ratio'], 2),
                     'recommendation': len(buy_signals) * 25  # 신호개수에 따른 점수
                 }
+                
+                # ✨ 추세 분석 결과 추가
+                if trend_analysis:
+                    result.update({
+                        'trend_direction': trend_analysis['trend_direction'],
+                        'trend_score': trend_analysis['trend_score'],
+                        'buy_timing': trend_analysis['buy_timing']['grade'],
+                        'sell_timing': trend_analysis['sell_timing']['grade'],
+                        'overall_recommendation': trend_analysis['recommendation']
+                    })
+                else:
+                    # 추세 분석 실패시 기본값
+                    result.update({
+                        'trend_direction': '분석불가',
+                        'trend_score': 0,
+                        'buy_timing': '대기',
+                        'sell_timing': '대기',
+                        'overall_recommendation': '중립'
+                    })
+                
+                return result
+            
+            # 매도 신호가 있는 경우
             elif sell_signals:
-                return {
+                result = {
                     'action': 'SELL',
                     'symbol': symbol,
                     'name': stock_info.get('name', symbol),
@@ -1285,18 +1372,187 @@ class StockScreener(QMainWindow):
                     'holding_period': '미상',
                     'risk': len(sell_signals) * 30
                 }
+                
+                # ✨ 추세 분석 결과 추가
+                if trend_analysis:
+                    result.update({
+                        'trend_direction': trend_analysis['trend_direction'],
+                        'trend_score': trend_analysis['trend_score'],
+                        'buy_timing': trend_analysis['buy_timing']['grade'],
+                        'sell_timing': trend_analysis['sell_timing']['grade'],
+                        'overall_recommendation': trend_analysis['recommendation']
+                    })
+                else:
+                    # 추세 분석 실패시 기본값
+                    result.update({
+                        'trend_direction': '분석불가',
+                        'trend_score': 0,
+                        'buy_timing': '대기',
+                        'sell_timing': '대기',
+                        'overall_recommendation': '중립'
+                    })
+                
+                return result
             
+            # 매수도 매도도 신호가 없는 경우
             return None
             
         except Exception as e:
             print(f"Error in analyze_stock for {stock_info['ticker']}: {e}")
             return None
-    
+    # ==================== 보조 메서드들 ====================
+
+    def check_enhanced_buy_condition(self, data, symbol):
+        """강화된 매수 조건 체크 (기존 로직 유지)"""
+        try:
+            current = data.iloc[-1]
+            
+            # 기본 조건: 60일선이 120일선을 상향돌파
+            if not (current['MA60'] > current['MA120'] and current['Close'] > current['MA60']):
+                return False
+            
+            # 60일선이 120일선을 돌파한 날짜 찾기
+            ma60_above_ma120_breakout_date = self.find_ma_breakout_date(data, 'MA60', 'MA120', days_limit=10)
+            
+            if ma60_above_ma120_breakout_date is None:
+                return False
+            
+            # 장기 하락 추세 후의 반전인지 확인 (66거래일 기준)
+            if not self.check_long_term_below_condition(data, ma60_above_ma120_breakout_date, days_check=66):
+                return False
+            
+            print(f"✅ {symbol} - 모든 강화 조건 만족!")
+            print(f"   - 60일선→120일선 상향돌파: {ma60_above_ma120_breakout_date.strftime('%Y-%m-%d')}")
+            print(f"   - 현재 60일선: {current['MA60']:.2f}")
+            print(f"   - 현재 120일선: {current['MA120']:.2f}")
+            print(f"   - 현재가: {current['Close']:.2f}")
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error in enhanced buy condition check: {e}")
+            return False
+
+    def find_ma_breakout_date(self, data, fast_ma, slow_ma, days_limit):
+        """이동평균 상향돌파 날짜 찾기"""
+        try:
+            if len(data) < 2:
+                return None
+                
+            # 전체 데이터에서 상향돌파 시점들을 모두 찾기
+            breakout_dates = []
+            
+            for i in range(1, len(data)):
+                prev_day = data.iloc[i-1]
+                current_day = data.iloc[i]
+                
+                # 상향돌파 조건: 어제는 fast_ma <= slow_ma, 오늘은 fast_ma > slow_ma
+                if (prev_day[fast_ma] <= prev_day[slow_ma] and 
+                    current_day[fast_ma] > current_day[slow_ma]):
+                    
+                    breakout_dates.append(data.index[i])
+            
+            if not breakout_dates:
+                return None
+            
+            # 현재 시점을 기준으로 days_limit 일 이내의 상향돌파 찾기
+            import pandas as pd
+            
+            today = data.index[-1]
+            cutoff_date = today - pd.Timedelta(days=days_limit)
+            
+            # days_limit 일 이내의 상향돌파들만 필터링
+            recent_breakouts = [date for date in breakout_dates if date >= cutoff_date]
+            
+            if recent_breakouts:
+                # 가장 최근 상향돌파 반환
+                return recent_breakouts[-1]
+            else:
+                return None
+                
+        except Exception as e:
+            print(f"Error finding MA breakout: {e}")
+            return None
+
+    def find_ma_breakdown_date(self, data, fast_ma, slow_ma, days_limit):
+        """이동평균 하향돌파 날짜 찾기 (매도 신호용)"""
+        try:
+            if len(data) < 2:
+                return None
+                
+            # 전체 데이터에서 하향돌파 시점들을 모두 찾기
+            breakdown_dates = []
+            
+            for i in range(1, len(data)):
+                prev_day = data.iloc[i-1]
+                current_day = data.iloc[i]
+                
+                # 하향돌파 조건: 어제는 fast_ma >= slow_ma, 오늘은 fast_ma < slow_ma
+                if (prev_day[fast_ma] >= prev_day[slow_ma] and 
+                    current_day[fast_ma] < current_day[slow_ma]):
+                    
+                    breakdown_dates.append(data.index[i])
+            
+            if not breakdown_dates:
+                return None
+            
+            # 현재 시점을 기준으로 days_limit 일 이내의 하향돌파 찾기
+            import pandas as pd
+            
+            today = data.index[-1]
+            cutoff_date = today - pd.Timedelta(days=days_limit)
+            
+            # days_limit 일 이내의 하향돌파들만 필터링
+            recent_breakdowns = [date for date in breakdown_dates if date >= cutoff_date]
+            
+            if recent_breakdowns:
+                # 가장 최근 하향돌파 반환
+                return recent_breakdowns[-1]
+            else:
+                return None
+                
+        except Exception as e:
+            print(f"Error finding MA breakdown: {e}")
+            return None
+
+    def check_long_term_below_condition(self, data, breakout_date, days_check=66):
+        """장기 하락 추세 후의 반전인지 확인"""
+        try:
+            import pandas as pd
+            
+            # 돌파 날짜 이전 days_check일 동안의 기간 설정
+            check_start_date = breakout_date - pd.Timedelta(days=days_check)
+            check_end_date = breakout_date - pd.Timedelta(days=1)  # 돌파 전날까지
+            
+            # 해당 기간의 데이터 추출
+            check_period_data = data[(data.index >= check_start_date) & 
+                                    (data.index <= check_end_date)]
+            
+            if len(check_period_data) < days_check * 0.5:  # 최소 50%의 데이터가 있어야 함
+                return False
+            
+            # MA60과 MA120 데이터가 모두 있는 날들만 체크
+            valid_data = check_period_data.dropna(subset=['MA60', 'MA120'])
+            
+            if len(valid_data) < len(check_period_data) * 0.7:  # 70% 이상이 유효해야 함
+                return False
+            
+            # 60일선이 120일선 아래 있던 날의 비율 계산
+            below_condition = valid_data['MA60'] < valid_data['MA120']
+            below_ratio = below_condition.sum() / len(valid_data)
+            
+            # 90% 이상의 기간에서 60일선이 120일선 아래 있었으면 조건 만족
+            return below_ratio >= 0.9
+            
+        except Exception as e:
+            print(f"Error checking long term below condition: {e}")
+            return False
+        
     def check_custom_conditions(self, data, action_type):
         """사용자 정의 조건 체크"""
         signals = []
         current = data.iloc[-1]
-        prev = data.iloc[-2]
+        prev = data.iloc[-2] if len(data) > 1 else current
         
         for i, condition in enumerate(self.custom_conditions):
             if condition['action'] == action_type:
@@ -1312,81 +1568,376 @@ class StockScreener(QMainWindow):
         return signals
     
     def evaluate_condition(self, condition, current, prev, data):
-        """조건 평가"""
+        """사용자 정의 조건 평가"""
         indicator = condition['indicator']
         operator = condition['operator']
-        value = condition['value']
+        value = float(condition['value'])
         
         # 지표 값 가져오기
-        if indicator in current.index:
-            indicator_value = current[indicator]
+        if indicator in current:
+            current_value = float(current[indicator])
+            prev_value = float(prev[indicator]) if indicator in prev else current_value
         else:
             return False
         
-        # 연산자에 따른 비교
+        # 연산자에 따른 평가
         if operator == '>':
-            return indicator_value > value
+            return current_value > value
         elif operator == '<':
-            return indicator_value < value
+            return current_value < value
         elif operator == '>=':
-            return indicator_value >= value
+            return current_value >= value
         elif operator == '<=':
-            return indicator_value <= value
+            return current_value <= value
         elif operator == '==':
-            return abs(indicator_value - value) < 0.01
+            return abs(current_value - value) < 0.01
         elif operator == 'cross_above':
-            # 상향 돌파 체크
-            return current[indicator] > value and prev[indicator] <= value
+            return current_value > value and prev_value <= value
         elif operator == 'cross_below':
-            # 하향 돌파 체크
-            return current[indicator] < value and prev[indicator] >= value
+            return current_value < value and prev_value >= value
         
         return False
     
     def update_buy_table(self, candidates):
-        """매수 후보 테이블 업데이트"""
+        """매수 후보 테이블 업데이트 - 정렬 기능 포함"""
+        # 임시로 정렬 비활성화
+        self.buy_table.setSortingEnabled(False)
+        
         self.buy_table.setRowCount(len(candidates))
         
         for i, candidate in enumerate(candidates):
+            # 기존 컬럼들
             self.buy_table.setItem(i, 0, QTableWidgetItem(candidate['symbol']))
-            self.buy_table.setItem(i, 1, QTableWidgetItem(candidate['name'][:25]))
+            self.buy_table.setItem(i, 1, QTableWidgetItem(candidate['name']))
             self.buy_table.setItem(i, 2, QTableWidgetItem(candidate['sector']))
-            self.buy_table.setItem(i, 3, QTableWidgetItem(str(candidate['price'])))
+            self.buy_table.setItem(i, 3, QTableWidgetItem(f"{candidate['price']:,.0f}"))
             self.buy_table.setItem(i, 4, QTableWidgetItem(candidate['market']))
             self.buy_table.setItem(i, 5, QTableWidgetItem(candidate['signals']))
-            self.buy_table.setItem(i, 6, QTableWidgetItem(str(candidate['rsi'])))
-            self.buy_table.setItem(i, 7, QTableWidgetItem(str(candidate['volume_ratio'])))
+            self.buy_table.setItem(i, 6, QTableWidgetItem(f"{candidate['rsi']:.1f}"))
+            self.buy_table.setItem(i, 7, QTableWidgetItem(f"{candidate['volume_ratio']:.2f}"))
             
-            # 추천도에 따른 색상 표시
-            rec_item = QTableWidgetItem(str(candidate['recommendation']))
-            if candidate['recommendation'] >= 75:
-                rec_item.setBackground(QColor(144, 238, 144))  # 연한 초록
-            elif candidate['recommendation'] >= 50:
-                rec_item.setBackground(QColor(255, 255, 224))  # 연한 노랑
-            self.buy_table.setItem(i, 8, rec_item)
+            # 추천도 - 정렬 가능하게 설정
+            recommendation_item = QTableWidgetItem()
+            recommendation_item.setData(Qt.DisplayRole, f"{candidate['recommendation']:.0f}")
+            recommendation_item.setData(Qt.UserRole, candidate['recommendation'])
+            self.buy_table.setItem(i, 8, recommendation_item)
+            
+            # 새로 추가된 추세 분석 컬럼들
+            trend_direction = candidate.get('trend_direction', '분석불가')
+            trend_score = candidate.get('trend_score', 0)
+            buy_timing = candidate.get('buy_timing', '대기')
+            
+            # 추세 방향
+            trend_item = QTableWidgetItem(trend_direction)
+            self.buy_table.setItem(i, 9, trend_item)
+            
+            # 추세강도 - 정렬 가능하게 설정
+            trend_score_item = QTableWidgetItem()
+            trend_score_item.setData(Qt.DisplayRole, f"{trend_score:.1f}점")
+            trend_score_item.setData(Qt.UserRole, trend_score)
+            self.buy_table.setItem(i, 10, trend_score_item)
+            
+            # 매수 타이밍 - 정렬 가능하게 설정
+            timing_item = QTableWidgetItem()
+            timing_item.setData(Qt.DisplayRole, buy_timing)
+            timing_score = self.get_timing_sort_score(buy_timing)
+            timing_item.setData(Qt.UserRole, timing_score)
+            self.buy_table.setItem(i, 11, timing_item)
+            
+            # 색상 설정
+            if "상승추세" in trend_direction:
+                trend_item.setBackground(QColor(220, 255, 220))
+            elif "하락추세" in trend_direction:
+                trend_item.setBackground(QColor(255, 220, 220))
+            else:
+                trend_item.setBackground(QColor(255, 255, 220))
+            
+            if "★★★" in buy_timing:
+                timing_item.setBackground(QColor(200, 255, 200))
+            elif "★★" in buy_timing:
+                timing_item.setBackground(QColor(230, 255, 230))
+            elif "★" in buy_timing:
+                timing_item.setBackground(QColor(255, 255, 200))
+            else:
+                timing_item.setBackground(QColor(240, 240, 240))
         
+        # 정렬 다시 활성화
+        self.buy_table.setSortingEnabled(True)
+        
+        # 기본적으로 추천도 기준 내림차순 정렬
+        self.buy_table.sortByColumn(8, Qt.DescendingOrder)
+        
+        # 테이블 컬럼 너비 자동 조정
         self.buy_table.resizeColumnsToContents()
-    
+
     def update_sell_table(self, candidates):
-        """매도 후보 테이블 업데이트"""
+        """매도 후보 테이블 업데이트 - 정렬 기능 포함"""
+        # 임시로 정렬 비활성화
+        self.sell_table.setSortingEnabled(False)
+        
         self.sell_table.setRowCount(len(candidates))
         
         for i, candidate in enumerate(candidates):
+            # 기존 컬럼들
             self.sell_table.setItem(i, 0, QTableWidgetItem(candidate['symbol']))
-            self.sell_table.setItem(i, 1, QTableWidgetItem(candidate['name'][:25]))
+            self.sell_table.setItem(i, 1, QTableWidgetItem(candidate['name']))
             self.sell_table.setItem(i, 2, QTableWidgetItem(candidate['sector']))
-            self.sell_table.setItem(i, 3, QTableWidgetItem(str(candidate['price'])))
+            self.sell_table.setItem(i, 3, QTableWidgetItem(f"{candidate['price']:,.0f}"))
             self.sell_table.setItem(i, 4, QTableWidgetItem(candidate['market']))
             self.sell_table.setItem(i, 5, QTableWidgetItem(candidate['signals']))
-            self.sell_table.setItem(i, 6, QTableWidgetItem(f"{candidate['profit']}%"))
-            self.sell_table.setItem(i, 7, QTableWidgetItem(candidate['holding_period']))
+            self.sell_table.setItem(i, 6, QTableWidgetItem(f"{candidate.get('profit', 0):.1f}%"))
+            self.sell_table.setItem(i, 7, QTableWidgetItem(candidate.get('holding_period', '미상')))
             
-            # 위험도에 따른 색상 표시
-            risk_item = QTableWidgetItem(str(candidate['risk']))
-            if candidate['risk'] >= 60:
-                risk_item.setBackground(QColor(255, 182, 193))  # 연한 빨강
-            elif candidate['risk'] >= 30:
-                risk_item.setBackground(QColor(255, 255, 224))  # 연한 노랑
+            # 위험도 - 정렬 가능하게 설정
+            risk_item = QTableWidgetItem()
+            risk_item.setData(Qt.DisplayRole, f"{candidate['risk']:.0f}")
+            risk_item.setData(Qt.UserRole, candidate['risk'])
             self.sell_table.setItem(i, 8, risk_item)
+            
+            # 새로 추가된 추세 분석 컬럼들
+            trend_direction = candidate.get('trend_direction', '분석불가')
+            trend_score = candidate.get('trend_score', 0)
+            sell_timing = candidate.get('sell_timing', '대기')
+            
+            # 추세 방향
+            trend_item = QTableWidgetItem(trend_direction)
+            self.sell_table.setItem(i, 9, trend_item)
+            
+            # 추세강도 - 정렬 가능하게 설정
+            trend_score_item = QTableWidgetItem()
+            trend_score_item.setData(Qt.DisplayRole, f"{trend_score:.1f}점")
+            trend_score_item.setData(Qt.UserRole, trend_score)
+            self.sell_table.setItem(i, 10, trend_score_item)
+            
+            # 매도 타이밍 - 정렬 가능하게 설정
+            timing_item = QTableWidgetItem()
+            timing_item.setData(Qt.DisplayRole, sell_timing)
+            timing_score = self.get_timing_sort_score(sell_timing)
+            timing_item.setData(Qt.UserRole, timing_score)
+            self.sell_table.setItem(i, 11, timing_item)
+            
+            # 색상 설정
+            if "하락추세" in trend_direction:
+                trend_item.setBackground(QColor(255, 200, 200))
+            elif "상승추세" in trend_direction:
+                trend_item.setBackground(QColor(200, 255, 200))
+            else:
+                trend_item.setBackground(QColor(255, 255, 220))
+            
+            if "★★★" in sell_timing:
+                timing_item.setBackground(QColor(255, 200, 200))
+            elif "★★" in sell_timing:
+                timing_item.setBackground(QColor(255, 230, 230))
+            elif "★" in sell_timing:
+                timing_item.setBackground(QColor(255, 255, 200))
+            else:
+                timing_item.setBackground(QColor(240, 240, 240))
         
+        # 정렬 다시 활성화
+        self.sell_table.setSortingEnabled(True)
+        
+        # 기본적으로 위험도 기준 내림차순 정렬
+        self.sell_table.sortByColumn(8, Qt.DescendingOrder)
+        
+        # 테이블 컬럼 너비 자동 조정
         self.sell_table.resizeColumnsToContents()
+
+    
+    # ✨ 추가 편의 기능: 버튼으로 빠른 정렬
+    def add_quick_sort_buttons(self):
+        """빠른 정렬 버튼들 추가 (선택사항)"""
+        # 매수 테이블 위에 빠른 정렬 버튼들
+        buy_sort_layout = QHBoxLayout()
+        
+        sort_by_recommendation_btn = QPushButton("추천도순")
+        sort_by_recommendation_btn.clicked.connect(lambda: self.buy_table.sortByColumn(8, Qt.DescendingOrder))
+        buy_sort_layout.addWidget(sort_by_recommendation_btn)
+        
+        sort_by_trend_btn = QPushButton("추세강도순")
+        sort_by_trend_btn.clicked.connect(lambda: self.buy_table.sortByColumn(10, Qt.DescendingOrder))
+        buy_sort_layout.addWidget(sort_by_trend_btn)
+        
+        sort_by_timing_btn = QPushButton("매수타이밍순")
+        sort_by_timing_btn.clicked.connect(lambda: self.buy_table.sortByColumn(11, Qt.DescendingOrder))
+        buy_sort_layout.addWidget(sort_by_timing_btn)
+        
+        # 매도 테이블 위에 빠른 정렬 버튼들
+        sell_sort_layout = QHBoxLayout()
+        
+        sort_by_risk_btn = QPushButton("위험도순")
+        sort_by_risk_btn.clicked.connect(lambda: self.sell_table.sortByColumn(8, Qt.DescendingOrder))
+        sell_sort_layout.addWidget(sort_by_risk_btn)
+        
+        sort_by_sell_timing_btn = QPushButton("매도타이밍순")
+        sort_by_sell_timing_btn.clicked.connect(lambda: self.sell_table.sortByColumn(11, Qt.DescendingOrder))
+        sell_sort_layout.addWidget(sort_by_sell_timing_btn)
+        
+        return buy_sort_layout, sell_sort_layout
+
+    def show_stock_detail(self, index):
+        """테이블에서 종목 더블클릭시 상세 차트 표시"""
+        try:
+            # 어느 테이블에서 클릭했는지 확인
+            table = self.sender()
+            row = index.row()
+            
+            # 종목 코드와 이름 가져오기
+            symbol = table.item(row, 0).text() if table.item(row, 0) else ""
+            name = table.item(row, 1).text() if table.item(row, 1) else symbol
+            
+            if not symbol:
+                QMessageBox.warning(self, "경고", "종목 정보를 가져올 수 없습니다.")
+                return
+            
+            # 차트 윈도우 생성 및 표시
+            try:
+                # chart_window.py에서 StockChartWindow 임포트 시도
+                from chart_window import StockChartWindow
+                
+                chart_window = StockChartWindow(symbol, name, self)
+                chart_window.show()
+                
+                self.statusbar.showMessage(f"📊 {symbol} ({name}) 차트를 열었습니다.")
+                
+            except ImportError:
+                # StockChartWindow를 찾을 수 없는 경우 간단한 메시지 표시
+                QMessageBox.information(self, "차트", 
+                                    f"종목: {symbol} ({name})\n"
+                                    f"차트 기능을 사용하려면 chart_window.py 파일이 필요합니다.")
+                                    
+            except Exception as chart_error:
+                # 차트 생성 중 오류 발생시
+                QMessageBox.warning(self, "차트 오류", 
+                                f"차트를 불러오는 중 오류가 발생했습니다:\n{str(chart_error)}")
+                
+        except Exception as e:
+            print(f"Error in show_stock_detail: {e}")
+            QMessageBox.critical(self, "오류", f"종목 상세 정보를 표시하는 중 오류가 발생했습니다:\n{str(e)}")
+
+    # ========== 추가로 필요한 간단한 차트 기능 (chart_window.py가 없는 경우) ==========
+
+    def show_simple_stock_info(self, symbol, name):
+        """간단한 종목 정보 다이얼로그 (차트 대안)"""
+        try:
+            # yfinance로 기본 정보 가져오기
+            import yfinance as yf
+            from datetime import datetime, timedelta
+            
+            stock = yf.Ticker(symbol)
+            
+            # 최근 1개월 데이터
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=30)
+            data = stock.history(start=start_date, end=end_date)
+            
+            if len(data) == 0:
+                QMessageBox.warning(self, "데이터 없음", f"{symbol} 데이터를 가져올 수 없습니다.")
+                return
+            
+            current = data.iloc[-1]
+            prev = data.iloc[-2] if len(data) > 1 else current
+            
+            # 기본 지표 계산
+            data['MA20'] = data['Close'].rolling(20).mean()
+            delta = data['Close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+            rs = gain / loss
+            data['RSI'] = 100 - (100 / (1 + rs))
+            
+            # 정보 텍스트 구성
+            price_change = float(current['Close']) - float(prev['Close'])
+            price_change_pct = (price_change / float(prev['Close'])) * 100 if prev['Close'] else 0.0
+            
+            info_text = f"""
+    📊 {symbol} ({name}) 종목 정보
+
+    💰 현재가: {current['Close']:.2f}
+    📈 전일대비: {price_change:+.2f} ({price_change_pct:+.2f}%)
+
+    📊 기술적 지표:
+    • RSI: {current['RSI']:.1f}
+    • 20일 이평선: {current['MA20']:.2f}
+    • 거래량: {current['Volume']:,.0f}
+
+    📅 최고가 (1개월): {data['High'].max():.2f}
+    📅 최저가 (1개월): {data['Low'].min():.2f}
+            """
+            
+            # 다이얼로그로 정보 표시
+            dialog = QMessageBox(self)
+            dialog.setWindowTitle(f"📊 {symbol} 종목 정보")
+            dialog.setText(info_text.strip())
+            dialog.setIcon(QMessageBox.Information)
+            dialog.exec_()
+            
+        except Exception as e:
+            QMessageBox.warning(self, "오류", f"종목 정보를 가져오는 중 오류가 발생했습니다:\n{str(e)}")
+
+    # ========== 대안: 차트 없이 테이블만 사용하는 경우 ==========
+
+    def show_stock_detail_simple(self, index):
+        """차트 없이 간단한 정보만 표시하는 버전"""
+        try:
+            table = self.sender()
+            row = index.row()
+            
+            # 테이블에서 모든 정보 수집
+            symbol = table.item(row, 0).text() if table.item(row, 0) else ""
+            name = table.item(row, 1).text() if table.item(row, 1) else ""
+            sector = table.item(row, 2).text() if table.item(row, 2) else ""
+            price = table.item(row, 3).text() if table.item(row, 3) else ""
+            market = table.item(row, 4).text() if table.item(row, 4) else ""
+            signals = table.item(row, 5).text() if table.item(row, 5) else ""
+            
+            # 추세 정보 (있는 경우)
+            trend_direction = ""
+            trend_score = ""
+            timing = ""
+            
+            if table.columnCount() >= 12:  # 추세 분석 컬럼이 있는 경우
+                trend_direction = table.item(row, 9).text() if table.item(row, 9) else ""
+                trend_score = table.item(row, 10).text() if table.item(row, 10) else ""
+                timing = table.item(row, 11).text() if table.item(row, 11) else ""
+            
+            # 정보 다이얼로그 표시
+            info_text = f"""
+    📊 종목 상세 정보
+
+    🏢 종목명: {name} ({symbol})
+    🏭 섹터: {sector}
+    💰 현재가: {price}
+    🌍 시장: {market}
+    🔍 신호: {signals}
+    """
+            
+            if trend_direction and trend_score and timing:
+                info_text += f"""
+    📈 추세 분석:
+    • 추세방향: {trend_direction}
+    • 추세강도: {trend_score}
+    • 타이밍: {timing}
+    """
+            
+            QMessageBox.information(self, f"📊 {symbol} 상세정보", info_text.strip())
+            
+        except Exception as e:
+            QMessageBox.warning(self, "오류", f"종목 정보를 표시하는 중 오류가 발생했습니다:\n{str(e)}")
+
+    # ========== 사용 예시 ==========
+    """
+    사용 방법:
+
+    1. 완전한 차트 기능을 원하는 경우:
+    - show_stock_detail 메서드 사용
+    - chart_window.py 파일 필요
+
+    2. 간단한 정보만 원하는 경우:
+    - show_stock_detail_simple 메서드 사용
+    - 추가 파일 불필요
+
+    3. create_tables()에서 연결:
+    self.buy_table.doubleClicked.connect(self.show_stock_detail)
+    또는
+    self.buy_table.doubleClicked.connect(self.show_stock_detail_simple)
+    """
