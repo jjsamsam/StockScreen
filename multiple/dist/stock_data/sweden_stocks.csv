@@ -1,0 +1,501 @@
+﻿ticker,name,market_cap,price,sector,market
+AZN,AstraZeneca PLC,"2,396.56B","1,557.50",Unknown,OMX Stockholm
+ABB,ABB Ltd,"1,164.52B",636.00,Unknown,OMX Stockholm
+INVE.A,Investor AB (publ),905.22B,293.90,Unknown,OMX Stockholm
+INVE.B,Investor AB (publ),905.22B,293.65,Unknown,OMX Stockholm
+ATCO.A,Atlas Copco AB (publ),702.06B,149.20,Unknown,OMX Stockholm
+ATCO.B,Atlas Copco AB (publ),702.06B,132.80,Unknown,OMX Stockholm
+VOLV.A,AB Volvo (publ),602.79B,292.80,Unknown,OMX Stockholm
+VOLV.B,AB Volvo (publ),602.79B,293.60,Unknown,OMX Stockholm
+NDA.SE,Nordea Bank Abp,522.11B,148.90,Unknown,OMX Stockholm
+EQT,EQT AB (publ),395.25B,336.40,Unknown,OMX Stockholm
+DNBO,DNB Bank ASA,380.22B,267.80,Unknown,OMX Stockholm
+ASSA.B,ASSA ABLOY AB (publ),373.55B,335.00,Unknown,OMX Stockholm
+SEB.A,Skandinaviska Enskilda Banken AB (publ),352.02B,178.60,Unknown,OMX Stockholm
+SEB.C,Skandinaviska Enskilda Banken AB (publ),351.91B,180.00,Unknown,OMX Stockholm
+SWED.A,Swedbank AB (publ),307.14B,275.30,Unknown,OMX Stockholm
+SAND,Sandvik AB (publ),302.31B,239.00,Unknown,OMX Stockholm
+SAMPO.SDB,Sampo Oyj,298.35B,110.20,Unknown,OMX Stockholm
+HEXA.B,Hexagon AB (publ),288.03B,106.75,Unknown,OMX Stockholm
+SAAB.B,Saab AB (publ),273.15B,509.00,Unknown,OMX Stockholm
+SHB.A,Svenska Handelsbanken AB (publ),252.56B,126.10,Unknown,OMX Stockholm
+SHB.B,Svenska Handelsbanken AB (publ),251.86B,207.80,Unknown,OMX Stockholm
+ERIC.A,Telefonaktiebolaget LM Ericsson (publ),247.49B,74.30,Unknown,OMX Stockholm
+ERIC.B,Telefonaktiebolaget LM Ericsson (publ),246.95B,74.06,Unknown,OMX Stockholm
+KOGO,Kongsberg Gruppen ASA,236.32B,292.65,Unknown,OMX Stockholm
+HM.B,H & M Hennes & Mauritz AB (publ),228.64B,142.60,Unknown,OMX Stockholm
+EPI.A,Epiroc AB (publ),228.19B,196.45,Unknown,OMX Stockholm
+EPI.B,Epiroc AB (publ),228.19B,173.90,Unknown,OMX Stockholm
+NOKIA.SEK,Nokia Oyj,219.48B,40.49,Unknown,OMX Stockholm
+ALFA,Alfa Laval AB (publ),180.83B,435.20,Unknown,OMX Stockholm
+8TRA,Traton SE,175.35B,351.80,Unknown,OMX Stockholm
+ESSITY.A,Essity AB (publ),175.26B,254.50,Unknown,OMX Stockholm
+ESSITY.B,Essity AB (publ),174.80B,254.30,Unknown,OMX Stockholm
+EVO,Evolution AB (publ),172.82B,855.00,Unknown,OMX Stockholm
+INDU.A,AB Industrivärden (publ),162.56B,374.00,Unknown,OMX Stockholm
+INDU.C,AB Industrivärden (publ),162.56B,374.10,Unknown,OMX Stockholm
+LIFCO.B,Lifco AB (publ),157.34B,346.40,Unknown,OMX Stockholm
+LATO.B,Investment AB Latour (publ),156.44B,244.70,Unknown,OMX Stockholm
+TELIA,Telia Company AB (publ),140.73B,35.91,Unknown,OMX Stockholm
+LUG,Lundin Gold Inc.,129.79B,549.00,Unknown,OMX Stockholm
+LUND.B,L E Lundbergföretagen AB (publ),119.78B,483.00,Unknown,OMX Stockholm
+TEL2.B,Tele2 AB (publ),114.61B,165.30,Unknown,OMX Stockholm
+TEL2.A,Tele2 AB (publ),113.85B,164.00,Unknown,OMX Stockholm
+SKF.B,AB SKF (publ),109.47B,240.30,Unknown,OMX Stockholm
+SKF.A,AB SKF (publ),108.64B,240.00,Unknown,OMX Stockholm
+SKA.B,Skanska AB (publ),99.23B,238.90,Unknown,OMX Stockholm
+SOBI,Swedish Orphan Biovitrum AB (publ),97.94B,286.00,Unknown,OMX Stockholm
+ADDT.B,Addtech AB (publ.),93.27B,340.00,Unknown,OMX Stockholm
+SCA.A,Svenska Cellulosa Aktiebolaget SCA (publ),90.31B,129.60,Unknown,OMX Stockholm
+SCA.B,Svenska Cellulosa Aktiebolaget SCA (publ),90.31B,129.65,Unknown,OMX Stockholm
+BOL,Boliden AB (publ),90.28B,317.80,Unknown,OMX Stockholm
+STE.A,Stora Enso Oyj,89.00B,111.00,Unknown,OMX Stockholm
+STE.R,Stora Enso Oyj,89.00B,111.70,Unknown,OMX Stockholm
+LUMI,Lundin Mining Corporation,88.81B,104.70,Unknown,OMX Stockholm
+NIBE.B,NIBE Industrier AB (publ),88.36B,43.83,Unknown,OMX Stockholm
+ALIV.SDB,"Autoliv, Inc.",88.26B,"1,148.00",Unknown,OMX Stockholm
+SECU.B,Securitas AB (publ),87.74B,152.25,Unknown,OMX Stockholm
+BEIJ.B,Beijer Ref AB (publ),87.14B,168.25,Unknown,OMX Stockholm
+INDT,Indutrade AB (publ),85.54B,231.60,Unknown,OMX Stockholm
+BALD.B,Fastighets AB Balder (publ),81.40B,68.00,Unknown,OMX Stockholm
+TREL.B,Trelleborg AB (publ),79.76B,350.70,Unknown,OMX Stockholm
+SAGA.A,AB Sagax (publ),75.84B,210.00,Unknown,OMX Stockholm
+SAGA.B,AB Sagax (publ),75.84B,209.20,Unknown,OMX Stockholm
+SAGA.D,AB Sagax (publ),75.84B,34.05,Unknown,OMX Stockholm
+AAK,AAK AB (publ.),70.65B,272.20,Unknown,OMX Stockholm
+SAVE,Nordnet AB (publ),69.70B,278.80,Unknown,OMX Stockholm
+SECT.B,Sectra AB (publ),68.25B,354.20,Unknown,OMX Stockholm
+AXFO,Axfood AB (publ),66.98B,311.00,Unknown,OMX Stockholm
+SWEC.B,Sweco AB (publ),59.73B,163.70,Unknown,OMX Stockholm
+SWEC.A,Sweco AB (publ),59.10B,164.00,Unknown,OMX Stockholm
+VOLCAR.B,Volvo Car AB (publ.),58.89B,19.94,Unknown,OMX Stockholm
+HOLM.A,Holmen AB (publ),57.55B,369.00,Unknown,OMX Stockholm
+HOLM.B,Holmen AB (publ),57.55B,372.80,Unknown,OMX Stockholm
+GETI.B,Getinge AB (publ),56.43B,205.00,Unknown,OMX Stockholm
+SSAB.A,SSAB AB (publ),56.13B,55.90,Unknown,OMX Stockholm
+SSAB.B,SSAB AB (publ),56.13B,56.60,Unknown,OMX Stockholm
+AZA,Avanza Bank Holding AB (publ),55.52B,351.80,Unknown,OMX Stockholm
+CAST,Castellum AB (publ),55.29B,111.45,Unknown,OMX Stockholm
+LAGR.B,Lagercrantz Group AB (publ),47.20B,227.60,Unknown,OMX Stockholm
+MYCR,Mycronic AB (publ),41.78B,213.25,Unknown,OMX Stockholm
+CAMX,Camurus AB (publ),41.09B,691.50,Unknown,OMX Stockholm
+MCOV.B,Medicover AB (publ),40.92B,271.00,Unknown,OMX Stockholm
+FROO,Frontline plc,40.62B,191.00,Unknown,OMX Stockholm
+ASKER,Asker Healthcare Group AB,37.36B,100.58,Unknown,OMX Stockholm
+ROKO.B,Röko AB (publ),33.81B,"2,312.00",Unknown,OMX Stockholm
+PNDX.B,Pandox AB (publ),33.67B,172.80,Unknown,OMX Stockholm
+HUSQ.A,Husqvarna AB (publ),32.73B,56.90,Unknown,OMX Stockholm
+HUSQ.B,Husqvarna AB (publ),32.36B,56.68,Unknown,OMX Stockholm
+THULE,Thule Group AB (publ),30.41B,282.00,Unknown,OMX Stockholm
+WIHL,Wihlborgs Fastigheter AB (publ),29.42B,95.50,Unknown,OMX Stockholm
+HPOL.B,HEXPOL AB (publ),29.00B,84.20,Unknown,OMX Stockholm
+WALL.B,Wallenstam AB (publ),28.89B,44.72,Unknown,OMX Stockholm
+LOOMIS,Loomis AB (publ),28.77B,421.80,Unknown,OMX Stockholm
+CATE,Catena AB (publ),27.36B,453.20,Unknown,OMX Stockholm
+ASMDEE.B,Asmodee Group AB (publ),27.33B,116.50,Unknown,OMX Stockholm
+FABG,Fabege AB (publ),26.80B,84.65,Unknown,OMX Stockholm
+HEM,Hemnet Group AB (publ),25.24B,264.80,Unknown,OMX Stockholm
+SINCH,Sinch AB (publ),25.03B,29.57,Unknown,OMX Stockholm
+HUFV.A,Hufvudstaden AB (publ),24.54B,125.10,Unknown,OMX Stockholm
+KINV.B,Kinnevik AB,24.49B,85.64,Unknown,OMX Stockholm
+KINV.A,Kinnevik AB,24.37B,94.00,Unknown,OMX Stockholm
+MTRS,Munters Group AB (publ),24.35B,131.90,Unknown,OMX Stockholm
+HMS,HMS Networks AB (publ),22.34B,440.80,Unknown,OMX Stockholm
+CLAS.B,Clas Ohlson AB (publ),22.21B,350.00,Unknown,OMX Stockholm
+BETS.B,Betsson AB (publ),22.14B,160.60,Unknown,OMX Stockholm
+BILL,Billerud AB (publ),21.89B,88.40,Unknown,OMX Stockholm
+PEAB.B,Peab AB (publ),21.79B,75.80,Unknown,OMX Stockholm
+BIOA.B,BioArctic AB (publ),21.14B,238.80,Unknown,OMX Stockholm
+BURE,Bure Equity AB (publ),21.07B,283.60,Unknown,OMX Stockholm
+ALIF.B,AddLife AB (publ),20.92B,172.60,Unknown,OMX Stockholm
+TIETOS,TietoEVRY Oyj,20.33B,172.00,Unknown,OMX Stockholm
+ATRLJ.B,Atrium Ljungberg AB (publ),20.18B,31.76,Unknown,OMX Stockholm
+SYSR,Systemair AB (publ),20.13B,96.80,Unknown,OMX Stockholm
+HAUTOO,Höegh Autoliners ASA,19.46B,108.90,Unknown,OMX Stockholm
+NCC.A,NCC AB (publ),19.41B,201.00,Unknown,OMX Stockholm
+IPCO,International Petroleum Corporation,19.24B,176.70,Unknown,OMX Stockholm
+NCC.B,NCC AB (publ),19.23B,196.30,Unknown,OMX Stockholm
+BRAV,Bravida Holding AB (publ),19.22B,93.80,Unknown,OMX Stockholm
+OEM.B,OEM International AB (publ),19.19B,135.20,Unknown,OMX Stockholm
+ARION.SDB,Arion banki hf.,19.13B,13.90,Unknown,OMX Stockholm
+BONEX,Bonesupport Holding AB (publ),19.01B,287.40,Unknown,OMX Stockholm
+EMBRAC.B,Embracer Group AB (publ),18.75B,82.79,Unknown,OMX Stockholm
+SHOT,Scandic Hotels Group AB (publ),18.75B,87.15,Unknown,OMX Stockholm
+INTEA.B,Intea Fastigheter AB (publ),18.68B,76.75,Unknown,OMX Stockholm
+VITR,Vitrolife AB (publ),18.67B,135.90,Unknown,OMX Stockholm
+EKTA.B,Elekta AB (publ),18.66B,49.36,Unknown,OMX Stockholm
+PDX,Paradox Interactive AB (publ),18.63B,176.40,Unknown,OMX Stockholm
+INTEA.D,Intea Fastigheter AB (publ),18.48B,37.80,Unknown,OMX Stockholm
+BUFAB,Bufab AB (publ),18.45B,97.07,Unknown,OMX Stockholm
+EPRO.B,Electrolux Professional AB (publ),18.39B,63.40,Unknown,OMX Stockholm
+DOM,Dometic Group AB (publ),17.83B,55.65,Unknown,OMX Stockholm
+AQ,AQ Group AB (publ),17.75B,192.80,Unknown,OMX Stockholm
+NYF,Nyfosa AB (publ),17.61B,84.30,Unknown,OMX Stockholm
+ALLEI,Alleima AB (publ),17.46B,70.05,Unknown,OMX Stockholm
+STOR.B,Storskogen Group AB (publ),17.28B,10.25,Unknown,OMX Stockholm
+AFRY,Afry AB,17.04B,150.00,Unknown,OMX Stockholm
+ALIG,Alimak Group AB (publ),16.93B,160.80,Unknown,OMX Stockholm
+VIMIAN,Vimian Group AB (publ),16.80B,32.20,Unknown,OMX Stockholm
+ELUX.A,AB Electrolux (publ),16.26B,80.00,Unknown,OMX Stockholm
+ELUX.B,AB Electrolux (publ),16.26B,58.86,Unknown,OMX Stockholm
+LIAB,Lindab International AB (publ),16.21B,210.40,Unknown,OMX Stockholm
+NP3,NP3 Fastigheter AB (publ),15.95B,258.00,Unknown,OMX Stockholm
+TRUE.B,Truecaller AB (publ),15.85B,46.86,Unknown,OMX Stockholm
+BEIA.B,Beijer Alma AB (publ),15.61B,256.00,Unknown,OMX Stockholm
+NOLA.B,Nolato AB (publ),15.35B,57.00,Unknown,OMX Stockholm
+GOGLO,Golden Ocean Group Limited,15.24B,83.30,Unknown,OMX Stockholm
+VIT.B,Vitec Software Group AB (publ),14.98B,381.60,Unknown,OMX Stockholm
+GRNG,Gränges AB (publ),14.64B,136.90,Unknown,OMX Stockholm
+ANOD.B,Addnode Group AB (publ),14.45B,108.20,Unknown,OMX Stockholm
+NEWA.B,New Wave Group AB (publ),14.17B,107.80,Unknown,OMX Stockholm
+CIBUS,Cibus Nordic Real Estate AB (publ),14.15B,171.45,Unknown,OMX Stockholm
+NORION,Norion Bank AB (publ),14.01B,69.50,Unknown,OMX Stockholm
+IVSO,Invisio AB (publ),13.91B,301.50,Unknown,OMX Stockholm
+DYVOX,Dynavox Group AB (publ),12.96B,121.30,Unknown,OMX Stockholm
+ENGCON.B,engcon AB (publ),12.58B,82.20,Unknown,OMX Stockholm
+KAR,Karnov Group AB (publ),12.38B,115.60,Unknown,OMX Stockholm
+SKIS.B,SkiStar AB (publ),12.13B,154.30,Unknown,OMX Stockholm
+RUSTA,Rusta AB (publ),11.88B,77.65,Unknown,OMX Stockholm
+RATO.A,Ratos AB (publ),11.87B,36.50,Unknown,OMX Stockholm
+RATO.B,Ratos AB (publ),11.87B,35.32,Unknown,OMX Stockholm
+CORE.A,Corem Property Group AB (publ),11.64B,5.22,Unknown,OMX Stockholm
+CORE.B,Corem Property Group AB (publ),11.64B,4.752,Unknown,OMX Stockholm
+MTG.A,Modern Times Group MTG AB,11.63B,100.00,Unknown,OMX Stockholm
+MTG.B,Modern Times Group MTG AB,11.63B,98.40,Unknown,OMX Stockholm
+YUBICO,Yubico AB,11.58B,137.35,Unknown,OMX Stockholm
+APOTEA,Apotea AB (publ),11.51B,110.56,Unknown,OMX Stockholm
+CORE.D,Corem Property Group AB (publ),11.49B,245.50,Unknown,OMX Stockholm
+AMBEA,Ambea AB (publ),11.18B,136.20,Unknown,OMX Stockholm
+BILI.A,Bilia AB (publ),10.99B,119.10,Unknown,OMX Stockholm
+INWI,Inwido AB (publ),10.82B,186.60,Unknown,OMX Stockholm
+CRED.A,Creades AB,10.64B,78.35,Unknown,OMX Stockholm
+MIPS,Mips AB (publ),10.61B,400.60,Unknown,OMX Stockholm
+TFBANK,TF Bank AB (publ),10.58B,163.60,Unknown,OMX Stockholm
+SLP.B,Swedish Logistic Property AB,10.21B,38.55,Unknown,OMX Stockholm
+ATT,Attendo AB (publ),10.13B,70.20,Unknown,OMX Stockholm
+FPAR.A,FastPartner AB (publ),9.91B,49.65,Unknown,OMX Stockholm
+MCAP,MedCap AB (publ),9.84B,641.00,Unknown,OMX Stockholm
+FPAR.D,FastPartner AB (publ),9.83B,75.60,Unknown,OMX Stockholm
+NCAB,NCAB Group AB (publ),9.68B,52.40,Unknown,OMX Stockholm
+SBB.B,Samhällsbyggnadsbolaget i Norden AB (publ),9.66B,5.19,Unknown,OMX Stockholm
+SBB.D,Samhällsbyggnadsbolaget i Norden AB (publ),9.66B,8.36,Unknown,OMX Stockholm
+BERG.B,Bergman & Beving AB (publ),9.64B,342.50,Unknown,OMX Stockholm
+BIOG.B,BioGaia AB (publ),9.64B,98.70,Unknown,OMX Stockholm
+ARJO.B,Arjo AB (publ),9.41B,34.54,Unknown,OMX Stockholm
+CLA.B,Cloetta AB (publ),9.35B,33.66,Unknown,OMX Stockholm
+JM,JM AB (publ),9.26B,141.70,Unknown,OMX Stockholm
+DIOS,Diös Fastigheter AB (publ),9.19B,64.80,Unknown,OMX Stockholm
+HOFI,Hoist Finance AB (publ),9.18B,105.00,Unknown,OMX Stockholm
+RAY.B,RaySearch Laboratories AB (publ),9.08B,264.50,Unknown,OMX Stockholm
+BWEO,BW Energy Limited,8.98B,36.90,Unknown,OMX Stockholm
+ACAD,AcadeMedia AB (publ),8.98B,92.00,Unknown,OMX Stockholm
+VOLO,Volati AB (publ),8.77B,111.60,Unknown,OMX Stockholm
+PLAZ.B,Platzer Fastigheter Holding AB (publ),8.45B,70.10,Unknown,OMX Stockholm
+LOGI.A,Logistea AB (publ),8.31B,16.35,Unknown,OMX Stockholm
+LOGI.B,Logistea AB (publ),8.31B,16.04,Unknown,OMX Stockholm
+TROAX,Troax Group AB (publ),8.29B,138.40,Unknown,OMX Stockholm
+MER,Meren Energy Inc.,8.03B,12.09,Unknown,OMX Stockholm
+SYNSAM,Synsam AB (publ),8.02B,55.70,Unknown,OMX Stockholm
+BETCO,Better Collective A/S,7.97B,137.50,Unknown,OMX Stockholm
+SVEAF,Sveafastigheter AB (publ),7.64B,38.18,Unknown,OMX Stockholm
+MMGR.B,Momentum Group AB (publ),7.49B,150.60,Unknown,OMX Stockholm
+ZZ.B,Zinzino AB (publ),7.36B,203.00,Unknown,OMX Stockholm
+SDIP.B,Sdiptech AB (publ),7.20B,189.40,Unknown,OMX Stockholm
+MILDEF,MilDef Group AB (publ),7.04B,149.40,Unknown,OMX Stockholm
+INTRUM,Intrum AB (publ),7.04B,52.46,Unknown,OMX Stockholm
+FAG,Fagerhult Group AB,7.03B,40.30,Unknown,OMX Stockholm
+VBG.B,VBG Group AB (publ),7.00B,280.20,Unknown,OMX Stockholm
+EMIL.B,Fastighetsbolaget Emilshus AB (publ),6.97B,47.75,Unknown,OMX Stockholm
+BAHN.B,Bahnhof AB (publ),6.92B,63.20,Unknown,OMX Stockholm
+CS,CoinShares International Limited,6.91B,105.40,Unknown,OMX Stockholm
+FOI.B,Fenix Outdoor International AG,6.87B,499.00,Unknown,OMX Stockholm
+INSTAL,Instalco AB (publ),6.79B,25.22,Unknown,OMX Stockholm
+GOTL.A,Rederiaktiebolaget Gotland (publ),6.68B,"2,640.00",Unknown,OMX Stockholm
+STORY.B,Storytel AB (publ),6.63B,87.10,Unknown,OMX Stockholm
+ENITY,Enity Holding AB (publ),6.58B,83.00,Unknown,OMX Stockholm
+GOTL.B,Rederiaktiebolaget Gotland (publ),6.57B,"2,600.00",Unknown,OMX Stockholm
+STEF.B,Stendörren Fastigheter AB (publ),6.52B,199.00,Unknown,OMX Stockholm
+SCST,Scandi Standard AB (publ),6.48B,99.10,Unknown,OMX Stockholm
+PLSVO,Paratus Energy Services Ltd.,6.28B,41.26,Unknown,OMX Stockholm
+SECARE,Swedencare AB (publ),6.18B,38.65,Unknown,OMX Stockholm
+NMAN,Nederman Holding AB (publ),6.01B,172.00,Unknown,OMX Stockholm
+BOOZT,Boozt AB (publ),5.97B,96.50,Unknown,OMX Stockholm
+SVOL.A,Svolder AB (publ),5.77B,79.00,Unknown,OMX Stockholm
+SVOL.B,Svolder AB (publ),5.77B,55.20,Unknown,OMX Stockholm
+RESURS,Resurs Holding AB (publ),5.70B,29.00,Unknown,OMX Stockholm
+XVIVO,Xvivo Perfusion AB (publ),5.62B,177.70,Unknown,OMX Stockholm
+VPLAY.B,Viaplay Group AB (publ),5.52B,1.215,Unknown,OMX Stockholm
+NOTE,NOTE AB (publ),5.38B,193.10,Unknown,OMX Stockholm
+ORES,Investment AB Öresund (publ),5.33B,119.00,Unknown,OMX Stockholm
+ALLIGO.B,Alligo AB (publ),5.32B,106.20,Unknown,OMX Stockholm
+HANZA,Hanza AB (publ),5.23B,114.00,Unknown,OMX Stockholm
+SUS,Surgical Science Sweden AB (publ),5.10B,100.60,Unknown,OMX Stockholm
+HEBA.B,Heba Fastighets AB (publ),5.10B,30.90,Unknown,OMX Stockholm
+RVRC,RVRC Holding AB (publ),5.08B,47.60,Unknown,OMX Stockholm
+VPLAY.A,Viaplay Group AB (publ),5.02B,2.080,Unknown,OMX Stockholm
+NYAB,Nyab AB (publ),4.93B,7.20,Unknown,OMX Stockholm
+MEKO,Meko AB (publ),4.87B,86.40,Unknown,OMX Stockholm
+BHG,BHG Group AB (publ),4.81B,27.36,Unknown,OMX Stockholm
+VER,Verve Group SE,4.73B,23.66,Unknown,OMX Stockholm
+HTRO,Hexatronic Group AB (publ),4.73B,22.94,Unknown,OMX Stockholm
+ENVIPO,Envipco Holding N.V.,4.64B,88.00,Unknown,OMX Stockholm
+JOMA,John Mattson Fastighetsföretagen AB (publ),4.64B,60.80,Unknown,OMX Stockholm
+COOR,Coor Service Management Holding AB,4.60B,48.46,Unknown,OMX Stockholm
+EAST,Eastnine AB (publ),4.59B,47.10,Unknown,OMX Stockholm
+LINC,Linc AB,4.57B,79.00,Unknown,OMX Stockholm
+ITAB,ITAB Shop Concept AB (publ),4.57B,17.90,Unknown,OMX Stockholm
+REJL.B,Rejlers AB (publ),4.50B,199.20,Unknown,OMX Stockholm
+INT,Intellego Technologies AB,4.49B,149.20,Unknown,OMX Stockholm
+MEDIO,Medistim ASA,4.48B,224.00,Unknown,OMX Stockholm
+LIME,Lime Technologies AB (publ),4.41B,331.00,Unknown,OMX Stockholm
+SNM,ShaMaran Petroleum Corp.,4.36B,1.602,Unknown,OMX Stockholm
+HAYPP,Haypp Group AB (publ),4.35B,147.80,Unknown,OMX Stockholm
+DUNI,Duni AB (publ),4.30B,91.50,Unknown,OMX Stockholm
+EPEN,Ependion AB,4.17B,131.40,Unknown,OMX Stockholm
+CEVI,CellaVision AB (publ),4.14B,173.60,Unknown,OMX Stockholm
+IDUN.B,Idun Industrier AB (publ),4.05B,350.00,Unknown,OMX Stockholm
+PRISMA,Prisma Properties AB (publ),4.04B,25.70,Unknown,OMX Stockholm
+OVZON,Ovzon AB (publ),4.02B,36.00,Unknown,OMX Stockholm
+SFAST,Stenhus Fastigheter i Norden AB (publ),3.99B,10.86,Unknown,OMX Stockholm
+BONAV.A,Bonava AB (publ),3.94B,12.20,Unknown,OMX Stockholm
+BONAV.B,Bonava AB (publ),3.94B,11.96,Unknown,OMX Stockholm
+KFAST.B,K-Fast Holding AB (publ),3.92B,15.94,Unknown,OMX Stockholm
+NIVI.B,Nivika Fastigheter AB (publ),3.92B,41.40,Unknown,OMX Stockholm
+KCCO,Klaveness Combination Carriers ASA,3.88B,69.90,Unknown,OMX Stockholm
+KAMBI,Kambi Group plc,3.85B,136.50,Unknown,OMX Stockholm
+BRIN.B,Brinova Fastigheter AB (publ),3.79B,16.40,Unknown,OMX Stockholm
+TRAC.B,AB Traction,3.79B,257.00,Unknown,OMX Stockholm
+XANO.B,XANO Industri AB (publ),3.77B,62.50,Unknown,OMX Stockholm
+BMAX,Byggmax Group AB (publ),3.54B,60.80,Unknown,OMX Stockholm
+BTS.B,BTS Group AB (publ),3.53B,181.40,Unknown,OMX Stockholm
+VESTUM,Vestum AB (publ),3.50B,9.36,Unknown,OMX Stockholm
+KARNEL.B,Karnell Group AB (publ),3.47B,66.30,Unknown,OMX Stockholm
+TRIAN.B,Fastighets AB Trianon (publ),3.47B,18.76,Unknown,OMX Stockholm
+VIVA,Viva Wine Group AB,3.46B,39.00,Unknown,OMX Stockholm
+HUMBLE,Humble Group AB (publ),3.42B,7.79,Unknown,OMX Stockholm
+ACAST,Acast AB (publ),3.33B,18.14,Unknown,OMX Stockholm
+NOBI,Nobia AB (publ),3.31B,4.900,Unknown,OMX Stockholm
+GREEN,Green Landscaping Group AB (publ),3.30B,58.30,Unknown,OMX Stockholm
+NPAPER,Nordic Paper Holding AB (publ),3.19B,47.72,Unknown,OMX Stockholm
+FLERIE,Flerie AB (publ),3.15B,42.35,Unknown,OMX Stockholm
+VNV,VNV Global AB (publ),3.13B,23.82,Unknown,OMX Stockholm
+BRE2,Bredband2 i Skandinavien AB (publ),3.12B,3.260,Unknown,OMX Stockholm
+KNOW,Knowit AB (publ),3.12B,114.00,Unknown,OMX Stockholm
+CTT,CTT Systems AB (publ),2.98B,237.50,Unknown,OMX Stockholm
+SVED.B,Svedbergs Group AB (publ),2.88B,54.00,Unknown,OMX Stockholm
+KBC,KB Components AB (publ),2.74B,49.00,Unknown,OMX Stockholm
+HNSA,Hansa Biopharma AB (publ),2.74B,32.30,Unknown,OMX Stockholm
+ABSO,Absolent Air Care Group AB (publ),2.71B,238.00,Unknown,OMX Stockholm
+CRNO.B,Cereno Scientific AB (publ),2.63B,9.29,Unknown,OMX Stockholm
+CAT.A,Catella AB (publ),2.62B,29.60,Unknown,OMX Stockholm
+CAT.B,Catella AB (publ),2.62B,30.80,Unknown,OMX Stockholm
+SF,Stillfront Group AB (publ),2.61B,5.09,Unknown,OMX Stockholm
+PACT,Proact IT Group AB (publ),2.50B,94.00,Unknown,OMX Stockholm
+VICO,Vicore Pharma Holding AB (publ),2.48B,10.74,Unknown,OMX Stockholm
+KLARA.B,KlaraBo Sverige AB (publ),2.47B,16.08,Unknown,OMX Stockholm
+CINT,Cint Group AB (publ),2.47B,6.95,Unknown,OMX Stockholm
+TEQ,Teqnion AB (publ),2.45B,142.80,Unknown,OMX Stockholm
+NREST,Nordrest Holding AB (publ),2.44B,186.20,Unknown,OMX Stockholm
+NEOBO,Neobo Fastigheter AB (publ),2.44B,16.65,Unknown,OMX Stockholm
+SEYE,Smart Eye AB (publ),2.43B,65.00,Unknown,OMX Stockholm
+EQL,EQL Pharma AB (publ),2.43B,83.50,Unknown,OMX Stockholm
+BINV,BioInvent International AB (publ),2.42B,36.85,Unknown,OMX Stockholm
+DVYSR,Devyser Diagnostics AB (publ),2.41B,147.80,Unknown,OMX Stockholm
+FMM.B,FM Mattsson AB (publ),2.41B,57.00,Unknown,OMX Stockholm
+BESQAB,Besqab AB (publ),2.34B,22.60,Unknown,OMX Stockholm
+DUST,Dustin Group AB (publ),2.33B,1.715,Unknown,OMX Stockholm
+NELLY,Nelly Group AB (publ),2.33B,76.30,Unknown,OMX Stockholm
+IAR.B,IAR Systems Group AB (publ),2.27B,178.00,Unknown,OMX Stockholm
+KABE.B,KABE Group AB (publ.),2.25B,248.50,Unknown,OMX Stockholm
+LYKO.A,Lyko Group AB (publ),2.16B,141.40,Unknown,OMX Stockholm
+AGROUP,Arlandastad Group AB (publ),2.15B,34.90,Unknown,OMX Stockholm
+VEFAB,VEF AB (publ),2.14B,2.145,Unknown,OMX Stockholm
+FLAT.B,Flat Capital AB (publ),2.09B,22.25,Unknown,OMX Stockholm
+VERT.B,Vertiseit AB (publ),2.08B,69.60,Unknown,OMX Stockholm
+HUM,Humana AB (publ),2.04B,41.10,Unknown,OMX Stockholm
+CARA,Carasent AB (publ),2.01B,28.20,Unknown,OMX Stockholm
+STIL,Stille AB,2.00B,225.00,Unknown,OMX Stockholm
+ELAN.B,Elanders AB (publ),1.97B,55.00,Unknown,OMX Stockholm
+EXS,Exsitec Holding AB (publ),1.96B,142.00,Unknown,OMX Stockholm
+GOMX,GomSpace Group AB (publ),1.95B,11.56,Unknown,OMX Stockholm
+EGTX,Egetis Therapeutics AB (publ),1.92B,5.42,Unknown,OMX Stockholm
+DICOT,Dicot Pharma AB,1.91B,0.826,Unknown,OMX Stockholm
+GPG,Genova Property Group AB (publ),1.90B,41.60,Unknown,OMX Stockholm
+EWRK,Ework Group AB (publ),1.89B,109.60,Unknown,OMX Stockholm
+FG,Fasadgruppen Group AB (publ),1.87B,34.50,Unknown,OMX Stockholm
+BICO,BICO Group AB (publ),1.83B,25.94,Unknown,OMX Stockholm
+AJA.B,Byggmästare Anders J Ahlström Holding AB (publ),1.81B,257.00,Unknown,OMX Stockholm
+ARP,Arctic Paper S.A.,1.75B,25.25,Unknown,OMX Stockholm
+PAX,Paxman AB (publ),1.74B,73.40,Unknown,OMX Stockholm
+OSSD,OssDsign AB (publ),1.67B,14.50,Unknown,OMX Stockholm
+PCELL,PowerCell Sweden AB (publ),1.66B,28.74,Unknown,OMX Stockholm
+SANION,Saniona AB (publ),1.64B,11.54,Unknown,OMX Stockholm
+RUG,RugVista Group AB (publ),1.62B,78.00,Unknown,OMX Stockholm
+XSPRAY,Xspray Pharma AB (publ),1.62B,42.50,Unknown,OMX Stockholm
+SVIK,Studsvik AB (publ),1.61B,196.00,Unknown,OMX Stockholm
+ANNE.B,Annehem Fastigheter AB,1.60B,18.20,Unknown,OMX Stockholm
+VISC,Gruvaktiebolaget Viscaria,1.60B,14.80,Unknown,OMX Stockholm
+FPIP,Formpipe Software AB (publ),1.57B,29.00,Unknown,OMX Stockholm
+GENO,Genovis AB (publ.),1.56B,22.95,Unknown,OMX Stockholm
+DMYD.B,Diamyd Medical AB (publ),1.55B,11.56,Unknown,OMX Stockholm
+SEDANA,Sedana Medical AB (publ),1.55B,15.70,Unknown,OMX Stockholm
+G2M,Gentoo Media Inc.,1.55B,11.50,Unknown,OMX Stockholm
+VSSAB.B,Viking Supply Ships AB (publ),1.55B,116.00,Unknown,OMX Stockholm
+ELTEL,Eltel AB (publ),1.55B,9.40,Unknown,OMX Stockholm
+TRAIN.B,Train Alliance AB (publ),1.50B,19.05,Unknown,OMX Stockholm
+SALT.B,SaltX Technology Holding AB (publ),1.47B,8.10,Unknown,OMX Stockholm
+ENEA,Enea AB (publ),1.45B,75.90,Unknown,OMX Stockholm
+BORG,Björn Borg AB (publ),1.44B,56.80,Unknown,OMX Stockholm
+NETI.B,Net Insight AB (publ),1.44B,4.430,Unknown,OMX Stockholm
+BERNER.B,Berner Industrier AB,1.44B,76.80,Unknown,OMX Stockholm
+EOLU.B,Eolus Aktiebolag (publ),1.43B,57.40,Unknown,OMX Stockholm
+ARISE,Arise AB (publ),1.40B,34.55,Unknown,OMX Stockholm
+ITECH,I-Tech AB,1.39B,116.00,Unknown,OMX Stockholm
+FNOVA.B,Fortinova Fastigheter AB (Publ),1.36B,26.40,Unknown,OMX Stockholm
+NORSEO,Norse Atlantic ASA,1.35B,10.16,Unknown,OMX Stockholm
+CLAV,Clavister Holding AB (publ.),1.33B,4.295,Unknown,OMX Stockholm
+SFAB,Solid Försäkringsaktiebolag (publ),1.33B,74.30,Unknown,OMX Stockholm
+ORRON,Orrön Energy AB (publ),1.27B,4.340,Unknown,OMX Stockholm
+BOKUS,Bokusgruppen AB (publ),1.23B,75.60,Unknown,OMX Stockholm
+DE,Dala Energi AB (publ),1.23B,89.60,Unknown,OMX Stockholm
+BYGGP,ByggPartner Gruppen AB (publ),1.22B,27.00,Unknown,OMX Stockholm
+MSON.A,Midsona AB (publ),1.22B,11.60,Unknown,OMX Stockholm
+SOF.B,Softronic AB (publ),1.22B,23.10,Unknown,OMX Stockholm
+ALM,ALM Equity AB (publ),1.22B,70.00,Unknown,OMX Stockholm
+ARPL,Arla Plast AB,1.21B,58.20,Unknown,OMX Stockholm
+BULTEN,Bulten AB (publ),1.20B,56.80,Unknown,OMX Stockholm
+MSON.B,Midsona AB (publ),1.18B,8.08,Unknown,OMX Stockholm
+LEA,Lea Bank AB,1.16B,12.05,Unknown,OMX Stockholm
+FIRE,Firefly AB (publ),1.15B,192.00,Unknown,OMX Stockholm
+CRAD.B,C-Rad AB (publ),1.12B,33.25,Unknown,OMX Stockholm
+MSAB.B,Micro Systemation AB (publ),1.12B,59.40,Unknown,OMX Stockholm
+FRACTL,Fractal Gaming Group AB (publ),1.11B,38.20,Unknown,OMX Stockholm
+PROF.B,ProfilGruppen AB (publ),1.11B,151.00,Unknown,OMX Stockholm
+STUDBO,Studentbostäder i Norden AB (publ),1.11B,1.595,Unknown,OMX Stockholm
+SIVE,Sivers Semiconductors AB (publ),1.05B,3.510,Unknown,OMX Stockholm
+DMXSE.SDB,District Metals Corp.,1.05B,6.57,Unknown,OMX Stockholm
+SEZI,Senzime AB (publ),1.01B,6.43,Unknown,OMX Stockholm
+GARO,Garo Aktiebolag (publ),991.00M,19.82,Unknown,OMX Stockholm
+DORO,Doro AB (publ),987.48M,38.95,Unknown,OMX Stockholm
+GIG.SDB,GiG Software p.l.c.,985.31M,7.17,Unknown,OMX Stockholm
+EG7,Enad Global 7 AB (publ),983.50M,11.36,Unknown,OMX Stockholm
+BACTI.B,Bactiguard Holding AB (publ),967.21M,27.50,Unknown,OMX Stockholm
+W5,W5 Solutions AB (publ),962.57M,60.30,Unknown,OMX Stockholm
+MANG,Mangold Fondkommission AB,951.10M,"2,020.00",Unknown,OMX Stockholm
+NTEK.B,Novotek AB,947.64M,88.00,Unknown,OMX Stockholm
+SYNACT,SynAct Pharma AB,935.59M,17.94,Unknown,OMX Stockholm
+BIM,BIMobject AB,924.11M,6.12,Unknown,OMX Stockholm
+ADVE,Advenica AB (publ),919.31M,20.50,Unknown,OMX Stockholm
+NANOFS,Nanoform Finland Oyj,912.63M,10.33,Unknown,OMX Stockholm
+ONCO,Oncopeptides AB (publ),910.94M,4.035,Unknown,OMX Stockholm
+INTEG.B,Integrum AB (publ),903.51M,42.30,Unknown,OMX Stockholm
+MIDS,Midsummer AB (publ),900.75M,2.670,Unknown,OMX Stockholm
+CTEK,CTEK AB (publ),897.10M,12.80,Unknown,OMX Stockholm
+PREV.B,Prevas AB,896.81M,69.60,Unknown,OMX Stockholm
+ACRI.A,Acrinova AB (publ),879.10M,13.10,Unknown,OMX Stockholm
+ACRI.B,Acrinova AB (publ),879.10M,12.85,Unknown,OMX Stockholm
+EMBELL,Embellence Group AB (publ),868.58M,37.00,Unknown,OMX Stockholm
+DONE,Done.ai Group AB,856.73M,10.40,Unknown,OMX Stockholm
+ADDV.A,ADDvise Group AB (publ),854.81M,2.850,Unknown,OMX Stockholm
+ADDV.B,ADDvise Group AB (publ),854.81M,1.388,Unknown,OMX Stockholm
+SKOLON,Skolon AB (publ),854.72M,32.20,Unknown,OMX Stockholm
+INISS.B,Inission AB (publ),852.49M,38.00,Unknown,OMX Stockholm
+CAG,CAG Group AB (publ),845.78M,118.00,Unknown,OMX Stockholm
+ORT.B,Ortoma AB (publ),845.51M,23.20,Unknown,OMX Stockholm
+RROS,Rottneros AB (publ),841.05M,3.150,Unknown,OMX Stockholm
+SES,Scandinavian Enviro Systems AB (publ),829.50M,0.778,Unknown,OMX Stockholm
+CASE,Case Group AB (publ),804.61M,28.20,Unknown,OMX Stockholm
+TOBII,Tobii AB (publ),769.56M,3.406,Unknown,OMX Stockholm
+G5EN,G5 Entertainment AB (publ),767.79M,98.70,Unknown,OMX Stockholm
+SINT,SinterCast AB (publ),767.61M,105.00,Unknown,OMX Stockholm
+CINPHA,Cinclus Pharma Holding AB (publ),766.01M,15.60,Unknown,OMX Stockholm
+OPTER,Opter AB (publ),750.00M,124.00,Unknown,OMX Stockholm
+FNMC.SDB,First Nordic Metals Corp.,746.47M,2.890,Unknown,OMX Stockholm
+PRFO,Profoto Holding AB (publ),740.00M,18.20,Unknown,OMX Stockholm
+PRIC.B,Pricer AB (publ),739.36M,4.495,Unknown,OMX Stockholm
+KAPIAB,Kallebäck Property Invest AB (publ),733.65M,201.00,Unknown,OMX Stockholm
+QBEN,Qben Infra AB (publ),731.22M,9.16,Unknown,OMX Stockholm
+PIERCE,Pierce Group AB (publ),728.65M,9.70,Unknown,OMX Stockholm
+ORX,Orexo AB (publ),722.88M,21.20,Unknown,OMX Stockholm
+MINEST,Minesto AB (publ),721.72M,3.500,Unknown,OMX Stockholm
+FNM,Ferronordic AB (publ),716.45M,49.30,Unknown,OMX Stockholm
+NAXS,NAXS AB (publ),715.61M,64.60,Unknown,OMX Stockholm
+ACUVI,Acuvi AB,715.47M,19.76,Unknown,OMX Stockholm
+MAHA.A,Maha Capital AB (publ),713.07M,7.30,Unknown,OMX Stockholm
+ONEF,Oneflow AB (publ),709.80M,25.00,Unknown,OMX Stockholm
+CX,CombinedX AB (publ),706.07M,36.40,Unknown,OMX Stockholm
+IBT.B,Infant Bacterial Therapeutics AB (publ),704.56M,53.60,Unknown,OMX Stockholm
+CDON,CDON AB,703.14M,65.20,Unknown,OMX Stockholm
+SKMO,Skåne-möllan AB (publ),695.20M,63.20,Unknown,OMX Stockholm
+CHEF,Cheffelo AB (publ),686.18M,54.80,Unknown,OMX Stockholm
+AAC,AAC Clyde Space AB (publ),684.61M,112.20,Unknown,OMX Stockholm
+LUMEN,LumenRadio AB (publ),681.88M,54.20,Unknown,OMX Stockholm
+DOXA,Doxa AB (publ),678.76M,0.528,Unknown,OMX Stockholm
+GENI,Generic Sweden AB,677.29M,51.10,Unknown,OMX Stockholm
+K33,K33 AB (publ),675.91M,0.0547,Unknown,OMX Stockholm
+WTW.A,Wall to Wall Group AB,674.40M,49.70,Unknown,OMX Stockholm
+CANTA,Cantargia AB (publ),663.79M,2.670,Unknown,OMX Stockholm
+NORB.B,Nordisk Bergteknik AB (publ),652.51M,11.45,Unknown,OMX Stockholm
+KEBNI.B,KebNi AB (publ),652.13M,2.405,Unknown,OMX Stockholm
+LUC,Lucara Diamond Corp.,644.71M,1.490,Unknown,OMX Stockholm
+RAIL,Railcare Group AB (publ),640.50M,26.45,Unknown,OMX Stockholm
+QSYS,Qualisys Holding AB (publ),640.00M,63.90,Unknown,OMX Stockholm
+QLIRO,Qliro AB (publ),639.05M,22.80,Unknown,OMX Stockholm
+4C,4C Group AB (publ),637.28M,16.65,Unknown,OMX Stockholm
+DURC.B,Duroc AB (publ),635.70M,16.85,Unknown,OMX Stockholm
+ATIC,Actic Group AB (publ),628.06M,25.60,Unknown,OMX Stockholm
+AVT.B,AVTECH Sweden AB (publ),626.92M,11.30,Unknown,OMX Stockholm
+NIL.B,Nilörngruppen AB,625.97M,55.80,Unknown,OMX Stockholm
+BOAT,Nimbus Group AB (Publ),618.15M,14.50,Unknown,OMX Stockholm
+HAKI.A,HAKI Safety AB (publ),613.88M,24.80,Unknown,OMX Stockholm
+HAKI.B,HAKI Safety AB (publ),613.88M,21.90,Unknown,OMX Stockholm
+HILB.B,Hilbert Group AB (publ),613.09M,9.28,Unknown,OMX Stockholm
+CARE,Careium AB (Publ),613.02M,25.20,Unknown,OMX Stockholm
+UPSALE,Upsales Technology AB (publ),594.39M,34.70,Unknown,OMX Stockholm
+KJELL,Kjell Group AB (publ),590.70M,10.25,Unknown,OMX Stockholm
+BOTX,Botnia Gold AB (publ),581.47M,14.00,Unknown,OMX Stockholm
+SLEEP,Sleep Cycle AB (publ),579.94M,29.50,Unknown,OMX Stockholm
+GRANGX,Grangex AB,578.17M,41.25,Unknown,OMX Stockholm
+TRANS,Transtema Group AB,575.55M,13.20,Unknown,OMX Stockholm
+TITA.B,Titania Holding AB (publ),572.00M,7.82,Unknown,OMX Stockholm
+BMC,Brock Milton Capital AB (publ),566.82M,132.00,Unknown,OMX Stockholm
+ENZY,Enzymatica AB (publ),563.15M,2.350,Unknown,OMX Stockholm
+WBGR.B,Wästbygg Gruppen AB (publ),551.08M,10.65,Unknown,OMX Stockholm
+SGG,Sensys Gatso Group AB (publ),550.57M,47.75,Unknown,OMX Stockholm
+BALCO,Balco Group AB,550.22M,23.90,Unknown,OMX Stockholm
+AEC,Africa Energy Corp.,546.48M,1.234,Unknown,OMX Stockholm
+FLUO,FluoGuide A/S,546.17M,40.90,Unknown,OMX Stockholm
+CAPSLO,Capsol Technologies ASA,542.16M,8.90,Unknown,OMX Stockholm
+CEDER,Cedergrenska AB (publ),539.28M,38.40,Unknown,OMX Stockholm
+ACE,Ascelia Pharma AB (publ),531.40M,4.750,Unknown,OMX Stockholm
+GAPW.B,Gapwaves AB (publ),529.49M,17.00,Unknown,OMX Stockholm
+CNCJO.B,Concejo AB (publ),527.57M,45.10,Unknown,OMX Stockholm
+GREAT,Greater Than AB,516.88M,37.80,Unknown,OMX Stockholm
+TINGS.A,Tingsvalvet Fastighets AB (publ),515.48M,30.40,Unknown,OMX Stockholm
+TINGS.B,Tingsvalvet Fastighets AB (publ),515.48M,29.20,Unknown,OMX Stockholm
+K2A.B,K2A Knaust & Andersson Fastigheter AB (publ),510.04M,5.93,Unknown,OMX Stockholm
+B3,B3 Consulting Group AB (publ),498.41M,53.60,Unknown,OMX Stockholm
+ENVAR,Envar Holding AB (publ),493.75M,39.50,Unknown,OMX Stockholm
+MAVEN,Maven Wireless Sweden AB (Publ),488.96M,9.42,Unknown,OMX Stockholm
+NETEL,Netel Holding AB (publ),485.12M,10.00,Unknown,OMX Stockholm
+GUARD,Guard Therapeutics International AB (publ),471.92M,22.50,Unknown,OMX Stockholm
+ADTR,Adtraction Group AB,468.32M,30.50,Unknown,OMX Stockholm
+SIBEK,Sibek AB (publ),459.94M,45.30,Unknown,OMX Stockholm
+SOLNA,Solnaberg Property AB (publ),451.20M,121.00,Unknown,OMX Stockholm
+ALCA,Alcadon Group AB (publ),451.00M,18.50,Unknown,OMX Stockholm
+DEDI,Dedicare AB (publ),448.97M,47.15,Unknown,OMX Stockholm
+TRAD,TradeDoubler AB (publ),448.51M,7.40,Unknown,OMX Stockholm
+MAGLE,Magle Chemoswed Holding AB (publ),447.25M,23.00,Unknown,OMX Stockholm
+SNX,Premium Snacks Nordic AB (publ),446.13M,32.70,Unknown,OMX Stockholm
+XBRANE,Xbrane Biopharma AB (publ),438.51M,0.286,Unknown,OMX Stockholm
+FREEM,Freemelt Holding AB (publ),437.91M,2.300,Unknown,OMX Stockholm
+INFREA,Infrea AB,437.76M,14.60,Unknown,OMX Stockholm
+AGES.B,AGES Industri AB (publ),429.67M,57.00,Unknown,OMX Stockholm
+WPTG.B,White Pearl Technology Group AB,422.28M,16.45,Unknown,OMX Stockholm
+BEGR,BE Group AB (publ),413.52M,30.95,Unknown,OMX Stockholm
+SAFETY.B,mySafety Group AB,407.25M,18.90,Unknown,OMX Stockholm
+DSNO,Desenio Group AB (publ),402.52M,0.135,Unknown,OMX Stockholm
+UNIBAP,Unibap Space Solutions AB (publ),402.49M,6.46,Unknown,OMX Stockholm
+IMMU,Mendus AB (publ),385.43M,7.40,Unknown,OMX Stockholm
+ATIN,Athanase Innovation AB (publ),384.02M,19.90,Unknown,OMX Stockholm
+MAGI,MAG Interactive AB (publ),382.85M,15.30,Unknown,OMX Stockholm

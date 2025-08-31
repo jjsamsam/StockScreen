@@ -1,0 +1,57 @@
+Symbol,Name,Market,Country,Exchange
+AAPL,Apple Inc.,NASDAQ,US,NMS
+MSFT,Microsoft Corporation,NASDAQ,US,NMS
+AMZN,"Amazon.com, Inc.",NASDAQ,US,NMS
+GOOGL,Alphabet Inc.,NASDAQ,US,NMS
+GOOG,Alphabet Inc.,NASDAQ,US,NMS
+META,"Meta Platforms, Inc.",NASDAQ,US,NMS
+TSLA,"Tesla, Inc.",NASDAQ,US,NMS
+NVDA,NVIDIA Corporation,NASDAQ,US,NMS
+PYPL,"PayPal Holdings, Inc.",NASDAQ,US,NMS
+ADBE,Adobe Inc.,NASDAQ,US,NMS
+NFLX,"Netflix, Inc.",NASDAQ,US,NMS
+INTC,Intel Corporation,NASDAQ,US,NMS
+CSCO,"Cisco Systems, Inc.",NASDAQ,US,NMS
+CMCSA,Comcast Corporation,NASDAQ,US,NMS
+PEP,"PepsiCo, Inc.",NASDAQ,US,NMS
+COST,Costco Wholesale Corporation,NASDAQ,US,NMS
+TMUS,"T-Mobile US, Inc.",NASDAQ,US,NMS
+AVGO,Broadcom Inc.,NASDAQ,US,NMS
+TXN,Texas Instruments Incorporated,NASDAQ,US,NMS
+QCOM,QUALCOMM Incorporated,NASDAQ,US,NMS
+CHTR,"Charter Communications, Inc.",NASDAQ,US,NMS
+AMGN,Amgen Inc.,NASDAQ,US,NMS
+SBUX,Starbucks Corporation,NASDAQ,US,NMS
+INTU,Intuit Inc.,NASDAQ,US,NMS
+GILD,"Gilead Sciences, Inc.",NASDAQ,US,NMS
+MDLZ,"Mondelez International, Inc.",NASDAQ,US,NMS
+ISRG,"Intuitive Surgical, Inc.",NASDAQ,US,NMS
+BKNG,Booking Holdings Inc.,NASDAQ,US,NMS
+REGN,"Regeneron Pharmaceuticals, Inc.",NASDAQ,US,NMS
+ADP,"Automatic Data Processing, Inc.",NASDAQ,US,NMS
+VRTX,Vertex Pharmaceuticals Incorporated,NASDAQ,US,NMS
+CSX,CSX Corporation,NASDAQ,US,NMS
+BIIB,Biogen Inc.,NASDAQ,US,NMS
+ILMN,"Illumina, Inc.",NASDAQ,US,NMS
+MRVL,"Marvell Technology, Inc.",NASDAQ,US,NMS
+KHC,The Kraft Heinz Company,NASDAQ,US,NMS
+ADI,"Analog Devices, Inc.",NASDAQ,US,NMS
+LRCX,Lam Research Corporation,NASDAQ,US,NMS
+EXC,Exelon Corporation,NASDAQ,US,NMS
+XEL,Xcel Energy Inc.,NASDAQ,US,NMS
+ORLY,"O'Reilly Automotive, Inc.",NASDAQ,US,NMS
+KLAC,KLA Corporation,NASDAQ,US,NMS
+CTAS,Cintas Corporation,NASDAQ,US,NMS
+PAYX,"Paychex, Inc.",NASDAQ,US,NMS
+EA,Electronic Arts Inc.,NASDAQ,US,NMS
+CTSH,Cognizant Technology Solutions Corporation,NASDAQ,US,NMS
+FAST,Fastenal Company,NASDAQ,US,NMS
+VRSK,"Verisk Analytics, Inc.",NASDAQ,US,NMS
+CDNS,"Cadence Design Systems, Inc.",NASDAQ,US,NMS
+SWKS,"Skyworks Solutions, Inc.",NASDAQ,US,NMS
+SIRI,Sirius XM Holdings Inc.,NASDAQ,US,NMS
+BMRN,BioMarin Pharmaceutical Inc.,NASDAQ,US,NMS
+MCHP,Microchip Technology Incorporated,NASDAQ,US,NMS
+INCY,Incyte Corporation,NASDAQ,US,NMS
+ULTA,"Ulta Beauty, Inc.",NASDAQ,US,NMS
+TTWO,"Take-Two Interactive Software, Inc.",NASDAQ,US,NMS
