@@ -341,13 +341,13 @@ class TrendTimingAnalyzer:
         }
     
     def get_timing_grade(self, score):
-        """타이밍 점수를 등급으로 변환"""
+        """타이밍 점수를 등급으로 변환 - 별표 제거 버전"""
         if score >= 80:
-            return "★★★ 최적"
+            return "최적"
         elif score >= 60:
-            return "★★ 양호"
+            return "양호"
         elif score >= 40:
-            return "★ 보통"
+            return "보통"
         else:
             return "대기"
     

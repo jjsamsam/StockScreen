@@ -93,25 +93,25 @@ class StockChartWindow(QMainWindow):
         self.load_chart_data()
     
     def setup_ui(self):
-        """UI 설정 - 차트 영역 비율 증가"""
+        """UI 설정 - 정보 패널 높이 증가"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
         
         # 상단 컨트롤 패널 (높이 고정)
         control_panel = self.create_control_panel()
-        control_panel.setMaximumHeight(80)  # 컨트롤 패널 높이 제한
+        control_panel.setMaximumHeight(80)
         layout.addWidget(control_panel)
         
         # 차트 영역 (확장 가능)
-        self.figure = Figure(figsize=(16, 12))  # 차트 크기 증가
+        self.figure = Figure(figsize=(16, 12))
         self.canvas = FigureCanvas(self.figure)
-        layout.addWidget(self.canvas, stretch=1)  # stretch=1로 차트 영역 확장
+        layout.addWidget(self.canvas, stretch=3)  # 차트가 더 많은 공간 차지
         
-        # 하단 정보 패널 (높이 고정)
+        # 하단 정보 패널 (높이 증가 + 스크롤)
         info_panel = self.create_info_panel()
-        info_panel.setMaximumHeight(150)  # 정보 패널 높이 제한
-        layout.addWidget(info_panel)
+        info_panel.setMaximumHeight(200)  # 150 → 200으로 증가
+        layout.addWidget(info_panel, stretch=1)   # 정보 패널도 약간의 확장성
 
     def create_control_panel(self):
         """컨트롤 패널 생성 - 차트 레이아웃 옵션 추가"""
@@ -149,15 +149,54 @@ class StockChartWindow(QMainWindow):
         return group
 
     def create_info_panel(self):
-        """정보 패널 생성"""
+        """정보 패널 생성 - 스크롤 가능한 버전"""
         group = QGroupBox("📊 Technical Indicators Info")
         layout = QVBoxLayout()
         
-        self.info_label = QLabel("Loading chart data...")
-        self.info_label.setWordWrap(True)
-        layout.addWidget(self.info_label)
+        # 스크롤 영역 생성
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)  # 내용에 맞춰 크기 조정
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)    # 필요시 세로 스크롤바
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)  # 필요시 가로 스크롤바
         
+        # 스크롤 가능한 위젯 생성
+        scroll_widget = QWidget()
+        scroll_layout = QVBoxLayout(scroll_widget)
+        
+        # 정보 표시용 라벨
+        self.info_label = QLabel("Loading chart data...")
+        self.info_label.setWordWrap(True)           # 자동 줄바꿈
+        self.info_label.setAlignment(Qt.AlignTop)   # 상단 정렬
+        self.info_label.setTextInteractionFlags(Qt.TextSelectableByMouse)  # 마우스로 텍스트 선택 가능
+        
+        # 폰트 설정 (더 읽기 쉽게)
+        font = self.info_label.font()
+        font.setFamily("Consolas")  # 고정폭 폰트 (숫자 정렬이 깔끔)
+        font.setPointSize(10)       # 적당한 크기
+        self.info_label.setFont(font)
+        
+        # 배경색과 패딩 설정
+        self.info_label.setStyleSheet("""
+            QLabel {
+                background-color: #f8f9fa;
+                border: 1px solid #e9ecef;
+                border-radius: 4px;
+                padding: 10px;
+                color: #212529;
+            }
+        """)
+        
+        # 스크롤 위젯에 라벨 추가
+        scroll_layout.addWidget(self.info_label)
+        scroll_layout.addStretch()  # 남은 공간 채우기
+        
+        # 스크롤 영역에 위젯 설정
+        scroll_area.setWidget(scroll_widget)
+        
+        # 그룹박스에 스크롤 영역 추가
+        layout.addWidget(scroll_area)
         group.setLayout(layout)
+        
         return group
 
     def toggle_fullscreen(self):
@@ -198,64 +237,132 @@ class StockChartWindow(QMainWindow):
         return period_map.get(self.period_combo.currentText(), 180)
 
     def load_chart_data(self):
-        """차트 데이터 로드 및 그리기"""
+        """차트 데이터 로드 - 오류 처리 강화"""
         try:
             self.info_label.setText("Loading data...")
             QApplication.processEvents()
             
-            # 충분한 데이터 로드 (표시기간 + 120일)
+            # 충분한 데이터 로드
             total_days = self.get_period_days()
             display_days = self.get_display_days()
             
             end_date = datetime.now()
             start_date = end_date - timedelta(days=total_days)
             
-            stock = yf.Ticker(self.symbol)
-            data = stock.history(start=start_date, end=end_date)
+            # 🔧 여러 방법으로 데이터 시도
+            data = self.fetch_stock_data_with_retry(self.symbol, start_date, end_date)
             
-            if data.empty:
-                self.info_label.setText("❌ Unable to load data.")
+            if data is None or data.empty:
+                error_msg = f"❌ '{self.symbol}' 데이터를 불러올 수 없습니다.\n"
+                error_msg += "가능한 원인:\n"
+                error_msg += "• 상장폐지되었거나 거래가 중단된 종목\n"
+                error_msg += "• 잘못된 종목 코드\n"
+                error_msg += "• 일시적인 서버 문제"
+                self.info_label.setText(error_msg)
                 return
             
-            # 🔧 시간대 정보 처리 (datetime 비교 오류 해결)
+            # 시간대 정보 처리
             if data.index.tz is not None:
-                # 시간대 정보가 있으면 UTC로 변환 후 시간대 제거
                 data.index = data.index.tz_convert('UTC').tz_localize(None)
             
-            # 기술적 지표 계산 (전체 데이터로)
+            # 기술적 지표 계산
             data = self.technical_analyzer.calculate_all_indicators(data)
             
-            # 표시할 기간만 잘라내기 (시간대 통일)
+            # 표시할 기간 필터링
             display_start_date = end_date - timedelta(days=display_days)
-            
-            # 🔧 pandas Timestamp로 변환하여 비교 (시간대 없는 상태로)
             import pandas as pd
             display_start_timestamp = pd.Timestamp(display_start_date)
-            
-            # 인덱스 기준으로 필터링
             display_data = data[data.index >= display_start_timestamp]
             
-            # 빈 데이터 체크
             if display_data.empty:
-                # 전체 데이터의 마지막 N개 행 사용 (fallback)
                 display_rows = min(display_days, len(data))
                 display_data = data.tail(display_rows)
                 print(f"⚠️ 날짜 필터링 실패, 최근 {display_rows}개 데이터 사용")
             
-            # 120일선 데이터 검증
-            ma120_valid_count = display_data['MA120'].notna().sum()
-            if ma120_valid_count < len(display_data) * 0.8:  # 80% 미만이 유효하면 경고
-                warning_msg = f"⚠️ 120일선 데이터 부족 (유효 데이터: {ma120_valid_count}/{len(display_data)})"
-                print(warning_msg)
-            
             self.plot_chart(display_data)
             self.update_info_panel(display_data)
-            
+
         except Exception as e:
-            self.info_label.setText(f"❌ Error: {str(e)}")
-            print(f"Chart loading error: {e}")
-            import traceback
-            traceback.print_exc()  # 상세 오류 정보 출력
+            error_msg = f"❌ 차트 로딩 오류: {str(e)}\n"
+            error_msg += f"종목: {self.symbol}\n"
+            error_msg += "다른 종목을 시도해보세요."
+            self.info_label.setText(error_msg)
+            print(f"Chart loading error for {self.symbol}: {e}")
+
+    def fetch_stock_data_with_retry(self, symbol, start_date, end_date):
+        """여러 방법으로 주식 데이터 시도"""
+        
+        # 1차 시도: 원래 심볼 그대로
+        try:
+            print(f"📊 데이터 로딩 시도 1: {symbol}")
+            stock = yf.Ticker(symbol)
+            data = stock.history(start=start_date, end=end_date, timeout=10)
+            
+            if not data.empty:
+                print(f"✅ 성공: {symbol} - {len(data)}개 데이터")
+                return data
+        except Exception as e:
+            print(f"❌ 1차 시도 실패: {e}")
+        
+        # 2차 시도: 심볼 변형 (한국 주식의 경우)
+        if '.KQ' in symbol:
+            try:
+                alt_symbol = symbol.replace('.KQ', '.KS')
+                print(f"📊 데이터 로딩 시도 2: {alt_symbol} (.KQ → .KS)")
+                stock = yf.Ticker(alt_symbol)
+                data = stock.history(start=start_date, end=end_date, timeout=10)
+                
+                if not data.empty:
+                    print(f"✅ 성공: {alt_symbol} - {len(data)}개 데이터")
+                    return data
+            except Exception as e:
+                print(f"❌ 2차 시도 실패: {e}")
+        
+        elif '.KS' in symbol:
+            try:
+                alt_symbol = symbol.replace('.KS', '.KQ')
+                print(f"📊 데이터 로딩 시도 2: {alt_symbol} (.KS → .KQ)")
+                stock = yf.Ticker(alt_symbol)
+                data = stock.history(start=start_date, end=end_date, timeout=10)
+                
+                if not data.empty:
+                    print(f"✅ 성공: {alt_symbol} - {len(data)}개 데이터")
+                    return data
+            except Exception as e:
+                print(f"❌ 2차 시도 실패: {e}")
+        
+        # 3차 시도: 더 긴 기간으로 시도 (일부 종목은 최근 데이터가 없을 수 있음)
+        try:
+            extended_start = start_date - timedelta(days=365)
+            print(f"📊 데이터 로딩 시도 3: {symbol} (기간 확장)")
+            stock = yf.Ticker(symbol)
+            data = stock.history(start=extended_start, end=end_date, timeout=15)
+            
+            if not data.empty:
+                print(f"✅ 성공 (확장): {symbol} - {len(data)}개 데이터")
+                return data
+        except Exception as e:
+            print(f"❌ 3차 시도 실패: {e}")
+        
+        # 4차 시도: 기본 정보만 가져오기
+        try:
+            print(f"📊 데이터 로딩 시도 4: {symbol} (기본 정보)")
+            stock = yf.Ticker(symbol)
+            info = stock.info
+            
+            if info:
+                # 기본 정보가 있으면 짧은 기간으로 다시 시도
+                short_start = end_date - timedelta(days=30)
+                data = stock.history(start=short_start, end=end_date, timeout=10)
+                
+                if not data.empty:
+                    print(f"✅ 성공 (단기): {symbol} - {len(data)}개 데이터")
+                    return data
+        except Exception as e:
+            print(f"❌ 4차 시도 실패: {e}")
+        
+        print(f"❌ 모든 시도 실패: {symbol}")
+        return None
 
     def plot_chart(self, data):
         """차트 그리기 - 레이아웃별 최적화"""
@@ -524,8 +631,7 @@ class StockChartWindow(QMainWindow):
             plt.setp(axes[-1].xaxis.get_majorticklabels(), rotation=45)
 
     def update_info_panel(self, data):
-        """정보 패널 업데이트"""
-        # 안전 가드: 최소 2개 캔들 필요
+        """정보 패널 업데이트 - 더 상세한 정보"""
         if len(data) < 2:
             self.info_label.setText("데이터가 부족합니다(2개 이상의 봉 필요).")
             return
@@ -533,14 +639,14 @@ class StockChartWindow(QMainWindow):
         current = data.iloc[-1]
         prev = data.iloc[-2]
 
-        # 변화율
+        # 변화율 계산
         try:
             price_change = float(current['Close']) - float(prev['Close'])
             price_change_pct = (price_change / float(prev['Close'])) * 100 if prev['Close'] else 0.0
         except Exception:
             price_change, price_change_pct = 0.0, 0.0
 
-        # 볼린저 위치(분모 0 방지)
+        # 볼린저밴드 위치
         try:
             band_range = float(current['BB_Upper']) - float(current['BB_Lower'])
             bb_position = (float(current['Close']) - float(current['BB_Lower'])) / band_range if band_range != 0 else 0.5
@@ -548,13 +654,13 @@ class StockChartWindow(QMainWindow):
             bb_position = 0.5
 
         if bb_position > 0.8:
-            bb_signal = "🔴 상단 근접"
+            bb_signal = "🔴 상단 근접 (매도 관심)"
         elif bb_position < 0.2:
-            bb_signal = "🟢 하단 근접"
+            bb_signal = "🟢 하단 근접 (매수 관심)"
         else:
-            bb_signal = "중앙 영역"
+            bb_signal = "⚪ 중앙 영역 (관망)"
 
-        # MACD 신호
+        # MACD 신호 분석
         macd_now = float(current.get('MACD', 0.0))
         macd_sig_now = float(current.get('MACD_Signal', 0.0))
         macd_prev = float(prev.get('MACD', 0.0))
@@ -562,39 +668,55 @@ class StockChartWindow(QMainWindow):
 
         macd_cross_up = (macd_now > macd_sig_now) and (macd_prev <= macd_sig_prev)
         macd_cross_down = (macd_now < macd_sig_now) and (macd_prev >= macd_sig_prev)
+        
         if macd_cross_up:
-            macd_desc = "🟢 골든크로스(매수 신호)"
+            macd_desc = "🟢 골든크로스 발생 (강력한 매수 신호)"
         elif macd_cross_down:
-            macd_desc = "🔴 데드크로스(매도 신호)"
+            macd_desc = "🔴 데드크로스 발생 (강력한 매도 신호)"
+        elif macd_now > macd_sig_now:
+            macd_desc = "🟢 MACD > Signal (상승 모멘텀)"
         else:
-            macd_desc = "중립"
+            macd_desc = "🔴 MACD < Signal (하락 모멘텀)"
 
-        # RSI 신호
+        # RSI 상세 분석
         rsi_now = float(current.get('RSI', 50.0))
-        if rsi_now >= 70:
-            rsi_desc = "🔴 과매수"
-        elif rsi_now <= 30:
-            rsi_desc = "🟢 과매도"
-        elif rsi_now > 50:
-            rsi_desc = "🟢 강세 구간"
+        if rsi_now >= 80:
+            rsi_desc = "🔴 극도 과매수 (즉시 매도 고려)"
+        elif rsi_now >= 70:
+            rsi_desc = "🟠 과매수 (매도 준비)"
+        elif rsi_now >= 60:
+            rsi_desc = "🟡 강세 구간 (상승 지속 가능)"
+        elif rsi_now >= 40:
+            rsi_desc = "⚪ 중립 구간 (방향성 애매)"
+        elif rsi_now >= 30:
+            rsi_desc = "🟡 약세 구간 (하락 지속 가능)"
+        elif rsi_now >= 20:
+            rsi_desc = "🟢 과매도 (매수 준비)"
         else:
-            rsi_desc = "🔴 약세 구간"
+            rsi_desc = "🔵 극도 과매도 (적극 매수 고려)"
 
-        # 이동평균 배열
+        # 이동평균선 배열 상세 분석
         ma20 = float(current.get('MA20', float('nan')))
         ma60 = float(current.get('MA60', float('nan')))
         ma120 = float(current.get('MA120', float('nan')))
 
-        bullish_align = (ma20 > ma60 > ma120)
-        bearish_align = (ma20 < ma60 < ma120)
-        if bullish_align:
-            ma_desc = "🟢 정배열 (상승 추세)"
-        elif bearish_align:
-            ma_desc = "🔴 역배열 (하락 추세)"
+        if ma20 > ma60 > ma120:
+            ma_desc = "🟢 완전 정배열 (강한 상승 추세)"
+            trend_strength = "매우 강함"
+        elif ma20 > ma60:
+            ma_desc = "🟢 부분 정배열 (단기 상승 추세)"
+            trend_strength = "보통"
+        elif ma20 < ma60 < ma120:
+            ma_desc = "🔴 완전 역배열 (강한 하락 추세)"
+            trend_strength = "매우 약함"
+        elif ma20 < ma60:
+            ma_desc = "🔴 부분 역배열 (단기 하락 추세)"
+            trend_strength = "약함"
         else:
-            ma_desc = "혼재"
+            ma_desc = "🟡 혼재 (방향성 불분명)"
+            trend_strength = "중립"
 
-        # 거래량 및 20일 평균 대비 비율
+        # 거래량 분석
         vol_now = float(current.get('Volume', 0.0))
         if 'Volume_Ratio' in data.columns:
             vol_ratio = float(current.get('Volume_Ratio', 1.0))
@@ -602,40 +724,158 @@ class StockChartWindow(QMainWindow):
             vol_ma20 = float(data['Volume'].rolling(20, min_periods=1).mean().iloc[-1])
             vol_ratio = (vol_now / vol_ma20) if vol_ma20 else 1.0
 
-        # 종합 의견
+        if vol_ratio > 3.0:
+            vol_desc = "🔥 대량 거래 (주목 필요)"
+        elif vol_ratio > 2.0:
+            vol_desc = "📈 높은 거래량 (관심 증가)"
+        elif vol_ratio > 1.5:
+            vol_desc = "📊 보통 이상 거래량"
+        elif vol_ratio > 0.8:
+            vol_desc = "⚪ 보통 거래량"
+        else:
+            vol_desc = "📉 낮은 거래량 (관심 부족)"
+
+        # 종합 투자 의견
         bullish_points = 0
         bearish_points = 0
+        
+        # 점수 계산
         if macd_cross_up or (macd_now > macd_sig_now): bullish_points += 1
         if rsi_now < 30: bullish_points += 1
         if bb_position < 0.2: bullish_points += 1
-        if bullish_align: bullish_points += 1
+        if ma20 > ma60 > ma120: bullish_points += 2
+        elif ma20 > ma60: bullish_points += 1
+        if vol_ratio > 1.5: bullish_points += 1
 
         if macd_cross_down or (macd_now < macd_sig_now): bearish_points += 1
         if rsi_now > 70: bearish_points += 1
         if bb_position > 0.8: bearish_points += 1
-        if bearish_align: bearish_points += 1
+        if ma20 < ma60 < ma120: bearish_points += 2
+        elif ma20 < ma60: bearish_points += 1
 
-        if bullish_points >= 2 and bullish_points >= bearish_points + 1:
+        # 종합 의견
+        if bullish_points >= 4:
+            overall = "🟢 강력 매수 추천"
+        elif bullish_points >= 2 and bullish_points > bearish_points:
             overall = "🟢 매수 관심 구간"
-        elif bearish_points >= 2 and bearish_points >= bullish_points + 1:
+        elif bearish_points >= 4:
+            overall = "🔴 강력 매도 추천"
+        elif bearish_points >= 2 and bearish_points > bullish_points:
             overall = "🔴 매도 관심 구간"
         else:
-            overall = "⚪ 관망 구간"
+            overall = "⚪ 중립/관망 구간"
 
+        # 최종 정보 텍스트 구성 (더 상세하고 구조화)
         info_text = f"""
-📊 현재가: {current['Close']:.2f} | 전일대비: {price_change:+.2f} ({price_change_pct:+.2f}%)
+    📊 {self.symbol} ({self.name}) - 현재 상황
 
-📈 기술적 지표
-• RSI: {rsi_now:.1f} ({rsi_desc})
-• MACD: {macd_now:.3f} | Signal: {macd_sig_now:.3f} ({macd_desc})
-• 볼린저밴드: {bb_signal} (포지션: {bb_position:.1%})
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    💰 가격 정보
+    현재가: {current['Close']:.2f}
+    전일대비: {price_change:+.2f} ({price_change_pct:+.2f}%)
+    고가: {current['High']:.2f} | 저가: {current['Low']:.2f}
 
-📏 이동평균
-• 20일: {ma20:.2f} | 60일: {ma60:.2f} | 120일: {ma120:.2f}
-• 배열: {ma_desc}
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    📈 기술적 지표 분석
+    RSI: {rsi_now:.1f} → {rsi_desc}
+    
+    MACD: {macd_now:.4f} | Signal: {macd_sig_now:.4f}
+    → {macd_desc}
+    
+    볼린저밴드: {bb_signal}
+    → 현재 위치: {bb_position:.1%} (하단 0% ← → 100% 상단)
 
-📊 거래량: {vol_now:,.0f} (20일 평균 대비: {vol_ratio:.2f}배)
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    📏 이동평균선 분석
+    20일선: {ma20:.2f}
+    60일선: {ma60:.2f}
+    120일선: {ma120:.2f}
+    → {ma_desc}
+    → 추세 강도: {trend_strength}
 
-💡 종합 의견: {overall}
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    📊 거래량 분석
+    현재 거래량: {vol_now:,.0f}
+    20일 평균 대비: {vol_ratio:.2f}배
+    → {vol_desc}
+
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    💡 종합 투자 의견
+    매수 신호: {bullish_points}개
+    매도 신호: {bearish_points}개
+    
+    → {overall}
+
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    ⚠️  투자 주의사항
+    • 이 분석은 기술적 분석에 기반한 참고 자료입니다
+    • 실제 투자 시에는 다양한 요소를 종합적으로 고려하세요
+    • 리스크 관리를 위해 분산투자를 권장합니다
         """
+        
         self.info_label.setText(info_text.strip())
+
+    def create_info_panel_with_font_control(self):
+        """정보 패널 + 폰트 크기 조정 기능"""
+        group = QGroupBox("📊 Technical Indicators Info")
+        main_layout = QVBoxLayout()
+        
+        # 폰트 크기 조정 버튼들
+        font_control_layout = QHBoxLayout()
+        font_control_layout.addWidget(QLabel("폰트:"))
+        
+        smaller_btn = QPushButton("A-")
+        smaller_btn.setMaximumWidth(30)
+        smaller_btn.clicked.connect(self.decrease_font_size)
+        font_control_layout.addWidget(smaller_btn)
+        
+        larger_btn = QPushButton("A+")
+        larger_btn.setMaximumWidth(30)
+        larger_btn.clicked.connect(self.increase_font_size)
+        font_control_layout.addWidget(larger_btn)
+        
+        font_control_layout.addStretch()
+        main_layout.addLayout(font_control_layout)
+        
+        # 스크롤 영역 (위와 동일)
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        
+        scroll_widget = QWidget()
+        scroll_layout = QVBoxLayout(scroll_widget)
+        
+        self.info_label = QLabel("Loading chart data...")
+        self.info_label.setWordWrap(True)
+        self.info_label.setAlignment(Qt.AlignTop)
+        self.info_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        
+        # 초기 폰트 설정
+        self.current_font_size = 10
+        self.update_info_font()
+        
+        scroll_layout.addWidget(self.info_label)
+        scroll_layout.addStretch()
+        
+        scroll_area.setWidget(scroll_widget)
+        main_layout.addWidget(scroll_area)
+        
+        group.setLayout(main_layout)
+        return group
+
+    def increase_font_size(self):
+        """폰트 크기 증가"""
+        self.current_font_size = min(16, self.current_font_size + 1)
+        self.update_info_font()
+
+    def decrease_font_size(self):
+        """폰트 크기 감소"""
+        self.current_font_size = max(8, self.current_font_size - 1)
+        self.update_info_font()
+
+    def update_info_font(self):
+        """정보 라벨 폰트 업데이트"""
+        font = self.info_label.font()
+        font.setPointSize(self.current_font_size)
+        self.info_label.setFont(font)

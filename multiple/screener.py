@@ -21,6 +21,7 @@ from utils import SmartUpdateThread
 from utils import MasterCSVThread, MasterFilterThread
 
 from trend_analysis import TrendTimingAnalyzer
+from backtesting_system import BacktestingDialog
 
 class StockScreener(QMainWindow):
     def __init__(self):
@@ -110,6 +111,47 @@ class StockScreener(QMainWindow):
             else:
                 estimate = f"{int(seconds/60)}분"
             self.time_estimate_label.setText(f"예상 시간: 약 {estimate} ({count}개 보강)")
+
+    def open_backtesting_dialog(self):
+        """백테스팅 다이얼로그 열기"""
+        try:
+            dialog = BacktestingDialog(self)
+            dialog.exec_()
+        except Exception as e:
+            QMessageBox.critical(self, "오류", f"백테스팅 창을 열 수 없습니다: {str(e)}")
+
+    # 사용 예시:
+    """
+    백테스팅 기능 사용법:
+
+    1. "백테스팅 (전략 검증)" 버튼 클릭
+    2. 테스트 기간 선택 (3개월, 6개월, 1년 또는 사용자 정의)
+    3. 초기 자본 설정 (기본: 100,000원)
+    4. 테스트할 매수 조건 선택:
+    - 60일선이 120일선 돌파
+    - RSI 과매도 반등 (30 돌파)
+    - 볼린저밴드 하단 터치
+    - MACD 골든크로스
+    5. 테스트할 매도 조건 선택:
+    - 데드크로스 (MA60 < MA120)
+    - RSI 과매수 (>= 70)
+    - 볼린저밴드 상단
+    - 손절/익절 (-7% / +20%)
+    6. "백테스팅 실행" 버튼 클릭
+
+    결과로 다음 정보를 제공:
+    - 총 수익률 및 수익금
+    - 총 거래 횟수 및 승률
+    - 평균 보유기간
+    - 최고/최악 거래 내역
+    - 상세 거래 로그 엑셀 저장 옵션
+
+    실제 예시:
+    - 6개월 전부터 현재까지
+    - 60일선 돌파 + RSI 과매도 반등 조건으로 매수
+    - RSI 과매수 + 손절/익절 조건으로 매도
+    - 결과: 15건 거래, 승률 60%, 총 수익률 +12.5%
+    """
 
     def create_control_panel(self):
         group = QGroupBox("검색 조건 설정")
@@ -322,17 +364,31 @@ class StockScreener(QMainWindow):
         self.stop_btn.setStyleSheet("QPushButton { background-color: #f44336; color: white; font-weight: bold; padding: 12px; font-size: 14px; }")
         self.stop_btn.setVisible(False)  # 초기에는 숨김
         button_layout.addWidget(self.stop_btn)
-        
+    
+        # 백테스팅 버튼 추가! - 새로운 기능
+        self.backtest_btn = QPushButton("📈 백테스팅 (전략 검증)")
+        self.backtest_btn.clicked.connect(self.open_backtesting_dialog)
+        self.backtest_btn.setStyleSheet("QPushButton { background-color: #9C27B0; color: white; font-weight: bold; padding: 12px; font-size: 14px; }")
+        self.backtest_btn.setToolTip("과거 데이터로 매수/매도 전략의 효과를 검증합니다")
+        button_layout.addWidget(self.backtest_btn)
+
         # 엑셀 저장 버튼
         self.export_btn = QPushButton("📊 결과를 엑셀로 저장")
         self.export_btn.clicked.connect(self.export_results_to_excel)
         self.export_btn.setStyleSheet("QPushButton { background-color: #2196F3; color: white; font-weight: bold; padding: 12px; font-size: 14px; }")
         self.export_btn.setEnabled(False)  # 초기에는 비활성화
         button_layout.addWidget(self.export_btn)
-        
+
         layout.addLayout(button_layout, 5, 0, 1, 6)  # 행 5에 배치
-        
+
+        # QGridLayout의 행 확장 정책 설정
+        for i in range(layout.rowCount()):  # 모든 행에 대해
+            layout.setRowStretch(i, 0)      # 고정 크기로 설정
+
         group.setLayout(layout)
+
+        # 그룹박스 자체도 세로 확장 금지
+        group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         return group
     
     def create_status_panel(self):
@@ -352,6 +408,12 @@ class StockScreener(QMainWindow):
         layout.addStretch()
         
         group.setLayout(layout)
+
+        # 종목 현황 패널 크기 고정 - 핵심!
+        group.setMaximumHeight(60)  # 최대 높이 제한
+        group.setMinimumHeight(60)  # 최소 높이도 고정
+        group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
         return group
     
     def create_master_csv(self):
@@ -560,37 +622,89 @@ class StockScreener(QMainWindow):
         return splitter
 
     def get_timing_sort_score(self, timing_text):
-        """타이밍 텍스트를 정렬 가능한 숫자로 변환"""
-        if "★★★" in timing_text:
-            return 4  # 최적 (가장 높은 점수)
-        elif "★★" in timing_text:
-            return 3  # 양호
-        elif "★" in timing_text:
-            return 2  # 보통
-        elif "대기" in timing_text or "보유" in timing_text:
-            return 1  # 대기/보유
+        """타이밍 텍스트를 정렬 가능한 숫자로 변환 - 간단한 버전"""
+        
+        if not timing_text:
+            return 0
+        
+        # 문자열로 변환하고 정리
+        text = str(timing_text).strip()
+        
+        # 단순하고 명확한 매칭
+        if "최적" in text:
+            return 4  # 최고
+        elif "양호" in text:
+            return 3  # 두 번째
+        elif "보통" in text:
+            return 2  # 세 번째
+        elif "대기" in text or "보유" in text:
+            return 1  # 네 번째
         else:
             return 0  # 기타
 
     def on_buy_table_sort_changed(self, logical_index, order):
-        """매수 테이블 정렬 변경 시 처리"""
-        # 중요한 컬럼들은 자동으로 내림차순 정렬
-        important_columns = [8, 10, 11]  # 추천도, 추세강도, 매수타이밍
+        """매수 테이블 정렬 정보 표시 - 깔끔한 버전"""
+        column_names = {
+            0: "종목코드", 1: "종목명", 2: "섹터", 3: "현재가", 
+            4: "시장", 5: "매수신호", 6: "RSI", 7: "거래량비율", 
+            8: "추천도", 9: "추세방향", 10: "추세강도", 11: "매수타이밍"
+        }
         
-        if logical_index in important_columns:
-            # 내림차순이 아니면 내림차순으로 변경
-            if order != Qt.DescendingOrder:
-                self.buy_table.sortByColumn(logical_index, Qt.DescendingOrder)
+        column_name = column_names.get(logical_index, f"컬럼 {logical_index}")
+        direction_text = "오름차순 ↑" if order == Qt.AscendingOrder else "내림차순 ↓"
+        
+        # 각 컬럼별 정렬 의미 설명 - 타이밍 부분 수정
+        sort_meanings = {
+            0: {"asc": "A→Z 순", "desc": "Z→A 순"},
+            1: {"asc": "가나다 순", "desc": "하파타 순"},
+            2: {"asc": "섹터명 순", "desc": "섹터명 역순"},
+            3: {"asc": "저가 → 고가", "desc": "고가 → 저가"},
+            4: {"asc": "시장명 순", "desc": "시장명 역순"},
+            5: {"asc": "신호명 순", "desc": "신호명 역순"},
+            6: {"asc": "낮은 RSI → 높은 RSI", "desc": "높은 RSI → 낮은 RSI"},
+            7: {"asc": "적은 거래량 → 많은 거래량", "desc": "많은 거래량 → 적은 거래량"},
+            8: {"asc": "낮은 추천도 → 높은 추천도", "desc": "높은 추천도 → 낮은 추천도 👍"},
+            9: {"asc": "추세방향 순", "desc": "추세방향 역순"},
+            10: {"asc": "약한 추세 → 강한 추세", "desc": "강한 추세 → 약한 추세 👍"},
+            11: {"asc": "대기 → 최적", "desc": "최적 → 대기 👍"}  # 수정됨
+        }
+        
+        meaning_key = "desc" if order == Qt.DescendingOrder else "asc"
+        meaning = sort_meanings.get(logical_index, {}).get(meaning_key, "")
+        
+        self.statusbar.showMessage(f"📊 {column_name} {direction_text} - {meaning}")
 
     def on_sell_table_sort_changed(self, logical_index, order):
-        """매도 테이블 정렬 변경 시 처리"""
-        # 중요한 컬럼들은 자동으로 내림차순 정렬
-        important_columns = [8, 10, 11]  # 위험도, 추세강도, 매도타이밍
+        """매도 테이블 정렬 정보 표시 - 깔끔한 버전"""
+        column_names = {
+            0: "종목코드", 1: "종목명", 2: "섹터", 3: "현재가",
+            4: "시장", 5: "매도신호", 6: "수익률", 7: "보유기간", 
+            8: "위험도", 9: "추세방향", 10: "추세강도", 11: "매도타이밍"
+        }
         
-        if logical_index in important_columns:
-            # 내림차순이 아니면 내림차순으로 변경
-            if order != Qt.DescendingOrder:
-                self.sell_table.sortByColumn(logical_index, Qt.DescendingOrder)
+        column_name = column_names.get(logical_index, f"컬럼 {logical_index}")
+        direction_text = "오름차순 ↑" if order == Qt.AscendingOrder else "내림차순 ↓"
+        
+        # 각 컬럼별 정렬 의미 설명 - 타이밍 부분 수정
+        sort_meanings = {
+            0: {"asc": "A→Z 순", "desc": "Z→A 순"},
+            1: {"asc": "가나다 순", "desc": "하파타 순"},
+            2: {"asc": "섹터명 순", "desc": "섹터명 역순"},
+            3: {"asc": "저가 → 고가", "desc": "고가 → 저가"},
+            4: {"asc": "시장명 순", "desc": "시장명 역순"},
+            5: {"asc": "신호명 순", "desc": "신호명 역순"},
+            6: {"asc": "낮은 수익률 → 높은 수익률", "desc": "높은 수익률 → 낮은 수익률"},
+            7: {"asc": "짧은 보유 → 긴 보유", "desc": "긴 보유 → 짧은 보유"},
+            8: {"asc": "낮은 위험 → 높은 위험", "desc": "높은 위험 → 낮은 위험 ⚠️"},
+            9: {"asc": "추세방향 순", "desc": "추세방향 역순"},
+            10: {"asc": "약한 추세 → 강한 추세", "desc": "강한 추세 → 약한 추세"},
+            11: {"asc": "대기 → 최적", "desc": "최적 → 대기 ⚠️"}  # 수정됨
+        }
+        
+        meaning_key = "desc" if order == Qt.DescendingOrder else "asc"
+        meaning = sort_meanings.get(logical_index, {}).get(meaning_key, "")
+        
+        self.statusbar.showMessage(f"📊 {column_name} {direction_text} - {meaning}")
 
     def setup_stock_lists(self):
         """종목 리스트 초기 설정"""
@@ -1170,23 +1284,33 @@ class StockScreener(QMainWindow):
         """개별 종목 분석 - 기존 조건 + 추세 분석 통합 (체크박스 이름 수정)"""
         try:
             symbol = stock_info['ticker']
+            print(f"🔍 분석 중: {symbol}")
             
             # 데이터 다운로드 (6개월)
             end_date = datetime.now()
             start_date = end_date - timedelta(days=180)
+
+            # 🔧 안전한 데이터 가져오기
+            data = self.safe_get_stock_data(symbol, start_date, end_date)
             
-            stock = yf.Ticker(symbol)
-            data = stock.history(start=start_date, end=end_date)
-            
-            if len(data) < 120:  # 충분한 데이터가 없으면 스킵
+            if data is None:
+                print(f"⚠️ {symbol} - 데이터 없음 (스킵)")
                 return None
             
-            # 기술적 지표 계산 (기존 방식 사용)
+            if len(data) < 120:  # 충분한 데이터가 없으면 스킵
+                print(f"⚠️ {symbol} - 데이터 부족 ({len(data)}개, 최소 120개 필요)")
+                return None
+            
+            # 기술적 지표 계산
             data = self.technical_analyzer.calculate_all_indicators(data)
             
-            # ✨ 추세 및 타이밍 분석 추가
-            trend_analysis = self.trend_analyzer.analyze_trend_and_timing(data)
-            
+            # 추세 및 타이밍 분석
+            try:
+                trend_analysis = self.trend_analyzer.analyze_trend_and_timing(data)
+            except Exception as trend_error:
+                print(f"⚠️ {symbol} - 추세 분석 실패: {trend_error}")
+                trend_analysis = None
+           
             current = data.iloc[-1]
             prev = data.iloc[-2]
             
@@ -1398,8 +1522,117 @@ class StockScreener(QMainWindow):
             return None
             
         except Exception as e:
-            print(f"Error in analyze_stock for {stock_info['ticker']}: {e}")
+            print(f"❌ {stock_info['ticker']} 분석 오류: {e}")
             return None
+
+    def safe_get_stock_data(self, symbol, start_date, end_date):
+        """안전한 주식 데이터 가져오기"""
+        try:
+            stock = yf.Ticker(symbol)
+            
+            # 짧은 타임아웃으로 빠르게 시도
+            data = stock.history(start=start_date, end=end_date, timeout=5)
+            
+            if not data.empty:
+                return data
+            
+            print(f"⚠️ {symbol} - 빈 데이터")
+            return None
+            
+        except Exception as e:
+            error_msg = str(e).lower()
+            
+            if "delisted" in error_msg or "no timezone found" in error_msg:
+                print(f"⚠️ {symbol} - 상장폐지 또는 데이터 없음")
+            elif "timeout" in error_msg:
+                print(f"⚠️ {symbol} - 타임아웃")
+            else:
+                print(f"⚠️ {symbol} - 기타 오류: {e}")
+            
+            return None
+
+    def validate_stock_symbols(self, stock_list):
+        """종목 심볼들의 유효성 사전 체크"""
+        valid_stocks = []
+        invalid_stocks = []
+        
+        print("📋 종목 유효성 체크 중...")
+        
+        for stock_info in stock_list:
+            symbol = stock_info['ticker']
+            
+            try:
+                # 빠른 기본 정보 체크
+                stock = yf.Ticker(symbol)
+                info = stock.info
+                
+                # 기본 정보가 있고 유효한 심볼이면
+                if info and info.get('symbol'):
+                    valid_stocks.append(stock_info)
+                    print(f"✅ {symbol} - 유효")
+                else:
+                    invalid_stocks.append(stock_info)
+                    print(f"❌ {symbol} - 무효 (정보 없음)")
+                    
+            except Exception as e:
+                invalid_stocks.append(stock_info)
+                print(f"❌ {symbol} - 무효 ({str(e)[:50]})")
+        
+        print(f"📊 유효성 체크 완료: 유효 {len(valid_stocks)}개, 무효 {len(invalid_stocks)}개")
+        
+        if invalid_stocks:
+            print("❌ 무효한 종목들:")
+            for stock in invalid_stocks:
+                print(f"   - {stock['ticker']}: {stock.get('name', 'Unknown')}")
+        
+        return valid_stocks
+
+    # ========== 4. 사용법 ==========
+
+    def run_screening_with_validation(self):
+        """검증된 종목들로만 스크리닝 실행"""
+        try:
+            # 전체 종목 리스트 가져오기
+            all_stocks = self.get_selected_stocks()
+            
+            # 유효성 사전 체크 (선택사항)
+            if len(all_stocks) > 50:  # 많은 종목일 때만 사전 체크
+                valid_stocks = validate_stock_symbols(all_stocks[:10])  # 처음 10개만 테스트
+                if len(valid_stocks) < 5:
+                    QMessageBox.warning(self, "경고", "유효한 종목이 너무 적습니다. CSV 파일을 확인해주세요.")
+                    return
+            
+            # 스크리닝 실행
+            buy_candidates = []
+            sell_candidates = []
+            
+            for i, stock_info in enumerate(all_stocks):
+                try:
+                    self.statusbar.showMessage(f'스크리닝 중... ({i+1}/{len(all_stocks)}) {stock_info["ticker"]}')
+                    QApplication.processEvents()
+                    
+                    result = self.analyze_stock_with_error_handling(stock_info)
+                    if result:
+                        if result['action'] == 'BUY':
+                            buy_candidates.append(result)
+                        elif result['action'] == 'SELL':
+                            sell_candidates.append(result)
+                            
+                except Exception as e:
+                    print(f"스크리닝 오류: {stock_info['ticker']} - {e}")
+                    continue
+            
+            # 결과 업데이트
+            self.update_buy_table(buy_candidates)
+            self.update_sell_table(sell_candidates)
+            
+            self.statusbar.showMessage(f'스크리닝 완료 - 매수후보: {len(buy_candidates)}개, 매도후보: {len(sell_candidates)}개')
+            
+        except Exception as e:
+            QMessageBox.critical(self, "오류", f"스크리닝 중 오류가 발생했습니다: {str(e)}")
+        finally:
+            self.search_btn.setEnabled(True)
+
     # ==================== 보조 메서드들 ====================
 
     def check_enhanced_buy_condition(self, data, symbol):
@@ -1599,50 +1832,83 @@ class StockScreener(QMainWindow):
         return False
     
     def update_buy_table(self, candidates):
-        """매수 후보 테이블 업데이트 - 정렬 기능 포함"""
+        """매수 후보 테이블 업데이트 - 모든 컬럼 정렬 가능"""
         # 임시로 정렬 비활성화
         self.buy_table.setSortingEnabled(False)
         
         self.buy_table.setRowCount(len(candidates))
         
         for i, candidate in enumerate(candidates):
-            # 기존 컬럼들
-            self.buy_table.setItem(i, 0, QTableWidgetItem(candidate['symbol']))
-            self.buy_table.setItem(i, 1, QTableWidgetItem(candidate['name']))
-            self.buy_table.setItem(i, 2, QTableWidgetItem(candidate['sector']))
-            self.buy_table.setItem(i, 3, QTableWidgetItem(f"{candidate['price']:,.0f}"))
-            self.buy_table.setItem(i, 4, QTableWidgetItem(candidate['market']))
-            self.buy_table.setItem(i, 5, QTableWidgetItem(candidate['signals']))
-            self.buy_table.setItem(i, 6, QTableWidgetItem(f"{candidate['rsi']:.1f}"))
-            self.buy_table.setItem(i, 7, QTableWidgetItem(f"{candidate['volume_ratio']:.2f}"))
+            # 모든 컬럼을 정렬 가능하게 QTableWidgetItem 생성
+            items = []
             
-            # 추천도 - 정렬 가능하게 설정
+            # 0. 종목코드 (문자열 정렬)
+            symbol_item = QTableWidgetItem(candidate['symbol'])
+            items.append(symbol_item)
+            
+            # 1. 종목명 (문자열 정렬)
+            name_item = QTableWidgetItem(candidate['name'])
+            items.append(name_item)
+            
+            # 2. 섹터 (문자열 정렬)
+            sector_item = QTableWidgetItem(candidate['sector'])
+            items.append(sector_item)
+            
+            # 3. 현재가 (숫자 정렬)
+            price_item = QTableWidgetItem()
+            price_item.setData(Qt.DisplayRole, f"{candidate['price']:,.0f}")
+            price_item.setData(Qt.UserRole, candidate['price'])  # 숫자로 정렬
+            items.append(price_item)
+            
+            # 4. 시장 (문자열 정렬)
+            market_item = QTableWidgetItem(candidate['market'])
+            items.append(market_item)
+            
+            # 5. 매수신호 (문자열 정렬)
+            signals_item = QTableWidgetItem(candidate['signals'])
+            items.append(signals_item)
+            
+            # 6. RSI (숫자 정렬)
+            rsi_item = QTableWidgetItem()
+            rsi_item.setData(Qt.DisplayRole, f"{candidate['rsi']:.1f}")
+            rsi_item.setData(Qt.UserRole, candidate['rsi'])
+            items.append(rsi_item)
+            
+            # 7. 거래량비율 (숫자 정렬)
+            volume_item = QTableWidgetItem()
+            volume_item.setData(Qt.DisplayRole, f"{candidate['volume_ratio']:.2f}")
+            volume_item.setData(Qt.UserRole, candidate['volume_ratio'])
+            items.append(volume_item)
+            
+            # 8. 추천도 (숫자 정렬)
             recommendation_item = QTableWidgetItem()
             recommendation_item.setData(Qt.DisplayRole, f"{candidate['recommendation']:.0f}")
             recommendation_item.setData(Qt.UserRole, candidate['recommendation'])
-            self.buy_table.setItem(i, 8, recommendation_item)
+            items.append(recommendation_item)
             
-            # 새로 추가된 추세 분석 컬럼들
+            # 9. 추세방향 (문자열 정렬)
             trend_direction = candidate.get('trend_direction', '분석불가')
-            trend_score = candidate.get('trend_score', 0)
-            buy_timing = candidate.get('buy_timing', '대기')
-            
-            # 추세 방향
             trend_item = QTableWidgetItem(trend_direction)
-            self.buy_table.setItem(i, 9, trend_item)
+            items.append(trend_item)
             
-            # 추세강도 - 정렬 가능하게 설정
+            # 10. 추세강도 (숫자 정렬)
+            trend_score = candidate.get('trend_score', 0)
             trend_score_item = QTableWidgetItem()
             trend_score_item.setData(Qt.DisplayRole, f"{trend_score:.1f}점")
             trend_score_item.setData(Qt.UserRole, trend_score)
-            self.buy_table.setItem(i, 10, trend_score_item)
+            items.append(trend_score_item)
             
-            # 매수 타이밍 - 정렬 가능하게 설정
+            # 11. 매수타이밍 (숫자 정렬)
+            buy_timing = candidate.get('buy_timing', '대기')
             timing_item = QTableWidgetItem()
             timing_item.setData(Qt.DisplayRole, buy_timing)
             timing_score = self.get_timing_sort_score(buy_timing)
             timing_item.setData(Qt.UserRole, timing_score)
-            self.buy_table.setItem(i, 11, timing_item)
+            items.append(timing_item)
+            
+            # 테이블에 아이템들 설정
+            for col, item in enumerate(items):
+                self.buy_table.setItem(i, col, item)
             
             # 색상 설정
             if "상승추세" in trend_direction:
@@ -1664,57 +1930,74 @@ class StockScreener(QMainWindow):
         # 정렬 다시 활성화
         self.buy_table.setSortingEnabled(True)
         
-        # 기본적으로 추천도 기준 내림차순 정렬
-        self.buy_table.sortByColumn(8, Qt.DescendingOrder)
+        # ✨ 기본적으로 추천도 기준 오름차순 정렬 (첫 클릭이 오름차순)
+        self.buy_table.sortByColumn(8, Qt.AscendingOrder)
         
         # 테이블 컬럼 너비 자동 조정
         self.buy_table.resizeColumnsToContents()
 
     def update_sell_table(self, candidates):
-        """매도 후보 테이블 업데이트 - 정렬 기능 포함"""
+        """매도 후보 테이블 업데이트 - 모든 컬럼 정렬 가능"""
         # 임시로 정렬 비활성화
         self.sell_table.setSortingEnabled(False)
         
         self.sell_table.setRowCount(len(candidates))
         
         for i, candidate in enumerate(candidates):
-            # 기존 컬럼들
-            self.sell_table.setItem(i, 0, QTableWidgetItem(candidate['symbol']))
-            self.sell_table.setItem(i, 1, QTableWidgetItem(candidate['name']))
-            self.sell_table.setItem(i, 2, QTableWidgetItem(candidate['sector']))
-            self.sell_table.setItem(i, 3, QTableWidgetItem(f"{candidate['price']:,.0f}"))
-            self.sell_table.setItem(i, 4, QTableWidgetItem(candidate['market']))
-            self.sell_table.setItem(i, 5, QTableWidgetItem(candidate['signals']))
-            self.sell_table.setItem(i, 6, QTableWidgetItem(f"{candidate.get('profit', 0):.1f}%"))
-            self.sell_table.setItem(i, 7, QTableWidgetItem(candidate.get('holding_period', '미상')))
+            # 모든 컬럼을 정렬 가능하게 QTableWidgetItem 생성
+            items = []
             
-            # 위험도 - 정렬 가능하게 설정
+            # 0-5번: 기본 정보들 (매수 테이블과 동일)
+            symbol_item = QTableWidgetItem(candidate['symbol'])
+            name_item = QTableWidgetItem(candidate['name'])
+            sector_item = QTableWidgetItem(candidate['sector'])
+            
+            price_item = QTableWidgetItem()
+            price_item.setData(Qt.DisplayRole, f"{candidate['price']:,.0f}")
+            price_item.setData(Qt.UserRole, candidate['price'])
+            
+            market_item = QTableWidgetItem(candidate['market'])
+            signals_item = QTableWidgetItem(candidate['signals'])
+            
+            items.extend([symbol_item, name_item, sector_item, price_item, market_item, signals_item])
+            
+            # 6. 수익률 (숫자 정렬)
+            profit_item = QTableWidgetItem()
+            profit_value = candidate.get('profit', 0)
+            profit_item.setData(Qt.DisplayRole, f"{profit_value:.1f}%")
+            profit_item.setData(Qt.UserRole, profit_value)
+            items.append(profit_item)
+            
+            # 7. 보유기간 (문자열 정렬 - 실제로는 숫자로 변환 가능)
+            holding_period_item = QTableWidgetItem(candidate.get('holding_period', '미상'))
+            items.append(holding_period_item)
+            
+            # 8. 위험도 (숫자 정렬)
             risk_item = QTableWidgetItem()
             risk_item.setData(Qt.DisplayRole, f"{candidate['risk']:.0f}")
             risk_item.setData(Qt.UserRole, candidate['risk'])
-            self.sell_table.setItem(i, 8, risk_item)
+            items.append(risk_item)
             
-            # 새로 추가된 추세 분석 컬럼들
+            # 9-11번: 추세 정보 (매수 테이블과 동일)
             trend_direction = candidate.get('trend_direction', '분석불가')
-            trend_score = candidate.get('trend_score', 0)
-            sell_timing = candidate.get('sell_timing', '대기')
-            
-            # 추세 방향
             trend_item = QTableWidgetItem(trend_direction)
-            self.sell_table.setItem(i, 9, trend_item)
             
-            # 추세강도 - 정렬 가능하게 설정
+            trend_score = candidate.get('trend_score', 0)
             trend_score_item = QTableWidgetItem()
             trend_score_item.setData(Qt.DisplayRole, f"{trend_score:.1f}점")
             trend_score_item.setData(Qt.UserRole, trend_score)
-            self.sell_table.setItem(i, 10, trend_score_item)
             
-            # 매도 타이밍 - 정렬 가능하게 설정
+            sell_timing = candidate.get('sell_timing', '대기')
             timing_item = QTableWidgetItem()
             timing_item.setData(Qt.DisplayRole, sell_timing)
             timing_score = self.get_timing_sort_score(sell_timing)
             timing_item.setData(Qt.UserRole, timing_score)
-            self.sell_table.setItem(i, 11, timing_item)
+            
+            items.extend([trend_item, trend_score_item, timing_item])
+            
+            # 테이블에 아이템들 설정
+            for col, item in enumerate(items):
+                self.sell_table.setItem(i, col, item)
             
             # 색상 설정
             if "하락추세" in trend_direction:
@@ -1736,12 +2019,11 @@ class StockScreener(QMainWindow):
         # 정렬 다시 활성화
         self.sell_table.setSortingEnabled(True)
         
-        # 기본적으로 위험도 기준 내림차순 정렬
-        self.sell_table.sortByColumn(8, Qt.DescendingOrder)
+        # ✨ 기본적으로 위험도 기준 오름차순 정렬 (첫 클릭이 오름차순)
+        self.sell_table.sortByColumn(8, Qt.AscendingOrder)
         
         # 테이블 컬럼 너비 자동 조정
         self.sell_table.resizeColumnsToContents()
-
     
     # ✨ 추가 편의 기능: 버튼으로 빠른 정렬
     def add_quick_sort_buttons(self):

@@ -1337,10 +1337,31 @@ def fetch_sweden_list_from_stockanalysis() -> pd.DataFrame:
         
         df = pd.DataFrame(rows, columns=columns)
         
-        # 데이터 정리 및 변환
-        result_df = clean_and_format_data(df)
+        result_data = []
+        for _, row in df.iterrows():
+            if len(row) >= 2:
+                raw_ticker = str(row.iloc[1]).strip()
+                name = str(row.iloc[2]).strip() if len(row) >= 3 else raw_ticker
+                
+                if raw_ticker and raw_ticker != 'nan':
+                    # 🔧 티커 형식 수정
+                    ticker = fix_sweden_ticker_format(raw_ticker)
+                    
+                    result_data.append({
+                        'ticker': ticker,
+                        'name': name,
+                        'market_cap': 0,
+                        'price': 0,
+                        'sector': 'Unknown',
+                        'market': 'OMX Stockholm'
+                    })
         
-        return result_df
+        return pd.DataFrame(result_data)
+
+        # 데이터 정리 및 변환
+#        result_df = clean_and_format_data(df)
+        
+#        return result_df
         
     except Exception as e:
         print(f"StockAnalysis.com에서 데이터 수집 실패: {e}")
@@ -1469,26 +1490,26 @@ def get_hardcoded_swedish_stocks() -> pd.DataFrame:
     최종 백업: 주요 스웨덴 종목들 하드코딩
     """
     major_stocks = [
-        {'ticker': 'AZN', 'name': 'AstraZeneca PLC', 'sector': 'Healthcare'},
-        {'ticker': 'ABB', 'name': 'ABB Ltd', 'sector': 'Industrial'},
-        {'ticker': 'INVE.B', 'name': 'Investor AB', 'sector': 'Financial Services'},
-        {'ticker': 'ATCO.B', 'name': 'Atlas Copco AB', 'sector': 'Industrial'},
-        {'ticker': 'VOLV.B', 'name': 'AB Volvo', 'sector': 'Industrial'},
-        {'ticker': 'NDA.SE', 'name': 'Nordea Bank Abp', 'sector': 'Financial Services'},
-        {'ticker': 'ASSA.B', 'name': 'ASSA ABLOY AB', 'sector': 'Industrial'},
-        {'ticker': 'SEB.A', 'name': 'Skandinaviska Enskilda Banken AB', 'sector': 'Financial Services'},
-        {'ticker': 'SWED.A', 'name': 'Swedbank AB', 'sector': 'Financial Services'},
-        {'ticker': 'ERIC.B', 'name': 'Telefonaktiebolaget LM Ericsson', 'sector': 'Technology'},
-        {'ticker': 'SAND', 'name': 'Sandvik AB', 'sector': 'Industrial'},
-        {'ticker': 'HEXA.B', 'name': 'Hexagon AB', 'sector': 'Technology'},
-        {'ticker': 'SHB.A', 'name': 'Svenska Handelsbanken AB', 'sector': 'Financial Services'},
-        {'ticker': 'SAAB.B', 'name': 'Saab AB', 'sector': 'Defense'},
-        {'ticker': 'HM.B', 'name': 'H & M Hennes & Mauritz AB', 'sector': 'Consumer Discretionary'},
-        {'ticker': 'ESSITY.B', 'name': 'Essity AB', 'sector': 'Consumer Staples'},
-        {'ticker': 'ALFA', 'name': 'Alfa Laval AB', 'sector': 'Industrial'},
-        {'ticker': 'TELIA', 'name': 'Telia Company AB', 'sector': 'Telecommunications'},
-        {'ticker': 'EVO', 'name': 'Evolution AB', 'sector': 'Technology'},
-        {'ticker': 'TEL2.B', 'name': 'Tele2 AB', 'sector': 'Telecommunications'},
+        {'ticker': 'VOLV-B.ST', 'name': 'AB Volvo Class B', 'sector': 'Industrials'},
+        {'ticker': 'INVE-B.ST', 'name': 'Investor AB Class B', 'sector': 'Financial Services'},
+        {'ticker': 'ATCO-A.ST', 'name': 'Atlas Copco AB Class A', 'sector': 'Industrials'},
+        {'ticker': 'ASSA-B.ST', 'name': 'ASSA ABLOY AB Class B', 'sector': 'Industrials'},
+        {'ticker': 'SEB-A.ST', 'name': 'Skandinaviska Enskilda Banken AB Class A', 'sector': 'Financial Services'},
+        {'ticker': 'SWED-A.ST', 'name': 'Swedbank AB Class A', 'sector': 'Financial Services'},
+        {'ticker': 'ERIC-B.ST', 'name': 'Telefonaktiebolaget LM Ericsson Class B', 'sector': 'Technology'},
+        {'ticker': 'SAND.ST', 'name': 'Sandvik AB', 'sector': 'Industrials'},
+        {'ticker': 'HEXA-B.ST', 'name': 'Hexagon AB Class B', 'sector': 'Technology'},
+        {'ticker': 'SHB-A.ST', 'name': 'Svenska Handelsbanken AB Class A', 'sector': 'Financial Services'},
+        {'ticker': 'SAAB-B.ST', 'name': 'Saab AB Class B', 'sector': 'Industrials'},
+        {'ticker': 'HM-B.ST', 'name': 'H & M Hennes & Mauritz AB Class B', 'sector': 'Consumer Discretionary'},
+        {'ticker': 'ESSITY-B.ST', 'name': 'Essity AB Class B', 'sector': 'Consumer Staples'},
+        {'ticker': 'ALFA.ST', 'name': 'Alfa Laval AB', 'sector': 'Industrials'},
+        {'ticker': 'TELIA.ST', 'name': 'Telia Company AB', 'sector': 'Telecommunications'},
+        {'ticker': 'EVO.ST', 'name': 'Evolution AB', 'sector': 'Technology'},
+        {'ticker': 'TEL2-B.ST', 'name': 'Tele2 AB Class B', 'sector': 'Telecommunications'},
+        {'ticker': 'SKF-B.ST', 'name': 'SKF AB Class B', 'sector': 'Industrials'},
+        {'ticker': 'BOLID.ST', 'name': 'Boliden AB', 'sector': 'Materials'},
+        {'ticker': 'GETI-B.ST', 'name': 'Getinge AB Class B', 'sector': 'Healthcare'},
     ]
     
     for stock in major_stocks:
@@ -1582,6 +1603,39 @@ def fetch_sweden_list_from_nordic() -> pd.DataFrame:
             print(f"Nordic 방법도 실패: {nordic_error}")
             return get_hardcoded_swedish_stocks()
 
+def fix_sweden_ticker_format(raw_ticker):
+    """
+    스웨덴 티커를 yfinance용 올바른 형식으로 변환
+    """
+    if not raw_ticker or raw_ticker == 'nan':
+        return raw_ticker
+    
+    # 이미 .ST로 끝나면 그대로 반환
+    if raw_ticker.endswith('.ST'):
+        return raw_ticker
+    
+    # 다양한 형식 처리
+    ticker = raw_ticker.upper().strip()
+    
+    # 공통 변환 규칙들
+    conversions = {
+        # 점(.) → 하이픈(-)
+        '.': '-',
+        # 언더스코어(_) → 하이픈(-)
+        '_': '-',
+        # 공백 제거
+        ' ': '',
+    }
+    
+    # 변환 적용
+    for old, new in conversions.items():
+        ticker = ticker.replace(old, new)
+    
+    # .ST 접미사 추가
+    if not ticker.endswith('.ST'):
+        ticker = ticker + '.ST'
+    
+    return ticker
 
 def enrich_with_yfinance(df: pd.DataFrame,
                          ticker_col: str = 'ticker',
@@ -2538,7 +2592,7 @@ class MasterCSVThread(QThread):
             ('VOLO.ST', 'Volvo Car AB Class B', 'Consumer Discretionary', 150000000, 'OMX Stockholm')
         ]
         
-        df = self.create_fallback_df(sweden_top_100)
+        df = self.create_fallback_df(sweden_top_100, "OMX Stockholm")
         master_file = 'stock_data/sweden_stocks_master.csv'
         os.makedirs('stock_data', exist_ok=True)
         df.to_csv(master_file, index=False, encoding='utf-8-sig')
