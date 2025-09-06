@@ -1643,8 +1643,20 @@ def enrich_with_yfinance(df: pd.DataFrame,
                          sleep_sec: float = 0.08,
                          on_progress=None) -> pd.DataFrame:
     """
-    yfinance로 name/sector/market_cap 보강 (상세 호출은 느릴 수 있어 제한)
+    yfinance로 name/sector/market_cap 보강 (진행률 및 예상 완료시간 표시)
+    
+    예시 사용법:
+    def progress_callback(message):
+        print(message)
+    
+    enriched_df = enrich_with_yfinance(
+        df, 
+        on_progress=progress_callback
+    )
     """
+    import time
+    from datetime import datetime, timedelta
+    
     if df.empty:
         return df
 
@@ -1654,15 +1666,15 @@ def enrich_with_yfinance(df: pd.DataFrame,
     mcap_col = 'market_cap'
 
     total = min(len(df), max_items)
+    start_time = time.time()
+    successful_count = 0
+    
+    if on_progress:
+        on_progress(f"보강 시작... 총 {total}개 종목 처리 예정")
+    
     for idx, t in enumerate(df[ticker_col].head(total), start=1):
         try:
             tk = yf.Ticker(str(t))
-            # info = {}
-            # try:
-            #     info = tk.info or {}
-            # except Exception:
-            #     info = {}
-
             info = _yf_get_info_quiet(tk)
 
             new_name = info.get('longName') or info.get('shortName')
@@ -1675,15 +1687,451 @@ def enrich_with_yfinance(df: pd.DataFrame,
                 df.loc[df[ticker_col] == t, sector_col] = str(new_sector)
             if isinstance(new_mcap, (int, float)):
                 df.loc[df[ticker_col] == t, mcap_col] = float(new_mcap)
+                
+            successful_count += 1
+            
         except Exception:
             pass
         finally:
-            if on_progress and idx % 20 == 0:
-                on_progress(f"보강 중... {idx}/{total}")
+            # 진행률 및 예상 시간 계산 (10개마다 업데이트)
+            if on_progress and idx % 10 == 0:
+                elapsed_time = time.time() - start_time
+                avg_time_per_item = elapsed_time / idx
+                remaining_items = total - idx
+                estimated_remaining_time = remaining_items * avg_time_per_item
+                
+                # 예상 완료 시간 계산
+                estimated_finish_time = datetime.now() + timedelta(seconds=estimated_remaining_time)
+                
+                # 시간 포맷팅
+                if estimated_remaining_time < 60:
+                    time_str = f"{estimated_remaining_time:.0f}초"
+                elif estimated_remaining_time < 3600:
+                    minutes = estimated_remaining_time / 60
+                    time_str = f"{minutes:.1f}분"
+                else:
+                    hours = estimated_remaining_time / 3600
+                    time_str = f"{hours:.1f}시간"
+                
+                finish_time_str = estimated_finish_time.strftime("%H:%M:%S")
+                
+                # 진행률 계산
+                progress_percent = (idx / total) * 100
+                
+                # 성공률 계산
+                success_rate = (successful_count / idx) * 100 if idx > 0 else 0
+                
+                progress_msg = (
+                    f"보강 진행중... {idx}/{total} ({progress_percent:.1f}%) | "
+                    f"성공률: {success_rate:.1f}% | "
+                    f"남은시간: {time_str} | "
+                    f"예상완료: {finish_time_str}"
+                )
+                
+                on_progress(progress_msg)
+            
             time.sleep(sleep_sec)
+
+    # 최종 결과 보고
+    if on_progress:
+        total_time = time.time() - start_time
+        final_success_rate = (successful_count / total) * 100 if total > 0 else 0
+        
+        if total_time < 60:
+            total_time_str = f"{total_time:.1f}초"
+        else:
+            total_time_str = f"{total_time/60:.1f}분"
+            
+        final_msg = (
+            f"보강 완료! {total}개 처리 | "
+            f"성공: {successful_count}개 ({final_success_rate:.1f}%) | "
+            f"총 소요시간: {total_time_str}"
+        )
+        on_progress(final_msg)
 
     return df
 
+# utils.py에 추가할 검색 관련 유틸리티 함수들
+
+def normalize_search_term(search_term):
+    """검색어 정규화"""
+    import re
+    
+    # 공백 제거 및 대문자 변환
+    normalized = search_term.strip().upper()
+    
+    # 특수문자 제거 (단, . 과 - 는 유지 - 티커에 사용)
+    normalized = re.sub(r'[^\w\.\-가-힣]', '', normalized)
+    
+    return normalized
+
+def is_korean_stock_code(ticker):
+    """한국 주식 코드인지 판단"""
+    import re
+    
+    # 6자리 숫자 패턴 (005930, 373220 등)
+    if re.match(r'^\d{6}$', ticker):
+        return True
+    
+    # .KS, .KQ 접미사
+    if ticker.endswith('.KS') or ticker.endswith('.KQ'):
+        return True
+        
+    return False
+
+def is_us_stock_ticker(ticker):
+    """미국 주식 티커인지 판단"""
+    import re
+    
+    # 1-5자리 영문자 (AAPL, MSFT, GOOGL 등)
+    if re.match(r'^[A-Z]{1,5}$', ticker):
+        return True
+        
+    return False
+
+def is_swedish_stock_ticker(ticker):
+    """스웨덴 주식 티커인지 판단"""
+    
+    # .ST 접미사
+    if ticker.endswith('.ST'):
+        return True
+        
+    # 스웨덴 특정 패턴 (VOLV-B, SEB-A 등)
+    if '-' in ticker and len(ticker) <= 10:
+        return True
+        
+    return False
+
+def guess_market_from_ticker(ticker):
+    """티커로부터 시장 추측"""
+    
+    if is_korean_stock_code(ticker):
+        return "한국 (KOSPI/KOSDAQ)"
+    elif is_us_stock_ticker(ticker):
+        return "미국 (NASDAQ/NYSE)"  
+    elif is_swedish_stock_ticker(ticker):
+        return "스웨덴 (OMX)"
+    else:
+        return "기타"
+
+def format_market_cap_value(market_cap):
+    """시가총액 값을 사람이 읽기 쉬운 형태로 포맷"""
+    
+    if pd.isna(market_cap) or market_cap <= 0:
+        return "N/A"
+    
+    # 원화 vs 달러 추정 (임시 로직)
+    if market_cap >= 1e14:  # 100조 이상은 아마 원화
+        # 원화로 가정
+        if market_cap >= 1e15:  # 1000조
+            return f"{market_cap/1e15:.1f}천조원"
+        elif market_cap >= 1e12:  # 1조
+            return f"{market_cap/1e12:.1f}조원"
+        else:
+            return f"{market_cap/1e8:.0f}억원"
+    else:
+        # 달러로 가정
+        if market_cap >= 1e12:  # 1조 달러
+            return f"${market_cap/1e12:.1f}T"
+        elif market_cap >= 1e9:  # 10억 달러
+            return f"${market_cap/1e9:.1f}B"  
+        elif market_cap >= 1e6:  # 100만 달러
+            return f"${market_cap/1e6:.1f}M"
+        else:
+            return f"${market_cap:,.0f}"
+
+def create_search_index(stock_lists):
+    """빠른 검색을 위한 인덱스 생성"""
+    search_index = {}
+    
+    for market, df in stock_lists.items():
+        if df.empty:
+            continue
+            
+        for idx, row in df.iterrows():
+            ticker = str(row.get('ticker', '')).upper()
+            name = str(row.get('name', '')).upper()
+            sector = str(row.get('sector', '')).upper()
+            
+            # 티커로 인덱싱
+            if ticker and ticker != 'NAN':
+                if ticker not in search_index:
+                    search_index[ticker] = []
+                search_index[ticker].append({
+                    'market': market,
+                    'index': idx,
+                    'match_type': 'ticker'
+                })
+            
+            # 회사명의 각 단어로 인덱싱
+            if name and name != 'NAN':
+                words = name.split()
+                for word in words:
+                    if len(word) >= 2:  # 2글자 이상만
+                        if word not in search_index:
+                            search_index[word] = []
+                        search_index[word].append({
+                            'market': market,
+                            'index': idx, 
+                            'match_type': 'name'
+                        })
+    
+    return search_index
+
+def enhanced_search_stocks(search_term, stock_lists, use_index=True):
+    """향상된 종목 검색 (인덱스 사용)"""
+    
+    if not search_term.strip():
+        return []
+    
+    # 검색어 정규화
+    normalized_term = normalize_search_term(search_term)
+    
+    found_stocks = []
+    seen_tickers = set()  # 중복 제거용
+    
+    # 각 시장별로 검색
+    for market, df in stock_lists.items():
+        if df.empty:
+            continue
+        
+        for _, row in df.iterrows():
+            ticker = str(row.get('ticker', '')).strip()
+            name = str(row.get('name', '')).strip()
+            sector = str(row.get('sector', '')).strip()
+            
+            if not ticker or ticker in seen_tickers:
+                continue
+            
+            match_score = 0
+            match_reasons = []
+            
+            # 1. 티커 완전 매치 (최고 점수)
+            if ticker.upper() == normalized_term:
+                match_score = 100
+                match_reasons.append("티커 완전매치")
+            
+            # 2. 티커 부분 매치
+            elif normalized_term in ticker.upper():
+                match_score = 80
+                match_reasons.append("티커 부분매치")
+            
+            # 3. 회사명 완전 매치
+            elif normalized_term == name.upper():
+                match_score = 90
+                match_reasons.append("회사명 완전매치")
+            
+            # 4. 회사명 포함 매치
+            elif normalized_term in name.upper():
+                match_score = 70
+                match_reasons.append("회사명 포함매치")
+            
+            # 5. 섹터 매치
+            elif normalized_term in sector.upper():
+                match_score = 50
+                match_reasons.append("섹터 매치")
+            
+            # 6. 한글-영문 변환 매치 (예: 삼성 -> SAMSUNG)
+            elif contains_hangul_match(normalized_term, name.upper()):
+                match_score = 60
+                match_reasons.append("한영 매치")
+            
+            # 매치된 경우만 결과에 추가
+            if match_score > 0:
+                # 시가총액 포맷팅
+                market_cap_str = format_market_cap_value(row.get('market_cap'))
+                
+                stock_info = {
+                    'ticker': ticker,
+                    'name': name,
+                    'sector': sector,
+                    'market_cap': market_cap_str,
+                    'market': market,
+                    'match_score': match_score,
+                    'match_reasons': match_reasons,
+                    'raw_market_cap': row.get('market_cap', 0)
+                }
+                
+                found_stocks.append(stock_info)
+                seen_tickers.add(ticker)
+    
+    # 매치 점수 순으로 정렬 (높은 점수 먼저)
+    found_stocks.sort(key=lambda x: (-x['match_score'], x['name']))
+    
+    return found_stocks
+
+def contains_hangul_match(search_term, target_text):
+    """한글 검색어가 영문 텍스트에 포함되는지 확인"""
+    
+    # 간단한 한글-영문 매핑 테이블
+    hangul_to_english = {
+        '삼성': 'SAMSUNG',
+        '현대': 'HYUNDAI', 
+        'LG': 'LG',
+        '포스코': 'POSCO',
+        '네이버': 'NAVER',
+        '카카오': 'KAKAO',
+        '셀트리온': 'CELLTRION',
+        '바이오': 'BIO',
+        '테크': 'TECH',
+        '에너지': 'ENERGY',
+        '솔루션': 'SOLUTION'
+    }
+    
+    for hangul, english in hangul_to_english.items():
+        if hangul in search_term and english in target_text:
+            return True
+    
+    return False
+
+def get_stock_recommendations_by_search(search_term, stock_lists):
+    """검색어 기반 추천 종목 반환"""
+    
+    recommendations = []
+    
+    # 인기 검색어별 추천
+    popular_searches = {
+        '삼성': ['005930', '009150', '207940'],  # 삼성전자, 삼성SDI, 삼성바이오로직스
+        '현대': ['005380', '012330', '086280'],  # 현대차, 현대모비스, 현대글로비스
+        'APPLE': ['AAPL'],
+        'TESLA': ['TSLA'],
+        'MICROSOFT': ['MSFT'],
+        '반도체': ['005930', '000660', '042700'],  # 삼성전자, SK하이닉스, 한미반도체
+        'TECH': ['AAPL', 'MSFT', 'GOOGL', 'META', 'NVDA']
+    }
+    
+    search_upper = search_term.upper()
+    
+    for keyword, tickers in popular_searches.items():
+        if keyword in search_upper:
+            recommendations.extend(tickers)
+    
+    return list(set(recommendations))  # 중복 제거
+
+def validate_ticker_format(ticker):
+    """티커 형식 검증"""
+    import re
+    
+    if not ticker:
+        return False, "빈 티커"
+    
+    # 기본 검증
+    if len(ticker) > 20:
+        return False, "티커가 너무 김"
+    
+    # 한국 주식 (6자리 숫자)
+    if re.match(r'^\d{6}$', ticker):
+        return True, "한국 주식"
+    
+    # 미국 주식 (1-5자리 영문)
+    if re.match(r'^[A-Z]{1,5}$', ticker):
+        return True, "미국 주식"
+    
+    # 국제 주식 (.으로 구분)
+    if '.' in ticker:
+        parts = ticker.split('.')
+        if len(parts) == 2 and len(parts[1]) <= 3:
+            return True, "국제 주식"
+    
+    # 기타 패턴
+    if re.match(r'^[A-Z0-9\-\.]{1,10}$', ticker):
+        return True, "기타 형식"
+    
+    return False, "알 수 없는 형식"
+
+def create_search_suggestions(search_term, stock_lists, limit=5):
+    """검색어 자동완성 제안"""
+    
+    if len(search_term) < 2:
+        return []
+    
+    suggestions = []
+    seen = set()
+    
+    search_upper = search_term.upper()
+    
+    for market, df in stock_lists.items():
+        if df.empty:
+            continue
+            
+        for _, row in df.iterrows():
+            ticker = str(row.get('ticker', '')).upper()
+            name = str(row.get('name', '')).upper()
+            
+            # 티커로 시작하는 것
+            if ticker.startswith(search_upper) and ticker not in seen:
+                suggestions.append({
+                    'text': ticker,
+                    'type': '티커',
+                    'full_name': f"{ticker} ({name})"
+                })
+                seen.add(ticker)
+            
+            # 회사명으로 시작하는 것
+            elif name.startswith(search_upper) and name not in seen:
+                suggestions.append({
+                    'text': name,
+                    'type': '회사명', 
+                    'full_name': f"{name} ({ticker})"
+                })
+                seen.add(name)
+    
+    # 매치 정확도 순으로 정렬
+    suggestions.sort(key=lambda x: len(x['text']))
+    
+    return suggestions[:limit]
+
+def export_search_results(found_stocks, search_term, filename=None):
+    """검색 결과를 Excel 파일로 내보내기"""
+    
+    if not found_stocks:
+        return None
+    
+    if not filename:
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_search_term = re.sub(r'[^\w가-힣]', '_', search_term)
+        filename = f"search_results_{safe_search_term}_{timestamp}.xlsx"
+    
+    # DataFrame 생성
+    df = pd.DataFrame(found_stocks)
+    
+    # 컬럼 순서 조정
+    column_order = ['ticker', 'name', 'sector', 'market_cap', 'market', 'match_score', 'match_reasons']
+    df = df.reindex(columns=column_order)
+    
+    # 컬럼명 한글화
+    df.columns = ['티커', '회사명', '섹터', '시가총액', '시장', '매치점수', '매치이유']
+    
+    try:
+        df.to_excel(filename, index=False, engine='openpyxl')
+        return filename
+    except Exception as e:
+        print(f"Excel 내보내기 실패: {e}")
+        return None
+
+# 검색 성능 측정을 위한 함수
+def benchmark_search_performance(stock_lists, test_terms=None):
+    """검색 성능 벤치마크"""
+    import time
+    
+    if not test_terms:
+        test_terms = ['삼성', 'AAPL', '005930', 'TESLA', '반도체', 'TECH']
+    
+    results = {}
+    
+    for term in test_terms:
+        start_time = time.time()
+        found = enhanced_search_stocks(term, stock_lists)
+        end_time = time.time()
+        
+        results[term] = {
+            'search_time': end_time - start_time,
+            'results_count': len(found),
+            'first_match_score': found[0]['match_score'] if found else 0
+        }
+    
+    return results
 
 # ==============================
 # 업데이트 스레드

@@ -1,0 +1,101 @@
+﻿ticker,name,market_cap,price,sector,market
+AZN.ST,AstraZeneca PLC,2349071859712,0,Healthcare,OMX Stockholm
+ABB.ST,ABB Ltd,1145177374720,0,Industrials,OMX Stockholm
+KOGO.ST,Kongsberg Gruppen ASA,971949146112,0,Unknown,OMX Stockholm
+INVE-B.ST,Investor AB (publ),898524512256,0,Financial Services,OMX Stockholm
+INVE-A.ST,Investor AB (publ),897754988544,0,Financial Services,OMX Stockholm
+ATCO-B.ST,Atlas Copco AB (publ),727538466816,0,Industrials,OMX Stockholm
+ATCO-A.ST,Atlas Copco AB (publ),721601429504,0,Industrials,OMX Stockholm
+VOLV-A.ST,AB Volvo (publ),589743718400,0,Industrials,OMX Stockholm
+VOLV-B.ST,AB Volvo (publ),587134992384,0,Industrials,OMX Stockholm
+NDA-SE.ST,Nordea Bank Abp,507930214400,0,Financial Services,OMX Stockholm
+EQT.ST,EQT AB (publ),402064179200,0,Financial Services,OMX Stockholm
+ASSA-B.ST,ASSA ABLOY AB (publ),373334048768,0,Industrials,OMX Stockholm
+SEB-A.ST,Skandinaviska Enskilda Banken AB (publ),352534298624,0,Financial Services,OMX Stockholm
+SEB-C.ST,Skandinaviska Enskilda Banken AB (publ),352328810496,0,Financial Services,OMX Stockholm
+DNBO.ST,DNB Bank ASA,329118023680,0,Unknown,OMX Stockholm
+SWED-A.ST,Swedbank AB (publ),302080622592,0,Financial Services,OMX Stockholm
+SAND.ST,Sandvik AB (publ),299799216128,0,Industrials,OMX Stockholm
+SAAB-B.ST,Saab AB (publ),291949412352,0,Industrials,OMX Stockholm
+SAMPO-SDB.ST,Sampo Oyj,291288449024,0,Financial Services,OMX Stockholm
+HEXA-B.ST,Hexagon AB (publ),287752224768,0,Technology,OMX Stockholm
+ERIC-B.ST,Telefonaktiebolaget LM Ericsson (publ),249207832576,0,Technology,OMX Stockholm
+ERIC-A.ST,Telefonaktiebolaget LM Ericsson (publ),248871731200,0,Technology,OMX Stockholm
+SHB-A.ST,Svenska Handelsbanken AB (publ),243516932096,0,Financial Services,OMX Stockholm
+SHB-B.ST,Svenska Handelsbanken AB (publ),240225943552,0,Financial Services,OMX Stockholm
+EPI-B.ST,Epiroc AB (publ),235120623616,0,Industrials,OMX Stockholm
+EPI-A.ST,Epiroc AB (publ),232828616704,0,Industrials,OMX Stockholm
+HM-B.ST,H & M Hennes & Mauritz AB (publ),225824505856,0,Consumer Cyclical,OMX Stockholm
+NOKIA-SEK.ST,Nokia Oyj,218879377408,0,Technology,OMX Stockholm
+ALFA.ST,Alfa Laval AB (publ),181247803392,0,Industrials,OMX Stockholm
+ESSITY-B.ST,Essity AB (publ),174622801920,0,Consumer Defensive,OMX Stockholm
+ESSITY-A.ST,Essity AB (publ),174319255552,0,Consumer Defensive,OMX Stockholm
+8TRA.ST,Traton SE,173582598144,0,Industrials,OMX Stockholm
+INDU-C.ST,AB Industrivärden (publ),163778379776,0,Financial Services,OMX Stockholm
+EVO.ST,Evolution AB (publ),163749298176,0,Consumer Cyclical,OMX Stockholm
+INDU-A.ST,AB Industrivärden (publ),163453616128,0,Financial Services,OMX Stockholm
+LATO-B.ST,Investment AB Latour (publ),153308463104,0,Industrials,OMX Stockholm
+LIFCO-B.ST,Lifco AB (publ),152616583168,0,Industrials,OMX Stockholm
+LUG.ST,Lundin Gold Inc.,142837350400,0,Basic Materials,OMX Stockholm
+TELIA.ST,Telia Company AB (publ),139666767872,0,Communication Services,OMX Stockholm
+LUND-B.ST,L E Lundbergföretagen AB (publ),120081604608,0,Industrials,OMX Stockholm
+TEL2-A.ST,Tele2 AB (publ),116582866944,0,Communication Services,OMX Stockholm
+TEL2-B.ST,Tele2 AB (publ),116229095424,0,Communication Services,OMX Stockholm
+SKF-A.ST,AB SKF (publ),111588515840,0,Industrials,OMX Stockholm
+SKF-B.ST,AB SKF (publ),111242977280,0,Industrials,OMX Stockholm
+SOBI.ST,Swedish Orphan Biovitrum AB (publ),98882461696,0,Healthcare,OMX Stockholm
+SKA-B.ST,Skanska AB (publ),96585859072,0,Industrials,OMX Stockholm
+LUMI.ST,Lundin Mining Corporation,93475307520,0,Basic Materials,OMX Stockholm
+BOL.ST,Boliden AB (publ),92384444416,0,Basic Materials,OMX Stockholm
+SCA-B.ST,Svenska Cellulosa Aktiebolaget SCA (publ),90468245504,0,Basic Materials,OMX Stockholm
+SCA-A.ST,Svenska Cellulosa Aktiebolaget SCA (publ),90340179968,0,Basic Materials,OMX Stockholm
+ALIV-SDB.ST,"Autoliv, Inc.",89904103424,0,Consumer Cyclical,OMX Stockholm
+STE-A.ST,Stora Enso Oyj,88875565056,0,Basic Materials,OMX Stockholm
+ADDT-B.ST,Addtech AB (publ.),88630894592,0,Industrials,OMX Stockholm
+STE-R.ST,Stora Enso Oyj,87978024960,0,Basic Materials,OMX Stockholm
+INDT.ST,Indutrade AB (publ),86780805120,0,Industrials,OMX Stockholm
+SECU-B.ST,Securitas AB (publ),86183952384,0,Industrials,OMX Stockholm
+TREL-B.ST,Trelleborg AB (publ),83692601344,0,Industrials,OMX Stockholm
+BEIJ-B.ST,Beijer Ref AB (publ),83292545024,0,Industrials,OMX Stockholm
+BALD-B.ST,Fastighets AB Balder (publ),80039403520,0,Real Estate,OMX Stockholm
+NIBE-B.ST,NIBE Industrier AB (publ),78243676160,0,Industrials,OMX Stockholm
+SAGA-D.ST,AB Sagax (publ),73400901632,0,Real Estate,OMX Stockholm
+SAGA-B.ST,AB Sagax (publ),73203974144,0,Real Estate,OMX Stockholm
+SAGA-A.ST,AB Sagax (publ),72991817728,0,Real Estate,OMX Stockholm
+AAK.ST,AAK AB (publ.),70080929792,0,Consumer Defensive,OMX Stockholm
+SAVE.ST,Nordnet AB (publ),70035423232,0,Financial Services,OMX Stockholm
+AXFO.ST,Axfood AB (publ),64366350336,0,Consumer Defensive,OMX Stockholm
+SECT-B.ST,Sectra AB (publ),64350781440,0,Healthcare,OMX Stockholm
+VOLCAR-B.ST,Volvo Car AB (publ.),59605667840,0,Consumer Cyclical,OMX Stockholm
+SWEC-B.ST,Sweco AB (publ),57630912512,0,Industrials,OMX Stockholm
+SWEC-A.ST,Sweco AB (publ),57558765568,0,Industrials,OMX Stockholm
+GETI-B.ST,Getinge AB (publ),57088749568,0,Healthcare,OMX Stockholm
+HOLM-B.ST,Holmen AB (publ),56801005568,0,Basic Materials,OMX Stockholm
+HOLM-A.ST,Holmen AB (publ),56703320064,0,Basic Materials,OMX Stockholm
+AZA.ST,Avanza Bank Holding AB (publ),56525565952,0,Financial Services,OMX Stockholm
+SSAB-A.ST,SSAB AB (publ),53554036736,0,Basic Materials,OMX Stockholm
+SSAB-B.ST,SSAB AB (publ),53525458944,0,Basic Materials,OMX Stockholm
+CAST.ST,Castellum AB (publ),52876361728,0,Real Estate,OMX Stockholm
+LAGR-B.ST,Lagercrantz Group AB (publ),45880979456,0,Industrials,OMX Stockholm
+CAMX.ST,Camurus AB (publ),42663989248,0,Healthcare,OMX Stockholm
+MYCR.ST,Mycronic AB (publ),41222017024,0,Industrials,OMX Stockholm
+MCOV-B.ST,Medicover AB (publ),41145552896,0,Healthcare,OMX Stockholm
+ASKER.ST,Asker Healthcare Group AB,36392345600,0,Healthcare,OMX Stockholm
+PNDX-B.ST,Pandox AB (publ),33121431552,0,Real Estate,OMX Stockholm
+ROKO-B.ST,Röko AB (publ),32761690112,0,Financial Services,OMX Stockholm
+HUSQ-A.ST,Husqvarna AB (publ),30237323264,0,Industrials,OMX Stockholm
+HUSQ-B.ST,Husqvarna AB (publ),30191407104,0,Industrials,OMX Stockholm
+HPOL-B.ST,HEXPOL AB (publ),29208258560,0,Basic Materials,OMX Stockholm
+LOOMIS.ST,Loomis AB (publ),28946700288,0,Industrials,OMX Stockholm
+THULE.ST,Thule Group AB (publ),28943718400,0,Consumer Cyclical,OMX Stockholm
+WALL-B.ST,Wallenstam AB (publ),28887603200,0,Real Estate,OMX Stockholm
+WIHL.ST,Wihlborgs Fastigheter AB (publ),28775168000,0,Real Estate,OMX Stockholm
+BIOA-B.ST,BioArctic AB (publ),27356233728,0,Healthcare,OMX Stockholm
+ASMDEE-B.ST,Asmodee Group AB (publ),26547879936,0,Consumer Cyclical,OMX Stockholm
+CATE.ST,Catena AB (publ),26075564032,0,Real Estate,OMX Stockholm
+FABG.ST,Fabege AB (publ),25496465408,0,Real Estate,OMX Stockholm
+HUFV-A.ST,Hufvudstaden AB (publ),25370136576,0,Real Estate,OMX Stockholm
+SINCH.ST,Sinch AB (publ),24562288640,0,Communication Services,OMX Stockholm
+KINV-B.ST,Kinnevik AB,24138004480,0,Financial Services,OMX Stockholm
+KINV-A.ST,Kinnevik AB,23804928000,0,Financial Services,OMX Stockholm
+MTRS.ST,Munters Group AB (publ),23712073728,0,Industrials,OMX Stockholm

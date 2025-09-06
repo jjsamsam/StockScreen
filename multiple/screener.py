@@ -41,11 +41,20 @@ class StockScreener(QMainWindow):
         self.last_buy_candidates = []
         self.last_sell_candidates = []
         
+        # 검색 관련 변수들
+        self.search_index = {}  # 빠른 검색을 위한 인덱스
+        self.recent_searches = []  # 최근 검색어
+
+        # 결과 저장용 변수들  
+        self.last_buy_candidates = []
+        self.last_sell_candidates = []
+
         self.initUI()
         self.setup_stock_lists()
+        self.rebuild_search_index()
         
     def initUI(self):
-        self.setWindowTitle('Advanced Global Stock Screener - 고급 분석 시스템')
+        self.setWindowTitle('Advanced Global Stock Screener - 고급 분석 시스템 2025')
         self.setGeometry(100, 100, 1600, 1000)
         
         # 메인 위젯
@@ -53,21 +62,37 @@ class StockScreener(QMainWindow):
         self.setCentralWidget(main_widget)
         layout = QVBoxLayout(main_widget)
         
-        # 상단 컨트롤 패널
+        # 1. 상단 컨트롤 패널 (기존)
         control_panel = self.create_control_panel()
         layout.addWidget(control_panel)
         
-        # 종목 현황 패널
+        # 2. 🔍 검색 + 🛠️ 조건을 같은 라인에 배치
+        search_conditions_layout = QHBoxLayout()
+        
+        # 2-1. 검색 패널 (기존 메서드 활용, 크기만 조정)
+        search_panel = self.create_stock_search_panel()
+        search_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        search_conditions_layout.addWidget(search_panel)
+        
+        # 2-2. 사용자 정의 조건 패널 (화면 절반 너비로 확장)
+        conditions_panel = self.create_custom_conditions_panel()
+        conditions_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        search_conditions_layout.addWidget(conditions_panel)
+        
+        # 레이아웃을 메인에 추가
+        layout.addLayout(search_conditions_layout)
+        
+        # 3. 종목 현황 패널 (기존)
         status_panel = self.create_status_panel()
         layout.addWidget(status_panel)
         
-        # 결과 테이블들
+        # 4. 결과 테이블들 (기존)
         tables_widget = self.create_tables()
         layout.addWidget(tables_widget)
         
         # 상태바
         self.statusbar = self.statusBar()
-        self.statusbar.showMessage('준비됨 - 샘플 생성 버튼을 클릭하여 시작하세요')
+        self.statusbar.showMessage('준비됨 - 종목 검색 또는 스크리닝을 시작하세요')
     
     def on_market_cap_filter_toggled(self, checked):
         """시가총액 필터 체크박스 토글 이벤트"""
@@ -326,29 +351,29 @@ class StockScreener(QMainWindow):
         sell_group.setLayout(sell_layout)
         layout.addWidget(sell_group, 3, 3, 1, 3)  # 행 3, 컬럼 3-5
         
-        # 여섯 번째 행: 사용자 정의 조건
-        custom_group = QGroupBox("⚙️ 사용자 정의 조건")
-        custom_layout = QHBoxLayout()
+        # # 여섯 번째 행: 사용자 정의 조건
+        # custom_group = QGroupBox("⚙️ 사용자 정의 조건")
+        # custom_layout = QHBoxLayout()
         
-        self.add_condition_btn = QPushButton("➕ 조건 추가")
-        self.add_condition_btn.clicked.connect(self.open_condition_builder)
-        self.add_condition_btn.setStyleSheet("QPushButton { background-color: #9C27B0; color: white; }")
-        custom_layout.addWidget(self.add_condition_btn)
+        # self.add_condition_btn = QPushButton("➕ 조건 추가")
+        # self.add_condition_btn.clicked.connect(self.open_condition_builder)
+        # self.add_condition_btn.setStyleSheet("QPushButton { background-color: #9C27B0; color: white; }")
+        # custom_layout.addWidget(self.add_condition_btn)
         
-        self.manage_conditions_btn = QPushButton("⚙️ 조건 관리")
-        self.manage_conditions_btn.clicked.connect(self.manage_custom_conditions)
-        custom_layout.addWidget(self.manage_conditions_btn)
+        # self.manage_conditions_btn = QPushButton("⚙️ 조건 관리")
+        # self.manage_conditions_btn.clicked.connect(self.manage_custom_conditions)
+        # custom_layout.addWidget(self.manage_conditions_btn)
         
-        # 사용자 정의 조건 표시 영역
-        self.custom_conditions_area = QScrollArea()
-        self.custom_conditions_widget = QWidget()
-        self.custom_conditions_layout = QVBoxLayout(self.custom_conditions_widget)
-        self.custom_conditions_area.setWidget(self.custom_conditions_widget)
-        self.custom_conditions_area.setMaximumHeight(100)
-        custom_layout.addWidget(self.custom_conditions_area)
+        # # 사용자 정의 조건 표시 영역
+        # self.custom_conditions_area = QScrollArea()
+        # self.custom_conditions_widget = QWidget()
+        # self.custom_conditions_layout = QVBoxLayout(self.custom_conditions_widget)
+        # self.custom_conditions_area.setWidget(self.custom_conditions_widget)
+        # self.custom_conditions_area.setMaximumHeight(100)
+        # custom_layout.addWidget(self.custom_conditions_area)
         
-        custom_group.setLayout(custom_layout)
-        layout.addWidget(custom_group, 4, 0, 1, 6)  # 행 4에 배치
+        # custom_group.setLayout(custom_layout)
+        # layout.addWidget(custom_group, 4, 0, 1, 6)  # 행 4에 배치
         
         # 일곱 번째 행: 검색 버튼과 제어 버튼들
         button_layout = QHBoxLayout()
@@ -379,7 +404,7 @@ class StockScreener(QMainWindow):
         self.export_btn.setEnabled(False)  # 초기에는 비활성화
         button_layout.addWidget(self.export_btn)
 
-        layout.addLayout(button_layout, 5, 0, 1, 6)  # 행 5에 배치
+        layout.addLayout(button_layout, 4, 0, 1, 6)  # 행 4에 배치
 
         # QGridLayout의 행 확장 정책 설정
         for i in range(layout.rowCount()):  # 모든 행에 대해
@@ -410,8 +435,8 @@ class StockScreener(QMainWindow):
         group.setLayout(layout)
 
         # 종목 현황 패널 크기 고정 - 핵심!
-        group.setMaximumHeight(60)  # 최대 높이 제한
-        group.setMinimumHeight(60)  # 최소 높이도 고정
+        group.setMaximumHeight(80)  # 최대 높이 제한
+        group.setMinimumHeight(80)  # 최소 높이도 고정
         group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         return group
@@ -813,44 +838,77 @@ class StockScreener(QMainWindow):
         QMessageBox.critical(self, '오류', error_message)
     
     def open_condition_builder(self):
-        """조건 빌더 다이얼로그 열기"""
-        dialog = ConditionBuilderDialog(self)
-        if dialog.exec_() == QDialog.Accepted:
-            condition = dialog.get_condition()
-            if condition:
-                self.custom_conditions.append(condition)
+        """조건 빌더 열기"""
+        try:
+            from dialogs import ConditionBuilderDialog
+            dialog = ConditionBuilderDialog(self)
+            if dialog.exec_() == QDialog.Accepted:
+                condition = dialog.get_condition()
+                if condition:
+                    if not hasattr(self, 'custom_conditions'):
+                        self.custom_conditions = []
+                    self.custom_conditions.append(condition)
+                    self.update_custom_conditions_display()
+        except ImportError:
+            # dialogs 모듈이 없으면 간단한 입력창으로 대체
+            text, ok = QInputDialog.getText(self, '조건 추가', '조건명을 입력하세요:')
+            if ok and text:
+                if not hasattr(self, 'custom_conditions'):
+                    self.custom_conditions = []
+                self.custom_conditions.append({'name': text, 'enabled': True})
                 self.update_custom_conditions_display()
     
     def manage_custom_conditions(self):
-        """사용자 정의 조건 관리"""
-        dialog = ConditionManagerDialog(self.custom_conditions, self)
-        if dialog.exec_() == QDialog.Accepted:
-            self.custom_conditions = dialog.get_conditions()
-            self.update_custom_conditions_display()
+        """조건 관리"""
+        try:
+            from dialogs import ConditionManagerDialog
+            dialog = ConditionManagerDialog(self.custom_conditions, self)
+            if dialog.exec_() == QDialog.Accepted:
+                self.custom_conditions = dialog.get_conditions()
+                self.update_custom_conditions_display()
+        except ImportError:
+            # 간단한 조건 목록 표시
+            if not hasattr(self, 'custom_conditions') or not self.custom_conditions:
+                QMessageBox.information(self, "알림", "추가된 조건이 없습니다.")
+                return
+            
+            condition_names = [c.get('name', 'Unknown') for c in self.custom_conditions]
+            item, ok = QInputDialog.getItem(self, '조건 관리', '삭제할 조건:', condition_names, 0, False)
+            if ok and item:
+                self.custom_conditions = [c for c in self.custom_conditions if c.get('name') != item]
+                self.update_custom_conditions_display()
     
     def update_custom_conditions_display(self):
         """사용자 정의 조건 표시 업데이트"""
-        # 기존 위젯들 삭제
-        for i in reversed(range(self.custom_conditions_layout.count())):
-            self.custom_conditions_layout.itemAt(i).widget().setParent(None)
+        if not hasattr(self, 'custom_conditions'):
+            self.custom_conditions = []
         
-        # 새로운 조건들 추가
+        # 기존 위젯들 제거
+        for i in reversed(range(self.custom_conditions_layout.count())):
+            child = self.custom_conditions_layout.itemAt(i).widget()
+            if child:
+                child.deleteLater()
+        
+        # 새 조건들 추가
         for i, condition in enumerate(self.custom_conditions):
             condition_widget = QWidget()
             layout = QHBoxLayout(condition_widget)
+            layout.setContentsMargins(2, 2, 2, 2)
             
-            checkbox = QCheckBox(condition['name'])
-            checkbox.setObjectName(f"custom_condition_{i}")
+            # 체크박스
+            checkbox = QCheckBox(condition.get('name', f'조건{i+1}'))
+            checkbox.setChecked(condition.get('enabled', True))
+            checkbox.setMaximumWidth(350)  # 너비 제한
             layout.addWidget(checkbox)
             
-            delete_btn = QPushButton("❌")
+            # 삭제 버튼
+            delete_btn = QPushButton("×")
+            delete_btn.setMaximumWidth(25)
             delete_btn.clicked.connect(lambda checked, idx=i: self.delete_custom_condition(idx))
-            delete_btn.setMaximumWidth(30)
-            delete_btn.setToolTip("조건 삭제")
             layout.addWidget(delete_btn)
             
             self.custom_conditions_layout.addWidget(condition_widget)
-    
+
     def delete_custom_condition(self, index):
         """사용자 정의 조건 삭제"""
         if 0 <= index < len(self.custom_conditions):
@@ -917,16 +975,21 @@ class StockScreener(QMainWindow):
             QMessageBox.warning(self, "오류", f"CSV 파일 로드 중 오류: {str(e)}")
     
     def update_stock_count(self):
-        """종목 개수 업데이트"""
+        """종목 개수 업데이트 - 리스트 형태 기준"""
         korea_count = len(self.stock_lists.get('korea', []))
         usa_count = len(self.stock_lists.get('usa', []))
         sweden_count = len(self.stock_lists.get('sweden', []))
         total_count = korea_count + usa_count + sweden_count
         
-        self.korea_count_label.setText(f"🇰🇷 한국: {korea_count}개")
-        self.usa_count_label.setText(f"🇺🇸 미국: {usa_count}개")
-        self.sweden_count_label.setText(f"🇸🇪 스웨덴: {sweden_count}개")
-        self.total_count_label.setText(f"🌍 전체: {total_count}개")
+        # 레이블이 존재하는 경우에만 업데이트
+        if hasattr(self, 'korea_count_label'):
+            self.korea_count_label.setText(f"🇰🇷 한국: {korea_count}개")
+        if hasattr(self, 'usa_count_label'):
+            self.usa_count_label.setText(f"🇺🇸 미국: {usa_count}개")
+        if hasattr(self, 'sweden_count_label'):
+            self.sweden_count_label.setText(f"🇸🇪 스웨덴: {sweden_count}개")
+        if hasattr(self, 'total_count_label'):
+            self.total_count_label.setText(f"🌍 전체: {total_count}개")
     
     def open_csv_editor(self):
         """CSV 파일 편집 다이얼로그"""
@@ -935,10 +998,11 @@ class StockScreener(QMainWindow):
         self.load_stock_lists()  # 편집 후 새로고침
     
     def get_selected_stocks(self):
-        """선택된 시장의 종목들 반환 + 시가총액 필터링"""
+        """선택된 시장의 종목들 반환 - 기존 로직과 호환"""
         market_selection = self.market_combo.currentText()
         stocks = []
         
+        # 기존 방식 그대로 사용 (리스트 형태)
         if market_selection == "전체":
             for market in ['korea', 'usa', 'sweden']:
                 stocks.extend(self.stock_lists.get(market, []))
@@ -949,11 +1013,10 @@ class StockScreener(QMainWindow):
         elif "스웨덴" in market_selection:
             stocks = self.stock_lists.get('sweden', [])
 
-        # 시가총액 필터링 적용
-        if self.use_market_cap_filter.isChecked() and stocks:
+        # 시가총액 필터링 (기존 로직 유지)
+        if hasattr(self, 'use_market_cap_filter') and self.use_market_cap_filter.isChecked() and stocks:
             top_count = self.top_stocks_spin.value()
             
-            # 시가총액으로 정렬 (내림차순)
             try:
                 stocks_with_mcap = []
                 for stock in stocks:
@@ -961,7 +1024,6 @@ class StockScreener(QMainWindow):
 
                     # 문자열 변환 처리
                     if isinstance(mcap, str):
-                        # 모든 쉼표, 공백 제거하고 대문자 변환
                         mcap_clean = re.sub(r'[,\s]', '', mcap.upper())
                         
                         try:
@@ -972,15 +1034,13 @@ class StockScreener(QMainWindow):
                             elif mcap_clean.endswith('K'):
                                 mcap = float(mcap_clean[:-1]) * 1e3
                             else:
-                                mcap = float(mcap_clean)
+                                mcap = float(mcap_clean) if mcap_clean else 0
                         except (ValueError, TypeError):
                             mcap = 0
 
-                    # 숫자 변환 처리
                     if isinstance(mcap, (int, float)) and mcap > 0:
-                        # 변환된 숫자 값을 stock에 저장
                         stock_copy = stock.copy()
-                        stock_copy['market_cap_numeric'] = mcap  # 숫자 값 저장
+                        stock_copy['market_cap_numeric'] = mcap
                         stocks_with_mcap.append(stock_copy)
                 
                 # 시가총액 기준 정렬
@@ -989,11 +1049,11 @@ class StockScreener(QMainWindow):
                 # 상위 N개만 선택
                 stocks = stocks_with_mcap[:top_count]
                 
-                self.statusbar.showMessage(f'💰 시가총액 상위 {len(stocks)}개 종목으로 필터링됨')
+                if hasattr(self, 'statusbar'):
+                    self.statusbar.showMessage(f'💰 시가총액 상위 {len(stocks)}개 종목으로 필터링됨')
                 
             except Exception as e:
                 print(f"시가총액 필터링 중 오류: {e}")
-                # 오류 발생 시 원본 리스트 사용
         
         return stocks
     
@@ -1122,7 +1182,7 @@ class StockScreener(QMainWindow):
         이런 경우를 돌파로 판단하고, 현재부터 days_limit 일 이내 돌파만 유효
         
         예시: 
-        - 2024-08-20 현재, 22일 이내(7월 29일 이후)에 돌파했는지 확인
+        - 2025-08-20 현재, 22일 이내(7월 29일 이후)에 돌파했는지 확인
         - 7월 30일에 돌파 → 유효 (21일 전)
         - 7월 25일에 돌파 → 무효 (26일 전)
         """
@@ -1175,8 +1235,8 @@ class StockScreener(QMainWindow):
         
         목적: 충분한 조정을 거친 후의 의미있는 돌파인지 검증
         
-        예시: 2024년 8월 10일에 60일선이 120일선을 돌파했다면
-        - 체크 기간: 2024년 5월 10일 ~ 2024년 8월 9일 (66거래일)
+        예시: 2025년 8월 10일에 60일선이 120일선을 돌파했다면
+        - 체크 기간: 2025년 5월 10일 ~ 2025년 8월 9일 (66거래일)
         - 조건: 이 기간의 90% 이상에서 MA60 < MA120
         - 결과: 장기 하락 추세 후의 반전 돌파로 판단
         """
@@ -2223,3 +2283,1357 @@ class StockScreener(QMainWindow):
     또는
     self.buy_table.doubleClicked.connect(self.show_stock_detail_simple)
     """
+# screener.py에 추가할 완성된 검색 기능 통합
+    def create_stock_search_panel(self):
+        """🔍 종목 검색 패널 - 크기 축소 버전"""
+        search_group = QGroupBox("🔍 종목 검색 및 차트 보기")
+        search_group.setMaximumHeight(80)  # 높이 통일
+        search_group.setMinimumHeight(80)  # 높이 고정
+        search_layout = QHBoxLayout()
+        
+        # 검색어 입력 필드 (크기 축소)
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("종목코드/회사명 (예: 005930, AAPL)")
+        self.search_input.returnPressed.connect(self.search_and_show_chart)
+        self.search_input.textChanged.connect(self.on_search_text_changed)
+        self.search_input.setMaximumWidth(450)  # 축소
+        
+        search_layout.addWidget(QLabel("검색:"))
+        search_layout.addWidget(self.search_input)
+        
+        # 버튼들 (크기 축소)
+        self.search_btn = QPushButton("🔍Search")
+        self.search_btn.clicked.connect(self.search_and_show_chart)
+        self.search_btn.setMaximumWidth(120)
+        search_layout.addWidget(self.search_btn)
+        
+        self.random_stock_btn = QPushButton("🎲Random")
+        self.random_stock_btn.clicked.connect(self.show_random_stock_chart)
+        self.random_stock_btn.setToolTip("랜덤 종목")
+        self.random_stock_btn.setMaximumWidth(120)
+        search_layout.addWidget(self.random_stock_btn)
+        
+        self.search_help_btn = QPushButton("❓Help")
+        self.search_help_btn.clicked.connect(self.show_search_help)
+        self.search_help_btn.setToolTip("도움말")
+        self.search_help_btn.setMaximumWidth(120)
+        search_layout.addWidget(self.search_help_btn)
+        
+        # 검색 결과 레이블 (크기 축소)
+        self.search_result_label = QLabel()
+        self.search_result_label.setStyleSheet("color: #666; font-style: italic; font-size: 11px;")
+        self.search_result_label.setMaximumWidth(120)
+        search_layout.addWidget(self.search_result_label)
+        
+        search_layout.addStretch()
+        search_group.setLayout(search_layout)
+        
+        return search_group
+
+    def create_custom_conditions_panel(self):
+        """⚙️ 사용자 정의 조건 패널 - 기존 로직 활용"""
+        custom_group = QGroupBox("⚙️ 사용자 정의 조건")
+        custom_group.setMaximumHeight(80)  # 높이 통일
+        custom_group.setMinimumHeight(80)  # 높이 고정
+        custom_layout = QHBoxLayout()
+        
+        # 조건 추가 버튼 (크기 축소)
+        self.add_condition_btn = QPushButton("+ 조건")
+        self.add_condition_btn.clicked.connect(self.open_condition_builder)
+        self.add_condition_btn.setStyleSheet("QPushButton { background-color: #9C27B0; color: white; }")
+        self.add_condition_btn.setMaximumWidth(80)
+        custom_layout.addWidget(self.add_condition_btn)
+        
+        # 조건 관리 버튼 (크기 축소)
+        self.manage_conditions_btn = QPushButton("⚙️ 관리")
+        self.manage_conditions_btn.clicked.connect(self.manage_custom_conditions)
+        self.manage_conditions_btn.setMaximumWidth(80)
+        custom_layout.addWidget(self.manage_conditions_btn)
+        
+        # 사용자 정의 조건 표시 영역 (크기 축소)
+        self.custom_conditions_area = QScrollArea()
+        self.custom_conditions_widget = QWidget()
+        self.custom_conditions_layout = QVBoxLayout(self.custom_conditions_widget)
+        self.custom_conditions_area.setWidget(self.custom_conditions_widget)
+        self.custom_conditions_area.setMaximumHeight(60)  # 높이 축소
+        self.custom_conditions_area.setMaximumWidth(450)  # 너비 축소
+        custom_layout.addWidget(self.custom_conditions_area)
+        
+        custom_layout.addStretch()
+        custom_group.setLayout(custom_layout)
+        
+        return custom_group
+
+    def on_search_text_changed(self, text):
+        """검색어 변경 시 실시간 제안 - 안전한 버전"""
+        try:
+            if len(text) >= 2:
+                suggestions = self.get_search_suggestions(text)
+                if suggestions:
+                    tooltip_text = "제안: " + ", ".join(suggestions[:3])
+                    self.search_input.setToolTip(tooltip_text)
+                else:
+                    self.search_input.setToolTip("")
+            else:
+                self.search_input.setToolTip("")
+                
+        except Exception as e:
+            print(f"⚠️ 검색어 변경 처리 오류: {e}")
+            self.search_input.setToolTip("")
+
+    # def get_search_suggestions(self, search_term, limit=5):
+    #     """검색어 자동완성 제안"""
+    #     if len(search_term) < 2:
+    #         return []
+        
+    #     suggestions = []
+    #     seen = set()
+    #     search_upper = search_term.upper()
+        
+    #     for market, df in self.stock_lists.items():
+    #         if df.empty:
+    #             continue
+                
+    #         for _, row in df.iterrows():
+    #             ticker = str(row.get('ticker', '')).upper()
+    #             name = str(row.get('name', '')).upper()
+                
+    #             # 티커로 시작하는 것
+    #             if ticker.startswith(search_upper) and ticker not in seen:
+    #                 suggestions.append(ticker)
+    #                 seen.add(ticker)
+                
+    #             # 회사명으로 시작하는 것  
+    #             elif any(word.startswith(search_upper) for word in name.split()) and name not in seen:
+    #                 suggestions.append(name.split()[0])  # 첫 번째 단어만
+    #                 seen.add(name)
+                
+    #             if len(suggestions) >= limit:
+    #                 break
+        
+    #     return suggestions
+
+    def get_search_suggestions(self, search_term, limit=5):
+        """검색어 자동완성 제안 - 리스트 형태 데이터 대응"""
+        if len(search_term) < 2:
+            return []
+        
+        suggestions = []
+        seen = set()
+        search_upper = search_term.upper()
+        
+        try:
+            # stock_lists의 데이터 형태 확인 및 처리
+            for market, data in self.stock_lists.items():
+                # 데이터가 비어있으면 스킵
+                if not data:
+                    continue
+                
+                # DataFrame인 경우
+                if hasattr(data, 'empty') and hasattr(data, 'iterrows'):
+                    if data.empty:
+                        continue
+                        
+                    for _, row in data.iterrows():
+                        ticker = str(row.get('ticker', '')).upper()
+                        name = str(row.get('name', '')).upper()
+                        
+                        # 티커로 시작하는 것
+                        if ticker.startswith(search_upper) and ticker not in seen:
+                            suggestions.append(ticker)
+                            seen.add(ticker)
+                        
+                        # 회사명으로 시작하는 것  
+                        elif any(word.startswith(search_upper) for word in name.split()) and name not in seen:
+                            suggestions.append(name.split()[0])  # 첫 번째 단어만
+                            seen.add(name)
+                        
+                        if len(suggestions) >= limit:
+                            break
+                
+                # 리스트인 경우
+                elif isinstance(data, list):
+                    for stock in data:
+                        if not isinstance(stock, dict):
+                            continue
+                            
+                        ticker = str(stock.get('ticker', '')).upper()
+                        name = str(stock.get('name', '')).upper()
+                        
+                        # 티커로 시작하는 것
+                        if ticker.startswith(search_upper) and ticker not in seen:
+                            suggestions.append(ticker)
+                            seen.add(ticker)
+                        
+                        # 회사명으로 시작하는 것
+                        elif any(word.startswith(search_upper) for word in name.split()) and name not in seen:
+                            suggestions.append(name.split()[0])  # 첫 번째 단어만
+                            seen.add(name)
+                        
+                        if len(suggestions) >= limit:
+                            break
+                
+                if len(suggestions) >= limit:
+                    break
+            
+            return suggestions
+            
+        except Exception as e:
+            print(f"⚠️ 검색 제안 오류: {e}")
+            return []
+
+    def search_and_show_chart(self):
+        """검색 후 차트 표시 - 안전한 버전"""
+        search_term = self.search_input.text().strip()
+        
+        if not search_term:
+            QMessageBox.warning(self, "검색 오류", "검색어를 입력해주세요.")
+            return
+        
+        try:
+            # 최근 검색어에 추가 (안전하게)
+            self.add_to_recent_searches(search_term)
+            
+            # 검색 실행
+            self.update_search_result_label("검색 중...")
+            QApplication.processEvents()
+            
+            found_stocks = self.enhanced_search_stocks(search_term)
+            
+            if not found_stocks:
+                # 온라인 검색 시도
+                self.update_search_result_label("CSV에서 검색 결과 없음. 온라인 검색 중...")
+                QApplication.processEvents()
+                
+                if self.try_online_search(search_term):
+                    return
+                else:
+                    QMessageBox.information(
+                        self,
+                        "검색 결과 없음",
+                        f"'{search_term}'에 대한 검색 결과가 없습니다.\n\n"
+                        "검색 팁:\n"
+                        "• 정확한 종목코드 또는 티커 사용 (예: 005930, AAPL)\n"
+                        "• 회사명의 일부만 입력 (예: 삼성, Apple)\n"
+                        "• 영문은 대소문자 구분 없음\n"
+                        "• CSV 파일이 최신인지 확인 ('온라인 종목 업데이트')"
+                    )
+                    self.update_search_result_label("검색 결과 없음")
+                    return
+            
+            # 검색 결과 처리
+            if len(found_stocks) == 1:
+                # 단일 결과면 바로 차트 표시
+                stock = found_stocks[0]
+                self.update_search_result_label(
+                    f"✅ {stock['name']} ({stock['ticker']}) - {stock['market']}"
+                )
+                self.show_stock_chart(stock['ticker'], stock['name'])
+                
+            else:
+                # 여러 결과면 선택 다이얼로그
+                self.update_search_result_label(f"🔍 {len(found_stocks)}개 종목 발견")
+                self.show_search_results_dialog(found_stocks, search_term)
+                
+        except Exception as e:
+            print(f"⚠️ 검색 및 차트 표시 오류: {e}")
+            self.update_search_result_label("검색 오류 발생")
+            QMessageBox.critical(self, "검색 오류", f"검색 중 오류가 발생했습니다: {str(e)}")
+
+    def update_search_result_label(self, text):
+        """검색 결과 레이블 업데이트 - 안전한 버전"""
+        try:
+            if hasattr(self, 'search_result_label'):
+                self.search_result_label.setText(text)
+            else:
+                print(f"검색 결과: {text}")
+        except Exception as e:
+            print(f"⚠️ 검색 결과 레이블 업데이트 오류: {e}")
+
+
+    # def enhanced_search_stocks(self, search_term):
+    #     """향상된 종목 검색 - DataFrame 사용"""
+    #     if not search_term.strip():
+    #         return []
+        
+    #     search_term = search_term.strip().upper()
+    #     found_stocks = []
+    #     seen_tickers = set()
+        
+    #     # DataFrame 버전 사용 (검색용)
+    #     dataframes = getattr(self, '_stock_dataframes', {})
+        
+    #     for market, df in dataframes.items():
+    #         if df.empty:
+    #             continue
+                
+    #         for _, row in df.iterrows():
+    #             ticker = str(row.get('ticker', '')).strip()
+    #             name = str(row.get('name', '')).strip()
+    #             sector = str(row.get('sector', '')).strip()
+                
+    #             if not ticker or ticker in seen_tickers:
+    #                 continue
+                
+    #             match_score = 0
+    #             match_reasons = []
+                
+    #             # 매칭 로직
+    #             if ticker.upper() == search_term:
+    #                 match_score = 100
+    #                 match_reasons.append("티커 완전매치")
+    #             elif search_term in ticker.upper():
+    #                 match_score = 80
+    #                 match_reasons.append("티커 부분매치")
+    #             elif search_term in name.upper():
+    #                 match_score = 70
+    #                 match_reasons.append("회사명 매치")
+    #             elif search_term in sector.upper():
+    #                 match_score = 50
+    #                 match_reasons.append("섹터 매치")
+                
+    #             if match_score > 0:
+    #                 # 시가총액 포맷팅
+    #                 market_cap_str = "N/A"
+    #                 if pd.notna(row.get('market_cap')) and row.get('market_cap', 0) > 0:
+    #                     mcap = row['market_cap']
+    #                     if mcap >= 1e12:
+    #                         market_cap_str = f"{mcap/1e12:.1f}T"
+    #                     elif mcap >= 1e9:
+    #                         market_cap_str = f"{mcap/1e9:.1f}B"
+    #                     elif mcap >= 1e6:
+    #                         market_cap_str = f"{mcap/1e6:.1f}M"
+    #                     else:
+    #                         market_cap_str = f"{mcap:,.0f}"
+                    
+    #                 stock_info = {
+    #                     'ticker': ticker,
+    #                     'name': name,
+    #                     'sector': sector,
+    #                     'market_cap': market_cap_str,
+    #                     'market': market,
+    #                     'match_score': match_score,
+    #                     'match_reasons': match_reasons,
+    #                     'raw_market_cap': row.get('market_cap', 0)
+    #                 }
+    #                 found_stocks.append(stock_info)
+    #                 seen_tickers.add(ticker)
+        
+    #     # 검색 결과 정렬
+    #     found_stocks.sort(key=lambda x: (-x['match_score'], x['name']))
+    #     return found_stocks
+
+    def enhanced_search_stocks(self, search_term):
+        """향상된 종목 검색 - 마스터 CSV 파일에서 검색"""
+        if not search_term.strip():
+            return []
+        
+        search_term = search_term.strip()
+        found_stocks = []
+        seen_tickers = set()
+        
+        # 마스터 CSV 파일 경로들
+        master_files = {
+            'korea': 'stock_data/korea_stocks_master.csv',
+            'usa': 'stock_data/usa_stocks_master.csv', 
+            'sweden': 'stock_data/sweden_stocks_master.csv'
+        }
+        
+        print(f"🔍 마스터 CSV에서 '{search_term}' 검색 중...")
+        
+        try:
+            # 각 마스터 CSV 파일에서 검색
+            for market, file_path in master_files.items():
+                if not os.path.exists(file_path):
+                    print(f"⚠️ {market} 마스터 파일 없음: {file_path}")
+                    continue
+                
+                try:
+                    # 마스터 CSV 로드 (전체 종목 데이터)
+                    df = pd.read_csv(file_path, encoding='utf-8-sig')
+                    print(f"📊 {market} 마스터 CSV 로드: {len(df)}개 종목")
+                    
+                    # DataFrame에서 검색
+                    for _, row in df.iterrows():
+                        ticker = str(row.get('ticker', '')).strip()
+                        name = str(row.get('name', '')).strip()
+                        sector = str(row.get('sector', '')).strip()
+                        
+                        if not ticker or ticker in seen_tickers:
+                            continue
+                        
+                        match_score = 0
+                        match_reasons = []
+                        
+                        # 매칭 로직 (대소문자 구분 없음)
+                        search_upper = search_term.upper()
+                        ticker_upper = ticker.upper()
+                        name_upper = name.upper()
+                        sector_upper = sector.upper()
+                        
+                        # 1. 티커 완전 매치 (최고 점수)
+                        if ticker_upper == search_upper:
+                            match_score = 100
+                            match_reasons.append("티커 완전매치")
+                        # 2. 회사명 완전 매치
+                        elif name_upper == search_upper:
+                            match_score = 95
+                            match_reasons.append("회사명 완전매치")
+                        # 3. 티커 부분 매치
+                        elif search_upper in ticker_upper:
+                            match_score = 85
+                            match_reasons.append("티커 부분매치")
+                        # 4. 회사명 부분 매치 (여기서 "삼성" 찾기!)
+                        elif search_upper in name_upper:
+                            match_score = 75
+                            match_reasons.append("회사명 부분매치")
+                        # 5. 섹터 매치
+                        elif search_upper in sector_upper:
+                            match_score = 60
+                            match_reasons.append("섹터 매치")
+                        
+                        if match_score > 0:
+                            # 시가총액 포맷팅
+                            market_cap_str = "N/A"
+                            mcap = row.get('market_cap', 0)
+                            
+                            if pd.notna(mcap) and mcap > 0:
+                                try:
+                                    mcap_num = float(mcap)
+                                    if mcap_num >= 1e12:
+                                        market_cap_str = f"{mcap_num/1e12:.1f}T"
+                                    elif mcap_num >= 1e9:
+                                        market_cap_str = f"{mcap_num/1e9:.1f}B"
+                                    elif mcap_num >= 1e6:
+                                        market_cap_str = f"{mcap_num/1e6:.1f}M"
+                                    else:
+                                        market_cap_str = f"{mcap_num:,.0f}"
+                                except (ValueError, TypeError):
+                                    market_cap_str = str(mcap)
+                            
+                            stock_info = {
+                                'ticker': ticker,
+                                'name': name,
+                                'sector': sector,
+                                'market_cap': market_cap_str,
+                                'market': market.upper(),
+                                'match_score': match_score,
+                                'match_reasons': match_reasons,
+                                'raw_market_cap': mcap
+                            }
+                            
+                            found_stocks.append(stock_info)
+                            seen_tickers.add(ticker)
+                            
+                except Exception as e:
+                    print(f"⚠️ {market} 마스터 CSV 검색 오류: {e}")
+                    continue
+            
+            # 현재 로딩된 CSV에서도 보조적으로 검색 (마스터 파일에 없는 경우 대비)
+            if not found_stocks:
+                print("📂 마스터 CSV에서 못 찾음, 현재 로딩된 CSV에서 검색...")
+                found_stocks = self.search_from_loaded_csv(search_term)
+            
+            # 검색 결과 정렬 (매치 스코어 -> 시가총액 -> 이름순)
+            found_stocks.sort(key=lambda x: (-x['match_score'], -x.get('raw_market_cap', 0), x['name']))
+            
+            print(f"🎯 검색 완료: '{search_term}' → {len(found_stocks)}개 결과")
+            
+            return found_stocks
+            
+        except Exception as e:
+            print(f"⚠️ 마스터 CSV 검색 중 오류: {e}")
+            # 폴백: 기존 로딩된 CSV에서 검색
+            return self.search_from_loaded_csv(search_term)
+
+    def _process_search_row(self, stock, search_term, market, seen_tickers):
+        """검색 행 처리 헬퍼 메서드"""
+        try:
+            ticker = str(stock.get('ticker', '')).strip()
+            name = str(stock.get('name', '')).strip()
+            sector = str(stock.get('sector', '')).strip()
+            
+            if not ticker or ticker in seen_tickers:
+                return None
+            
+            match_score = 0
+            match_reasons = []
+            
+            # 매칭 로직
+            if ticker.upper() == search_term:
+                match_score = 100
+                match_reasons.append("티커 완전매치")
+            elif search_term in ticker.upper():
+                match_score = 80
+                match_reasons.append("티커 부분매치")
+            elif search_term in name.upper():
+                match_score = 70
+                match_reasons.append("회사명 매치")
+            elif search_term in sector.upper():
+                match_score = 50
+                match_reasons.append("섹터 매치")
+            
+            if match_score > 0:
+                # 시가총액 포맷팅
+                market_cap_str = "N/A"
+                mcap = stock.get('market_cap', 0)
+                
+                if mcap and mcap != 0:
+                    try:
+                        mcap_num = float(mcap)
+                        if mcap_num >= 1e12:
+                            market_cap_str = f"{mcap_num/1e12:.1f}T"
+                        elif mcap_num >= 1e9:
+                            market_cap_str = f"{mcap_num/1e9:.1f}B"
+                        elif mcap_num >= 1e6:
+                            market_cap_str = f"{mcap_num/1e6:.1f}M"
+                        else:
+                            market_cap_str = f"{mcap_num:,.0f}"
+                    except (ValueError, TypeError):
+                        market_cap_str = str(mcap)
+                
+                return {
+                    'ticker': ticker,
+                    'name': name,
+                    'sector': sector,
+                    'market_cap': market_cap_str,
+                    'market': market,
+                    'match_score': match_score,
+                    'match_reasons': match_reasons,
+                    'raw_market_cap': mcap
+                }
+            
+            return None
+            
+        except Exception as e:
+            print(f"⚠️ 검색 행 처리 오류: {e}")
+            return None
+
+    def search_from_loaded_csv(self, search_term):
+        """기존 로딩된 CSV에서 검색 (폴백 함수)"""
+        found_stocks = []
+        seen_tickers = set()
+        
+        try:
+            for market, data in self.stock_lists.items():
+                if not data:
+                    continue
+                
+                for stock in data:
+                    if not isinstance(stock, dict):
+                        continue
+                    
+                    ticker = str(stock.get('ticker', '')).strip()
+                    name = str(stock.get('name', '')).strip()
+                    
+                    if not ticker or ticker in seen_tickers:
+                        continue
+                    
+                    # 간단한 매칭
+                    if (search_term.upper() in ticker.upper() or 
+                        search_term.upper() in name.upper()):
+                        
+                        found_stocks.append({
+                            'ticker': ticker,
+                            'name': name,
+                            'sector': stock.get('sector', ''),
+                            'market_cap': str(stock.get('market_cap', 0)),
+                            'market': market.upper(),
+                            'match_score': 70,
+                            'match_reasons': ["기본 매치"],
+                            'raw_market_cap': stock.get('market_cap', 0)
+                        })
+                        seen_tickers.add(ticker)
+            
+            return found_stocks
+            
+        except Exception as e:
+            print(f"⚠️ 로딩된 CSV 검색 오류: {e}")
+            return []
+
+    # 추가로 필요한 함수: 마스터 CSV 파일 존재 여부 확인
+    def check_master_csv_availability(self):
+        """마스터 CSV 파일들의 존재 여부 확인"""
+        master_files = {
+            'korea': 'stock_data/korea_stocks_master.csv',
+            'usa': 'stock_data/usa_stocks_master.csv', 
+            'sweden': 'stock_data/sweden_stocks_master.csv'
+        }
+        
+        available = {}
+        total_stocks = 0
+        
+        for market, file_path in master_files.items():
+            if os.path.exists(file_path):
+                try:
+                    df = pd.read_csv(file_path, encoding='utf-8-sig')
+                    available[market] = len(df)
+                    total_stocks += len(df)
+                except:
+                    available[market] = 0
+            else:
+                available[market] = 0
+        
+        if total_stocks > 0:
+            market_info = []
+            for market, count in available.items():
+                if count > 0:
+                    market_info.append(f"{market}: {count:,}개")
+            
+            info_text = f"마스터 CSV 사용 가능: 총 {total_stocks:,}개 종목\n" + " | ".join(market_info)
+            self.statusbar.showMessage(info_text)
+            print(f"✅ {info_text}")
+        else:
+            self.statusbar.showMessage("마스터 CSV 없음 - '마스터 CSV 생성' 버튼을 클릭하세요")
+            print("⚠️ 마스터 CSV 파일이 없습니다")
+        
+        return available
+
+    def show_search_results_dialog(self, found_stocks, search_term):
+        """검색 결과 선택 다이얼로그 - 향상된 버전"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"🔍 검색 결과: '{search_term}'")
+        dialog.setModal(True)
+        dialog.resize(1000, 500)
+        
+        layout = QVBoxLayout(dialog)
+        
+        # 상단 정보
+        info_layout = QHBoxLayout()
+        info_label = QLabel(f"📊 {len(found_stocks)}개의 종목이 발견되었습니다")
+        info_label.setStyleSheet("font-weight: bold; font-size: 14px; margin: 10px;")
+        info_layout.addWidget(info_label)
+        
+        # 정렬 옵션
+        sort_combo = QComboBox()
+        sort_combo.addItems(["매치 점수순", "회사명순", "시가총액순", "시장별"])
+        sort_combo.currentTextChanged.connect(
+            lambda: self.resort_search_results(dialog, found_stocks, sort_combo.currentText())
+        )
+        info_layout.addWidget(QLabel("정렬:"))
+        info_layout.addWidget(sort_combo)
+        info_layout.addStretch()
+        
+        layout.addLayout(info_layout)
+        
+        # 검색 결과 테이블
+        table = QTableWidget()
+        table.setColumnCount(7)
+        table.setHorizontalHeaderLabels([
+            '티커', '회사명', '섹터', '시가총액', '시장', '매치점수', '매치이유'
+        ])
+        
+        self.populate_search_results_table(table, found_stocks)
+        
+        # 테이블 설정
+        table.resizeColumnsToContents()
+        table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        table.setAlternatingRowColors(True)
+        table.setSortingEnabled(True)
+        
+        # 더블클릭으로 차트 열기
+        def on_double_click(row, col):
+            if row < len(found_stocks):
+                selected_stock = found_stocks[row]
+                dialog.accept()
+                self.show_stock_chart(selected_stock['ticker'], selected_stock['name'])
+        
+        table.cellDoubleClicked.connect(on_double_click)
+        layout.addWidget(table)
+        
+        # 하단 버튼들
+        button_layout = QHBoxLayout()
+        
+        # 차트 보기 버튼
+        view_chart_btn = QPushButton("📊 차트 보기")
+        view_chart_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                font-weight: bold;
+                padding: 10px 20px;
+                border-radius: 6px;
+            }
+        """)
+        
+        def on_view_chart():
+            current_row = table.currentRow()
+            if current_row >= 0 and current_row < len(found_stocks):
+                selected_stock = found_stocks[current_row]
+                dialog.accept()
+                self.show_stock_chart(selected_stock['ticker'], selected_stock['name'])
+            else:
+                QMessageBox.warning(dialog, "선택 오류", "차트를 볼 종목을 선택해주세요.")
+        
+        view_chart_btn.clicked.connect(on_view_chart)
+        button_layout.addWidget(view_chart_btn)
+        
+        # 결과 내보내기 버튼
+        export_btn = QPushButton("📁 Excel 내보내기")
+        export_btn.clicked.connect(lambda: self.export_search_results(found_stocks, search_term))
+        button_layout.addWidget(export_btn)
+        
+        # 취소 버튼
+        cancel_btn = QPushButton("❌ 취소")
+        cancel_btn.clicked.connect(dialog.reject)
+        button_layout.addWidget(cancel_btn)
+        
+        button_layout.addStretch()
+        
+        # 도움말
+        help_label = QLabel("💡 팁: 종목을 더블클릭하거나 선택 후 '차트 보기'를 클릭하세요")
+        help_label.setStyleSheet("color: #666; font-style: italic; margin: 5px;")
+        button_layout.addWidget(help_label)
+        
+        layout.addLayout(button_layout)
+        
+        dialog.exec_()
+
+    def populate_search_results_table(self, table, found_stocks):
+        """검색 결과 테이블 채우기"""
+        table.setRowCount(len(found_stocks))
+        
+        for i, stock in enumerate(found_stocks):
+            table.setItem(i, 0, QTableWidgetItem(stock['ticker']))
+            table.setItem(i, 1, QTableWidgetItem(stock['name']))
+            table.setItem(i, 2, QTableWidgetItem(stock['sector']))
+            table.setItem(i, 3, QTableWidgetItem(stock['market_cap']))
+            table.setItem(i, 4, QTableWidgetItem(stock['market']))
+            
+            # 매치 점수 (숫자로 정렬 가능하도록)
+            score_item = QTableWidgetItem()
+            score_item.setData(Qt.DisplayRole, stock['match_score'])
+            table.setItem(i, 5, score_item)
+            
+            # 매치 이유
+            reasons = ", ".join(stock['match_reasons'])
+            table.setItem(i, 6, QTableWidgetItem(reasons))
+            
+            # 높은 매치 점수는 녹색으로 강조
+            if stock['match_score'] >= 90:
+                for col in range(7):
+                    table.item(i, col).setBackground(QColor(200, 255, 200))
+            elif stock['match_score'] >= 70:
+                for col in range(7):
+                    table.item(i, col).setBackground(QColor(255, 255, 200))
+
+    def try_online_search(self, search_term):
+        """온라인에서 직접 종목 검색"""
+        try:
+            import yfinance as yf
+            
+            # 다양한 패턴으로 시도
+            search_patterns = [
+                search_term,
+                search_term + ".KS",  # 한국 코스피
+                search_term + ".KQ",  # 한국 코스닥  
+                search_term + ".ST"   # 스웨덴
+            ]
+            
+            for pattern in search_patterns:
+                try:
+                    ticker = yf.Ticker(pattern)
+                    info = ticker.info
+                    
+                    if info and info.get('symbol'):
+                        name = info.get('longName') or info.get('shortName') or pattern
+                        self.search_result_label.setText(f"🌐 온라인 발견: {name} ({pattern})")
+                        self.show_stock_chart(pattern, name)
+                        return True
+                        
+                except Exception as e:
+                    continue
+            
+            return False
+            
+        except Exception as e:
+            print(f"온라인 검색 오류: {e}")
+            return False
+
+    def show_random_stock_chart(self):
+        """🎲 랜덤 종목 차트 표시 - 안전한 버전"""
+        import random
+        
+        try:
+            # 모든 종목 수집
+            all_stocks = []
+            
+            if not hasattr(self, 'stock_lists') or not self.stock_lists:
+                QMessageBox.warning(self, "오류", "로드된 종목 데이터가 없습니다.\n먼저 CSV 파일을 로드하거나 '샘플 생성'을 실행해주세요.")
+                return
+            
+            for market, data in self.stock_lists.items():
+                if not data:
+                    continue
+                
+                try:
+                    # DataFrame인 경우
+                    if hasattr(data, 'empty') and hasattr(data, 'iterrows'):
+                        if not data.empty:
+                            for _, row in data.iterrows():
+                                ticker = row.get('ticker')
+                                name = row.get('name')
+                                if pd.notna(ticker) and pd.notna(name):
+                                    all_stocks.append({
+                                        'ticker': str(ticker),
+                                        'name': str(name),
+                                        'market': market,
+                                        'market_cap': row.get('market_cap', 0)
+                                    })
+                    
+                    # 리스트인 경우
+                    elif isinstance(data, list):
+                        for stock in data:
+                            if isinstance(stock, dict):
+                                ticker = stock.get('ticker')
+                                name = stock.get('name')
+                                if ticker and name:
+                                    all_stocks.append({
+                                        'ticker': str(ticker),
+                                        'name': str(name),
+                                        'market': market,
+                                        'market_cap': stock.get('market_cap', 0)
+                                    })
+                    
+                except Exception as e:
+                    print(f"⚠️ {market} 시장 데이터 처리 오류: {e}")
+                    continue
+            
+            if not all_stocks:
+                QMessageBox.warning(self, "오류", "표시할 종목이 없습니다.\n먼저 CSV 파일을 로드하거나 '온라인 종목 업데이트'를 실행해주세요.")
+                return
+            
+            # 시가총액이 있는 종목을 우선적으로 선택 (더 의미있는 랜덤)
+            weighted_stocks = []
+            for stock in all_stocks:
+                mcap = stock.get('market_cap', 0)
+                try:
+                    if isinstance(mcap, (int, float)) and mcap > 0:
+                        # 시총 있는 종목은 3배 가중치
+                        weighted_stocks.extend([stock] * 3)
+                    else:
+                        weighted_stocks.append(stock)
+                except:
+                    weighted_stocks.append(stock)
+            
+            # 랜덤 선택
+            random_stock = random.choice(weighted_stocks if weighted_stocks else all_stocks)
+            
+            # 시가총액 정보 포함해서 표시
+            mcap_info = ""
+            if random_stock.get('market_cap', 0):
+                try:
+                    mcap = float(random_stock['market_cap'])
+                    if mcap >= 1e12:
+                        mcap_info = f" (시총: {mcap/1e12:.1f}조)"
+                    elif mcap >= 1e9:
+                        mcap_info = f" (시총: {mcap/1e9:.1f}B)"
+                    elif mcap >= 1e6:
+                        mcap_info = f" (시총: {mcap/1e6:.1f}M)"
+                    else:
+                        mcap_info = f" (시총: {mcap:,.0f})"
+                except:
+                    mcap_info = ""
+            
+            # 검색 결과 레이블 업데이트
+            result_text = f"🎲 랜덤: {random_stock['name']} ({random_stock['ticker']}) - {random_stock['market']}{mcap_info}"
+            self.update_search_result_label(result_text)
+            
+            # 차트 표시
+            self.show_stock_chart(random_stock['ticker'], random_stock['name'])
+            
+            print(f"🎲 랜덤 선택: {random_stock['ticker']} - {random_stock['name']}")
+            
+        except Exception as e:
+            print(f"⚠️ 랜덤 종목 선택 오류: {e}")
+            QMessageBox.critical(self, "오류", f"랜덤 종목 선택 중 오류가 발생했습니다: {str(e)}")
+
+    def add_to_recent_searches(self, search_term):
+        """최근 검색어에 추가 - 안전한 버전"""
+        try:
+            if not hasattr(self, 'recent_searches'):
+                self.recent_searches = []
+            
+            if search_term in self.recent_searches:
+                self.recent_searches.remove(search_term)
+            
+            self.recent_searches.insert(0, search_term)
+            self.recent_searches = self.recent_searches[:5]  # 최대 5개까지
+            
+            # 레이블이 존재하는 경우에만 업데이트
+            if hasattr(self, 'recent_searches_label'):
+                self.update_recent_searches_display()
+            
+            print(f"📝 최근 검색어 추가: {search_term}")
+            
+        except Exception as e:
+            print(f"⚠️ 최근 검색어 추가 오류: {e}")
+
+    def update_recent_searches_display(self):
+        """최근 검색어 표시 업데이트 - 안전한 버전"""
+        try:
+            # 레이블이 존재하는지 확인
+            if not hasattr(self, 'recent_searches_label'):
+                return
+            
+            if not hasattr(self, 'recent_searches'):
+                self.recent_searches = []
+            
+            if self.recent_searches:
+                recent_text = "최근 검색: " + " | ".join(self.recent_searches)
+                self.recent_searches_label.setText(recent_text)
+            else:
+                self.recent_searches_label.setText("💡 팁: Enter 키 또는 🔍 버튼으로 검색하세요")
+                
+        except Exception as e:
+            print(f"⚠️ 최근 검색어 표시 오류: {e}")
+
+    def on_recent_search_click(self, event):
+        """최근 검색어 클릭 처리"""
+        # 추후 구현: 최근 검색어를 클릭하면 해당 검색어로 다시 검색
+        pass
+
+
+    def show_search_help(self):
+        """검색 도움말 표시"""
+        help_text = """
+    🔍 종목 검색 기능 사용법
+
+    📌 기본 검색 방법:
+    • 종목코드: 005930 (삼성전자), AAPL (애플)
+    • 회사명: 삼성전자, Apple Inc, 현대차
+    • 부분 검색: 삼성, 전자, Tech, Bio
+    • 섹터 검색: Technology, Healthcare, Financial
+
+    🎯 검색 예시:
+
+    🇰🇷 한국 종목:
+    • 005930 → 삼성전자 차트 즉시 표시
+    • 삼성 → 삼성전자, 삼성SDI 등 선택 다이얼로그
+    • 전자 → 삼성전자, LG전자 등 관련 종목들
+
+    🇺🇸 미국 종목:
+    • AAPL → 애플 차트 즉시 표시  
+    • Apple → 애플 차트 즉시 표시
+    • Tech → 기술주 관련 종목들
+
+    🇸🇪 스웨덴 종목:
+    • VOLV-B.ST → 볼보 차트
+    • Ericsson → 에릭슨 관련 종목들
+
+    ⚡ 편의 기능:
+    • 🔍 검색 버튼 또는 Enter 키로 검색
+    • 🎲 랜덤 버튼으로 무작위 종목 탐색
+    • 실시간 검색어 제안 (2글자 이상 입력시)
+    • 최근 검색어 기록 (최대 5개)
+    • 검색 결과를 Excel로 내보내기
+
+    📊 차트 기능:
+    • 가격 + 이동평균선 (20, 60, 120일)
+    • 볼린저 밴드
+    • RSI (상대강도지수)
+    • MACD 지표
+    • 다양한 기간 선택 (3개월 ~ 2년)
+    • 풀스크린 모드
+
+    💡 검색 팁:
+    • 정확한 매치가 우선순위 (티커 > 회사명 > 섹터)
+    • 대소문자 구분 없음
+    • 한글-영문 혼용 가능
+    • CSV에서 찾지 못하면 온라인 자동 검색
+    • '온라인 종목 업데이트'로 최신 종목 확보 권장
+
+    🎲 랜덤 기능:
+    • 시가총액이 있는 종목 우선 선택
+    • 다양한 시장의 종목 탐색 가능
+    • 새로운 투자 아이디어 발굴에 유용
+
+    🔧 문제 해결:
+    • 검색 결과가 없으면: CSV 파일 확인 또는 온라인 업데이트
+    • 차트가 안 열리면: 인터넷 연결 확인
+    • 오래된 데이터: '온라인 종목 업데이트' 실행
+
+    📋 사용 시나리오:
+
+    1️⃣ 빠른 차트 확인:
+    → 종목코드 입력 → Enter → 차트 즉시 표시
+
+    2️⃣ 종목 탐색:
+    → 섹터명 입력 → 여러 결과 → 관심 종목 선택
+
+    3️⃣ 새로운 발견:
+    → 🎲 랜덤 버튼 → 예상치 못한 종목 발견
+    """
+        
+        QMessageBox.information(self, "🔍 종목 검색 도움말", help_text)
+
+    # def rebuild_search_index(self):
+    #     """검색 인덱스 재구성 - DataFrame 사용"""
+    #     try:
+    #         self.search_index = {}
+            
+    #         # DataFrame 버전 사용
+    #         dataframes = getattr(self, '_stock_dataframes', {})
+            
+    #         for market, df in dataframes.items():
+    #             if df.empty:
+    #                 continue
+                    
+    #             for idx, row in df.iterrows():
+    #                 ticker = str(row.get('ticker', '')).upper()
+    #                 name = str(row.get('name', '')).upper()
+                    
+    #                 # 티커로 인덱싱
+    #                 if ticker and ticker != 'NAN':
+    #                     if ticker not in self.search_index:
+    #                         self.search_index[ticker] = []
+    #                     self.search_index[ticker].append({
+    #                         'market': market,
+    #                         'row_data': row.to_dict(),
+    #                         'match_type': 'ticker'
+    #                     })
+            
+    #         print(f"✅ 검색 인덱스 구성 완료: {len(self.search_index)}개 항목")
+            
+    #     except Exception as e:
+    #         print(f"⚠️ 검색 인덱스 구성 오류: {e}")
+    #         self.search_index = {}
+
+    def rebuild_search_index(self):
+        """검색 인덱스 재구성 - 데이터 형태 안전 처리"""
+        try:
+            self.search_index = {}
+            
+            for market, data in self.stock_lists.items():
+                if not data:
+                    continue
+                
+                # DataFrame인 경우
+                if hasattr(data, 'empty') and hasattr(data, 'iterrows'):
+                    if data.empty:
+                        continue
+                        
+                    for idx, row in data.iterrows():
+                        self._index_stock_data(row.to_dict(), market)
+                
+                # 리스트인 경우
+                elif isinstance(data, list):
+                    for stock in data:
+                        if isinstance(stock, dict):
+                            self._index_stock_data(stock, market)
+            
+            print(f"✅ 검색 인덱스 구성 완료: {len(self.search_index)}개 항목")
+            
+        except Exception as e:
+            print(f"⚠️ 검색 인덱스 구성 오류: {e}")
+            self.search_index = {}
+
+    def _index_stock_data(self, stock, market):
+        """주식 데이터 인덱싱 헬퍼 메서드"""
+        try:
+            ticker = str(stock.get('ticker', '')).upper()
+            name = str(stock.get('name', '')).upper()
+            
+            # 티커로 인덱싱
+            if ticker and ticker != 'NAN':
+                if ticker not in self.search_index:
+                    self.search_index[ticker] = []
+                self.search_index[ticker].append({
+                    'market': market,
+                    'stock_data': stock,
+                    'match_type': 'ticker'
+                })
+            
+            # 회사명의 각 단어로 인덱싱
+            if name and name != 'NAN':
+                words = name.split()
+                for word in words:
+                    if len(word) >= 2:  # 2글자 이상만
+                        if word not in self.search_index:
+                            self.search_index[word] = []
+                        self.search_index[word].append({
+                            'market': market,
+                            'stock_data': stock,
+                            'match_type': 'name'
+                        })
+                        
+        except Exception as e:
+            print(f"⚠️ 데이터 인덱싱 오류: {e}")
+
+    # 추가: 데이터 형태 확인 유틸리티
+    def check_data_format(self):
+        """현재 데이터 형태 확인 (디버깅용)"""
+        print("📊 현재 데이터 형태 확인:")
+        for market, data in self.stock_lists.items():
+            if hasattr(data, 'empty'):
+                print(f"  {market}: DataFrame ({len(data)}개)")
+            elif isinstance(data, list):
+                print(f"  {market}: List ({len(data)}개)")
+            else:
+                print(f"  {market}: Unknown type ({type(data)})")
+
+    # 안전한 검색 초기화
+    def init_search_safely(self):
+        """검색 기능 안전 초기화"""
+        try:
+            # 검색 관련 변수 초기화
+            if not hasattr(self, 'search_index'):
+                self.search_index = {}
+            if not hasattr(self, 'recent_searches'):
+                self.recent_searches = []
+            
+            # 데이터 형태 확인
+            self.check_data_format()
+            
+            # 검색 인덱스 구성 시도
+            self.rebuild_search_index()
+            
+            print("✅ 검색 기능 초기화 완료")
+            
+        except Exception as e:
+            print(f"⚠️ 검색 초기화 오류: {e}")
+            self.search_index = {}
+            self.recent_searches = []
+
+    def show_stock_chart(self, ticker, name):
+        """종목 차트 창 열기"""
+        try:
+            from chart_window import StockChartWindow
+            
+            # 기존 같은 종목 차트 창이 있으면 닫기
+            for window in QApplication.topLevelWidgets():
+                if isinstance(window, StockChartWindow) and window.symbol == ticker:
+                    window.close()
+            
+            # 새 차트 창 열기
+            chart_window = StockChartWindow(ticker, name, self)
+            chart_window.show()
+            
+            # 검색어 입력창 비우기 
+            self.search_input.clear()
+            
+            print(f"✅ 차트 창 열림: {ticker} ({name})")
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "차트 오류", 
+                f"차트를 표시할 수 없습니다.\n\n"
+                f"종목: {ticker} ({name})\n"
+                f"오류: {str(e)}\n\n"
+                f"가능한 원인:\n"
+                f"• 인터넷 연결 문제\n"
+                f"• 잘못된 종목 코드\n" 
+                f"• 차트 모듈 오류"
+            )
+            print(f"차트 표시 오류: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def export_search_results(self, found_stocks, search_term):
+        """검색 결과를 Excel로 내보내기"""
+        try:
+            from utils import export_search_results
+            
+            filename = export_search_results(found_stocks, search_term)
+            
+            if filename:
+                QMessageBox.information(
+                    self,
+                    "내보내기 완료",
+                    f"검색 결과가 Excel 파일로 저장되었습니다.\n\n"
+                    f"파일명: {filename}\n"
+                    f"종목 수: {len(found_stocks)}개"
+                )
+            else:
+                QMessageBox.warning(self, "내보내기 실패", "Excel 파일 저장에 실패했습니다.")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "내보내기 오류", f"오류가 발생했습니다: {str(e)}")
+
+    def resort_search_results(self, dialog, found_stocks, sort_method):
+        """검색 결과 재정렬"""
+        try:
+            if sort_method == "매치 점수순":
+                found_stocks.sort(key=lambda x: (-x['match_score'], x['name']))
+            elif sort_method == "회사명순":
+                found_stocks.sort(key=lambda x: x['name'])
+            elif sort_method == "시가총액순":
+                found_stocks.sort(key=lambda x: (-x.get('raw_market_cap', 0), x['name']))
+            elif sort_method == "시장별":
+                found_stocks.sort(key=lambda x: (x['market'], x['name']))
+            
+            # 테이블 업데이트
+            for widget in dialog.findChildren(QTableWidget):
+                self.populate_search_results_table(widget, found_stocks)
+                break
+                
+        except Exception as e:
+            print(f"정렬 오류: {e}")
+
+    # def load_stock_lists(self):
+    #     """기존 CSV 로드 함수 오버라이드 - 검색 인덱스 재구성 포함"""
+    #     # 기존 로드 로직 실행
+    #     original_load_result = super().load_stock_lists() if hasattr(super(), 'load_stock_lists') else self.setup_stock_lists()
+        
+    #     # 검색 인덱스 재구성
+    #     self.rebuild_search_index()
+        
+    #     # 검색 결과 레이블 업데이트
+    #     total_stocks = sum(len(df) for df in self.stock_lists.values() if not df.empty)
+    #     self.search_result_label.setText(f"📊 총 {total_stocks:,}개 종목 로드됨")
+        
+    #     return original_load_result
+
+    def load_stock_lists(self):
+        """CSV 파일에서 종목 리스트 로드 - 기존 형태와 호환"""
+        self.stock_lists = {}
+        
+        try:
+            # 한국 주식
+            if os.path.exists('stock_data/korea_stocks.csv'):
+                korea_df = pd.read_csv('stock_data/korea_stocks.csv')
+                # 기존 형태(리스트)로 저장 + DataFrame도 별도 저장 (검색용)
+                self.stock_lists['korea'] = korea_df.to_dict('records')
+                self._stock_dataframes = getattr(self, '_stock_dataframes', {})
+                self._stock_dataframes['korea'] = korea_df
+            else:
+                self.stock_lists['korea'] = []
+                
+            # 미국 주식
+            if os.path.exists('stock_data/usa_stocks.csv'):
+                usa_df = pd.read_csv('stock_data/usa_stocks.csv')
+                self.stock_lists['usa'] = usa_df.to_dict('records')
+                self._stock_dataframes = getattr(self, '_stock_dataframes', {})
+                self._stock_dataframes['usa'] = usa_df
+            else:
+                self.stock_lists['usa'] = []
+                
+            # 스웨덴 주식
+            if os.path.exists('stock_data/sweden_stocks.csv'):
+                sweden_df = pd.read_csv('stock_data/sweden_stocks.csv')
+                self.stock_lists['sweden'] = sweden_df.to_dict('records')
+                self._stock_dataframes = getattr(self, '_stock_dataframes', {})
+                self._stock_dataframes['sweden'] = sweden_df
+            else:
+                self.stock_lists['sweden'] = []
+            
+            # 검색 인덱스 재구성 (DataFrame 사용)
+            if hasattr(self, 'rebuild_search_index'):
+                self.rebuild_search_index()
+            
+            # 종목 개수 업데이트
+            self.update_stock_count()
+            self.statusbar.showMessage('📁 CSV 파일 로드 완료')
+            
+        except Exception as e:
+            QMessageBox.warning(self, "오류", f"CSV 파일 로드 중 오류: {str(e)}")
+
+    # 검색 성능 모니터링 함수
+    def monitor_search_performance(self):
+        """검색 성능 모니터링 (개발용)"""
+        try:
+            from utils import benchmark_search_performance
+            
+            test_terms = ['삼성', 'AAPL', '005930', 'TESLA', '반도체', 'TECH', 'Healthcare']
+            results = benchmark_search_performance(self.stock_lists, test_terms)
+            
+            print("\n📊 검색 성능 벤치마크:")
+            for term, metrics in results.items():
+                print(f"   {term}: {metrics['search_time']:.3f}초, {metrics['results_count']}개 결과, 최고점수: {metrics['first_match_score']}")
+            
+        except Exception as e:
+            print(f"성능 모니터링 오류: {e}")
+
+    # 사용 예시 및 테스트 함수
+    def test_search_functionality(self):
+        """검색 기능 테스트"""
+        
+        test_cases = [
+            "005930",      # 삼성전자 (한국)
+            "AAPL",        # 애플 (미국)  
+            "삼성",        # 부분 검색 (한국)
+            "Technology",  # 섹터 검색
+            "VOLV-B.ST",   # 스웨덴 종목
+            "존재하지않는종목"  # 검색 실패 케이스
+        ]
+        
+        print("\n🧪 검색 기능 테스트:")
+        for term in test_cases:
+            try:
+                results = self.enhanced_search_stocks(term)
+                print(f"   '{term}': {len(results)}개 결과")
+                if results:
+                    top_result = results[0]
+                    print(f"      → 최상위: {top_result['name']} ({top_result['ticker']}) - 점수: {top_result['match_score']}")
+            except Exception as e:
+                print(f"   '{term}': 오류 - {e}")
+
+    # 키보드 단축키 설정
+    def setup_search_shortcuts(self):
+        """검색 관련 키보드 단축키 설정"""
+        
+        # Ctrl+F: 검색창에 포커스
+        search_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
+        search_shortcut.activated.connect(lambda: self.search_input.setFocus())
+        
+        # Ctrl+R: 랜덤 종목
+        random_shortcut = QShortcut(QKeySequence("Ctrl+R"), self)
+        random_shortcut.activated.connect(self.show_random_stock_chart)
+        
+        # F1: 검색 도움말
+        help_shortcut = QShortcut(QKeySequence("F1"), self)
+        help_shortcut.activated.connect(self.show_search_help)
+                    
+    def example_search_usage(self):
+        """검색 기능 사용 예시"""
+        
+        # 예시 1: 삼성전자 검색
+        # 입력: "005930" 또는 "삼성전자" 또는 "samsung"
+        # 결과: 삼성전자 차트 즉시 표시
+        
+        # 예시 2: 애플 검색  
+        # 입력: "AAPL" 또는 "Apple"
+        # 결과: 애플 차트 즉시 표시
+        
+        # 예시 3: 부분 검색
+        # 입력: "전자" 
+        # 결과: 삼성전자, LG전자 등 여러 결과 → 선택 다이얼로그
+        
+        # 예시 4: 섹터 검색
+        # 입력: "Technology"
+        # 결과: 기술 섹터 모든 종목 → 선택 다이얼로그
+        
+        pass
+
+    def get_search_examples(self):
+        """검색 예시 반환"""
+        return {
+            "한국 종목": [
+                "005930 (삼성전자)",
+                "373220 (LG에너지솔루션)", 
+                "207940 (삼성바이오로직스)",
+                "삼성전자",
+                "현대차"
+            ],
+            "미국 종목": [
+                "AAPL (애플)",
+                "MSFT (마이크로소프트)",
+                "GOOGL (구글)",
+                "TSLA (테슬라)",
+                "NVDA (엔비디아)"
+            ],
+            "스웨덴 종목": [
+                "VOLV-B.ST (볼보)",
+                "ERIC.ST (에릭슨)",
+                "SEB-A.ST (SEB 은행)"
+            ],
+            "섹터 검색": [
+                "Technology",
+                "Healthcare", 
+                "Financial",
+                "반도체",
+                "자동차"
+            ]
+        }
+

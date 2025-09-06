@@ -1,0 +1,101 @@
+﻿ticker,name,sector,market_cap,market
+NVDA,NVIDIA Corporation,Technology,4066436186112,NASDAQ
+MSFT,Microsoft Corporation,Technology,3679419105280,NASDAQ
+AAPL,Apple Inc.,Technology,3557095374848,NASDAQ
+GOOG,Alphabet Inc.,Communication Services,2843016953856,NASDAQ
+GOOGL,Alphabet Inc.,Communication Services,2843006468096,NASDAQ
+AMZN,"Amazon.com, Inc.",Consumer Cyclical,2477776175104,NASDAQ
+META,"Meta Platforms, Inc.",Communication Services,1890259828736,NASDAQ
+AVGO,Broadcom Inc.,Technology,1575145177088,NASDAQ
+TSM,Taiwan Semiconductor Manufacturing Company Limited,Technology,1262450900992,NYSE
+TSLA,"Tesla, Inc.",Consumer Cyclical,1131616796672,NASDAQ
+JPM,JPMorgan Chase & Co.,Financial Services,809471442944,NYSE
+WMT,Walmart Inc.,Consumer Defensive,801351204864,NYSE
+V,Visa Inc.,Financial Services,666169442304,NYSE
+VTI,Vanguard Total Stock Market Index Fund ETF Shares,Unknown,662657236992,NYSE Arca
+ORCL,Oracle Corporation,Technology,653895598080,NYSE
+LLY,Eli Lilly and Company,Healthcare,651912544256,NYSE
+SPY,SPDR S&P 500 ETF,Unknown,594025250816,NYSE Arca
+NFLX,"Netflix, Inc.",Communication Services,528531456000,NASDAQ
+MA,Mastercard Incorporated,Financial Services,528141877248,NYSE
+XOM,Exxon Mobil Corporation,Energy,465674797056,NYSE
+JNJ,Johnson & Johnson,Healthcare,429720076288,NYSE
+COST,Costco Wholesale Corporation,Consumer Defensive,427281219584,NASDAQ
+HD,"The Home Depot, Inc.",Consumer Cyclical,417017397248,NYSE
+IVV,iShares Core S&P 500 ETF,Unknown,404299612160,NYSE Arca
+ABBV,AbbVie Inc.,Healthcare,375499980800,NYSE
+PG,The Procter & Gamble Company,Consumer Defensive,374826074112,NYSE
+BAC,Bank of America Corporation,Financial Services,368643899392,NYSE
+PLTR,Palantir Technologies Inc.,Technology,363228987392,NASDAQ
+HDB,HDFC Bank Limited,Financial Services,361331490816,NYSE
+BABA,Alibaba Group Holding Limited,Consumer Cyclical,323222732800,NYSE
+SAP,SAP SE,Technology,316661432320,NYSE
+CVX,Chevron Corporation,Energy,309597241344,NYSE
+ASML,ASML Holding N.V.,Technology,307364429824,NASDAQ
+GE,GE Aerospace,Industrials,296106688512,NYSE
+KO,The Coca-Cola Company,Consumer Defensive,292477403136,NYSE
+UNH,UnitedHealth Group Incorporated,Healthcare,285640523776,NYSE
+TMUS,"T-Mobile US, Inc.",Communication Services,284461170688,NASDAQ
+CSCO,"Cisco Systems, Inc.",Technology,264469102592,NASDAQ
+TM,Toyota Motor Corporation,Consumer Cyclical,260222631936,NYSE
+AZN,AstraZeneca PLC,Healthcare,253944020992,NASDAQ
+WFC,Wells Fargo & Company,Financial Services,252943630336,NYSE
+PM,Philip Morris International Inc.,Consumer Defensive,251467104256,NYSE
+NVS,Novartis AG,Healthcare,251137802240,NYSE
+NVO,Novo Nordisk A/S,Healthcare,250227245056,NYSE
+AMD,"Advanced Micro Devices, Inc.",Technology,245276049408,NASDAQ
+CRM,"Salesforce, Inc.",Technology,238723514368,NYSE
+MS,Morgan Stanley,Financial Services,236401983488,NYSE
+IBM,International Business Machines Corporation,Technology,231510409216,NYSE
+ABT,Abbott Laboratories,Healthcare,231376764928,NYSE
+HSBC,HSBC Holdings plc,Financial Services,227183820800,NYSE
+AXP,American Express Company,Financial Services,227010625536,NYSE
+QQQ,Invesco QQQ Trust,Unknown,226449178624,NASDAQ
+VB,Vanguard Small-Cap Index Fund ETF Shares,Unknown,225740947456,NYSE Arca
+MCD,McDonald's Corporation,Consumer Cyclical,224342818816,NYSE
+GS,"The Goldman Sachs Group, Inc.",Financial Services,223471665152,NYSE
+LIN,Linde plc,Basic Materials,220162621440,NASDAQ
+DIS,The Walt Disney Company,Communication Services,211993935872,NYSE
+MRK,"Merck & Co., Inc.",Healthcare,211586940928,NYSE
+T,AT&T Inc.,Communication Services,211580026880,NYSE
+RTX,RTX Corporation,Industrials,210846826496,NYSE
+SHEL,Shell plc,Energy,209782980608,NYSE
+BX,Blackstone Inc.,Financial Services,208778313728,NYSE
+RY,Royal Bank of Canada,Financial Services,204373901312,NYSE
+PEP,"PepsiCo, Inc.",Consumer Defensive,200419622912,NASDAQ
+CAT,Caterpillar Inc.,Industrials,198204096512,NYSE
+SHOP,Shopify Inc.,Technology,191274172416,NASDAQ
+UBER,"Uber Technologies, Inc.",Technology,189752360960,NYSE
+NOW,"ServiceNow, Inc.",Technology,189630873600,NYSE
+INTU,Intuit Inc.,Technology,187585576960,NASDAQ
+VZ,Verizon Communications Inc.,Communication Services,187120287744,NYSE
+TMO,Thermo Fisher Scientific Inc.,Healthcare,186011680768,NYSE
+ANET,Arista Networks Inc,Technology,179543883776,NYSE
+BKNG,Booking Holdings Inc.,Consumer Cyclical,178442420224,NASDAQ
+PDD,PDD Holdings Inc.,Consumer Cyclical,177001971712,NASDAQ
+C,Citigroup Inc.,Financial Services,175621865472,NYSE
+MUFG,"Mitsubishi UFJ Financial Group, Inc.",Financial Services,173989429248,NYSE
+BA,The Boeing Company,Industrials,173621444608,NYSE
+QCOM,QUALCOMM Incorporated,Technology,172467372032,NASDAQ
+TXN,Texas Instruments Incorporated,Technology,170854121472,NASDAQ
+BLK,"BlackRock, Inc.",Financial Services,170206674944,NYSE
+ISRG,"Intuitive Surgical, Inc.",Healthcare,167358562304,NASDAQ
+SCHW,The Charles Schwab Corporation,Financial Services,167091011584,NYSE
+APP,AppLovin Corporation,Communication Services,165823676416,NASDAQ
+SONY,Sony Group Corporation,Technology,164857561088,NYSE
+SPGI,S&P Global Inc.,Financial Services,164269719552,NYSE
+BSX,Boston Scientific Corporation,Healthcare,158873239552,NYSE
+ACN,Accenture plc,Technology,158796365824,NYSE
+GEV,GE Vernova Inc.,Industrials,158456152064,NYSE
+UL,Unilever PLC,Consumer Defensive,158210310144,NYSE
+TJX,"The TJX Companies, Inc.",Consumer Cyclical,154988019712,NYSE
+AMGN,Amgen Inc.,Healthcare,152700993536,NASDAQ
+LOW,"Lowe's Companies, Inc.",Consumer Cyclical,151405936640,NYSE
+SYK,Stryker Corporation,Healthcare,149982855168,NYSE
+ADBE,Adobe Inc.,Technology,148033077248,NASDAQ
+MU,"Micron Technology, Inc.",Technology,147020103680,NASDAQ
+ARM,Arm Holdings plc,Technology,146357960704,NASDAQ
+NEE,"NextEra Energy, Inc.",Utilities,146003656704,NYSE
+SPOT,Spotify Technology S.A.,Communication Services,145524146176,NYSE
+DHR,Danaher Corporation,Healthcare,143360770048,NYSE
+PGR,The Progressive Corporation,Financial Services,142999502848,NYSE
