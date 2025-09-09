@@ -1,0 +1,13 @@
+예: 기본 Python용 .gitignore 내용
+@"
+# Python cache
+__pycache__/
+*.py[cod]
+
+# 가상환경
+venv/
+
+# 기타
+*.log
+.DS_Store
+"@ | Set-Content .gitignore
