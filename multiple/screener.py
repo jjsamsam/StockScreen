@@ -2,7 +2,6 @@
 screener.py
 메인 스크리너 클래스 및 핵심 로직 (중지 버튼 + 엑셀 저장 기능 추가)
 """
-
 import pandas as pd
 import yfinance as yf
 import numpy as np
@@ -23,9 +22,44 @@ from utils import MasterCSVThread, MasterFilterThread
 from trend_analysis import TrendTimingAnalyzer
 from backtesting_system import BacktestingDialog
 
-class StockScreener(QMainWindow):
+# AI 예측 기능 통합 import
+try:
+    from prediction_window import StockPredictionDialog, QuickPredictionWidget
+    from enhanced_screener import EnhancedStockScreenerMethods, BatchPredictionDialog, PredictionSettingsDialog
+    PREDICTION_AVAILABLE = True
+    print("✅ Enhanced AI Prediction 기능 활성화")
+except ImportError as e:
+    print(f"⚠️ AI Prediction 기능 없음: {e}")
+    # 기본 클래스들 더미 정의 (오류 방지)
+    class EnhancedStockScreenerMethods:
+        def __init__(self):
+            pass
+        def enhance_ui_with_ai_features(self):
+            pass
+        def enhance_table_context_menus(self):
+            pass
+    PREDICTION_AVAILABLE = False
+
+# 통합된 StockScreener 클래스 (조건부 상속)
+if PREDICTION_AVAILABLE:
+    # AI 기능과 함께 상속
+    class StockScreener(QMainWindow, EnhancedStockScreenerMethods):
+        pass
+else:
+    # 기본 기능만 상속
+    class StockScreener(QMainWindow):
+        pass
+
+# StockScreener 클래스 구현 (공통)
+class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
     def __init__(self):
         super().__init__()
+        
+        # AI 기능이 있는 경우 Enhanced 초기화도 함께
+        if PREDICTION_AVAILABLE:
+            EnhancedStockScreenerMethods.__init__(self)
+        
+        # 기본 속성들 초기화
         self.stock_lists = {}
         self.custom_conditions = []  # 사용자 정의 조건들
         self.technical_analyzer = TechnicalAnalysis()
@@ -45,13 +79,49 @@ class StockScreener(QMainWindow):
         self.search_index = {}  # 빠른 검색을 위한 인덱스
         self.recent_searches = []  # 최근 검색어
 
-        # 결과 저장용 변수들  
-        self.last_buy_candidates = []
-        self.last_sell_candidates = []
-
+        # UI 및 기본 기능 초기화
         self.initUI()
         self.setup_stock_lists()
         self.rebuild_search_index()
+
+        # 🚀 AI 예측 기능 초기화 (가능한 경우에만)
+        if PREDICTION_AVAILABLE:
+            try:
+                print("🤖 AI 예측 기능 초기화 중...")
+                
+                # 예측 설정 로드
+                self.load_prediction_settings()
+                
+                # UI에 AI 기능 추가 (메뉴, 버튼 등)
+                self.enhance_ui_with_ai_features()
+                
+                # 테이블 컨텍스트 메뉴에 AI 기능 추가
+                self.enhance_table_context_menus()
+                
+                print("✅ AI 예측 기능 초기화 완료")
+                
+            except Exception as e:
+                print(f"⚠️ AI 기능 초기화 오류: {e}")
+                # 오류가 있어도 기본 기능은 동작하도록
+        else:
+            print("ℹ️ 기본 모드로 실행 중 (AI 기능 비활성화)")
+            
+    def setup_prediction_features(self):
+        """예측 기능 설정 (레거시 호환)"""
+        if PREDICTION_AVAILABLE:
+            # 이미 __init__에서 처리되므로 빈 메서드로 유지
+            pass
+        else:
+            print("💡 AI 예측 기능을 사용하려면 enhanced_screener.py가 필요합니다")
+            
+    def enhance_table_context_menus(self):
+        """테이블 컨텍스트 메뉴 강화"""
+        if PREDICTION_AVAILABLE:
+            # enhanced_screener의 메서드 호출
+            super().enhance_table_context_menus()
+        else:
+            # 기본 동작 (필요시 추가)
+            pass
         
     def initUI(self):
         self.setWindowTitle('Advanced Global Stock Screener - 고급 분석 시스템 2025')
