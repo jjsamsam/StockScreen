@@ -24,7 +24,7 @@ from backtesting_system import BacktestingDialog
 
 # AI 예측 기능 통합 import
 try:
-    from prediction_window import StockPredictionDialog, QuickPredictionWidget
+    from prediction_window import StockPredictionDialog
     from enhanced_screener import EnhancedStockScreenerMethods, BatchPredictionDialog, PredictionSettingsDialog
     PREDICTION_AVAILABLE = True
     print("✅ Enhanced AI Prediction 기능 활성화")
@@ -106,6 +106,15 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         else:
             print("ℹ️ 기본 모드로 실행 중 (AI 기능 비활성화)")
             
+        try:
+            # enhanced_screener의 기능이 사용 가능한지 확인
+            if hasattr(self, 'enhance_table_context_menus'):
+                print("✅ Enhanced screener 기능 활성화됨")
+            else:
+                print("ℹ️ 기본 screener 모드로 실행 중")
+        except Exception as e:
+            print(f"⚠️ Enhanced screener 초기화 오류: {e}")
+
     def setup_prediction_features(self):
         """예측 기능 설정 (레거시 호환)"""
         if PREDICTION_AVAILABLE:
@@ -658,7 +667,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         QMessageBox.critical(self, '오류', error_message)
 
     def create_tables(self):
-        """테이블 생성 - 정렬 기능 포함"""
+        """테이블 생성 - 정렬 기능 및 컨텍스트 메뉴 포함"""
         splitter = QSplitter(Qt.Horizontal)
         
         # 매수 후보 테이블
@@ -680,6 +689,12 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         # 헤더 클릭 시 정렬 처리
         self.buy_table.horizontalHeader().sortIndicatorChanged.connect(
             self.on_buy_table_sort_changed
+        )
+        
+        # 🔧 컨텍스트 메뉴 설정 추가
+        self.buy_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.buy_table.customContextMenuRequested.connect(
+            lambda pos: self.show_table_context_menu(pos, self.buy_table, 'buy')
         )
         
         self.buy_table.doubleClicked.connect(self.show_stock_detail)
@@ -707,14 +722,110 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             self.on_sell_table_sort_changed
         )
         
+        # 🔧 컨텍스트 메뉴 설정 추가
+        self.sell_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.sell_table.customContextMenuRequested.connect(
+            lambda pos: self.show_table_context_menu(pos, self.sell_table, 'sell')
+        )
+        
         self.sell_table.doubleClicked.connect(self.show_stock_detail)
         sell_layout.addWidget(self.sell_table)
         sell_group.setLayout(sell_layout)
         
+        # 스플리터에 그룹 추가
         splitter.addWidget(buy_group)
         splitter.addWidget(sell_group)
+        splitter.setSizes([1, 1])  # 50:50 비율
         
         return splitter
+
+    def show_table_context_menu(self, position, table, table_type):
+        """테이블 우클릭 메뉴 표시"""
+        if not table.itemAt(position):
+            return
+        
+        current_row = table.currentRow()
+        if current_row < 0:
+            return
+        
+        # 종목 정보 가져오기
+        ticker_item = table.item(current_row, 0)  # 종목코드
+        name_item = table.item(current_row, 1)    # 종목명
+        
+        if not ticker_item:
+            return
+        
+        ticker = ticker_item.text()
+        name = name_item.text() if name_item else ticker
+        
+        # 컨텍스트 메뉴 생성
+        menu = QMenu(self)
+        
+        # 차트 보기
+        chart_action = QAction('📊 차트 보기', self)
+        chart_action.triggered.connect(lambda: self.show_chart_from_context(ticker, name))
+        menu.addAction(chart_action)
+        
+        # AI 예측 (enhanced_screener 기능이 있는 경우)
+#        if hasattr(self, 'run_quick_prediction'):
+        menu.addSeparator()
+            
+        ai_predict_action = QAction('🤖 AI 예측', self)
+        ai_predict_action.triggered.connect(lambda: self.show_ai_prediction_from_context(ticker, name))
+        menu.addAction(ai_predict_action)
+            
+       
+        # 구분선
+        menu.addSeparator()
+        
+        # 종목 정보
+        info_action = QAction('ℹ️ 종목 정보', self)
+        info_action.triggered.connect(lambda: self.show_stock_info_from_context(ticker, name))
+        menu.addAction(info_action)
+        
+        # 메뉴 표시
+        global_pos = table.mapToGlobal(position)
+        menu.exec_(global_pos)
+
+
+    def show_chart_from_context(self, ticker, name=""):
+        """컨텍스트 메뉴에서 차트 보기"""
+        try:
+            # 기존 show_stock_detail 로직 활용
+            if hasattr(self, 'show_stock_chart'):
+                self.show_stock_chart(ticker, name)
+            else:
+                # 간단한 차트 표시 또는 차트 창 호출
+                print(f"📊 차트 요청: {ticker} ({name})")
+                QMessageBox.information(self, "차트 보기", 
+                                    f"📊 {ticker} ({name}) 차트를 표시합니다.\n"
+                                    f"실제 구현에서는 chart_window.py를 사용하여 차트를 표시합니다.")
+        except Exception as e:
+            QMessageBox.warning(self, "차트 오류", f"차트를 표시할 수 없습니다:\n{str(e)}")
+
+
+    def show_ai_prediction_from_context(self, ticker, name=""):
+        """컨텍스트 메뉴에서 AI 예측"""
+        try:
+            if hasattr(self, 'show_prediction_dialog'):
+                self.show_prediction_dialog(ticker)
+            else:
+                QMessageBox.information(self, "AI 예측", 
+                                    f"🤖 {ticker} ({name}) AI 예측 기능을 실행합니다.\n"
+                                    f"enhanced_screener.py의 예측 기능이 활성화되어야 합니다.")
+        except Exception as e:
+            QMessageBox.warning(self, "예측 오류", f"AI 예측 중 오류가 발생했습니다:\n{str(e)}")
+
+    def show_stock_info_from_context(self, ticker, name=""):
+        """컨텍스트 메뉴에서 종목 정보"""
+        try:
+            QMessageBox.information(self, "종목 정보", 
+                                f"ℹ️ 종목 정보: {ticker}\n\n"
+                                f"• 종목명: {name}\n"
+                                f"• 종목코드: {ticker}\n\n"
+                                f"상세한 정보는 차트 보기를 이용하시기 바랍니다.")
+        except Exception as e:
+            QMessageBox.warning(self, "정보 오류", f"종목 정보를 가져올 수 없습니다:\n{str(e)}")
 
     def get_timing_sort_score(self, timing_text):
         """타이밍 텍스트를 정렬 가능한 숫자로 변환 - 간단한 버전"""
