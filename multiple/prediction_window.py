@@ -352,15 +352,33 @@ pip install scikit-learn xgboost lightgbm statsmodels
             """)
     
     def create_input_panel(self):
-        """입력 패널 생성"""
+        """입력 패널 생성 - 마스터 CSV 검색 기능 추가"""
         panel = QGroupBox("🎯 예측 설정")
         layout = QGridLayout()
         
-        # 종목 코드
+        # 종목 코드 입력 및 검색
         layout.addWidget(QLabel("종목 코드:"), 0, 0)
+        
+        # 종목 입력 레이아웃 (입력창 + 검색 버튼)
+        ticker_layout = QHBoxLayout()
+        
         self.ticker_input = QLineEdit("AAPL")
-        self.ticker_input.setPlaceholderText("예: AAPL, MSFT, 005930.KS")
-        layout.addWidget(self.ticker_input, 0, 1)
+        self.ticker_input.setPlaceholderText("예: AAPL, MSFT, 005930.KS, 삼성")
+        ticker_layout.addWidget(self.ticker_input)
+        
+        # 종목 검색 버튼
+        self.search_btn = QPushButton("🔍")
+        self.search_btn.setToolTip("종목 검색 (마스터 CSV)")
+        self.search_btn.setMaximumWidth(40)
+        self.search_btn.clicked.connect(self.show_enhanced_stock_search_dialog)
+        ticker_layout.addWidget(self.search_btn)
+        
+        # 자동완성 기능
+        self.ticker_input.textChanged.connect(self.on_ticker_text_changed)
+        
+        ticker_widget = QWidget()
+        ticker_widget.setLayout(ticker_layout)
+        layout.addWidget(ticker_widget, 0, 1)
         
         # 예측 기간
         layout.addWidget(QLabel("예측 기간:"), 1, 0)
@@ -387,6 +405,41 @@ pip install scikit-learn xgboost lightgbm statsmodels
         
         panel.setLayout(layout)
         return panel
+
+    def show_stock_search_dialog(self):
+        """종목 검색 다이얼로그 표시"""
+        dialog = StockSearchDialog(self)
+        if dialog.exec_() == QDialog.Accepted:
+            selected_ticker = dialog.get_selected_ticker()
+            if selected_ticker:
+                self.ticker_input.setText(selected_ticker)
+
+    def show_enhanced_stock_search_dialog(self):
+        """마스터 CSV를 활용한 종목 검색 다이얼로그 표시"""
+        dialog = EnhancedStockSearchDialog(self)
+        if dialog.exec_() == QDialog.Accepted:
+            selected_ticker = dialog.get_selected_ticker()
+            if selected_ticker:
+                self.ticker_input.setText(selected_ticker)
+
+    def on_ticker_text_changed(self, text):
+        """종목 코드 입력 시 간단한 유효성 검사"""
+        text = text.strip().upper()
+        
+        # 자동 대문자 변환
+        if text != self.ticker_input.text():
+            cursor_pos = self.ticker_input.cursorPosition()
+            self.ticker_input.setText(text)
+            self.ticker_input.setCursorPosition(cursor_pos)
+        
+        # 간단한 형식 체크
+        if len(text) > 0:
+            if text.replace('.', '').replace('-', '').isalnum():
+                self.ticker_input.setStyleSheet("")  # 정상
+            else:
+                self.ticker_input.setStyleSheet("border: 1px solid orange;")  # 경고
+        else:
+            self.ticker_input.setStyleSheet("")
     
     def create_chart_widget(self):
         """차트 위젯 생성"""
@@ -623,6 +676,242 @@ class QuickPredictionWidget(QWidget):
             dialog.plot_prediction(self.last_result)
             dialog.exec_()
 
+
+class EnhancedStockSearchDialog(QDialog):
+    """마스터 CSV를 활용한 고급 종목 검색 다이얼로그"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.selected_ticker = None
+        self.initUI()
+        
+    def initUI(self):
+        self.setWindowTitle('🔍 종목 검색 (마스터 CSV)')
+        self.setGeometry(400, 300, 700, 550)
+        
+        layout = QVBoxLayout()
+        
+        # 상단 정보
+        info_label = QLabel("💡 마스터 CSV에서 전체 종목을 검색합니다. 종목코드, 회사명, 섹터로 검색 가능합니다.")
+        info_label.setStyleSheet("color: #666; padding: 5px; background-color: #f9f9f9; border-radius: 3px; font-size: 11px;")
+        layout.addWidget(info_label)
+        
+        # 검색 입력
+        search_layout = QHBoxLayout()
+        search_layout.addWidget(QLabel("🔍 검색:"))
+        
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("종목코드, 회사명, 섹터 (예: AAPL, 삼성, Technology)")
+        self.search_input.textChanged.connect(self.perform_enhanced_search)
+        self.search_input.returnPressed.connect(self.perform_enhanced_search)
+        search_layout.addWidget(self.search_input)
+        
+        self.search_status = QLabel()
+        self.search_status.setStyleSheet("color: #666; font-size: 11px;")
+        search_layout.addWidget(self.search_status)
+        
+        layout.addLayout(search_layout)
+        
+        # 검색 결과 테이블
+        self.results_table = QTableWidget()
+        self.results_table.setColumnCount(6)
+        self.results_table.setHorizontalHeaderLabels([
+            '종목코드', '종목명', '시장', '섹터', '시가총액', '매치점수'
+        ])
+        self.results_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.results_table.doubleClicked.connect(self.accept)
+        
+        # 테이블 크기 조정
+        header = self.results_table.horizontalHeader()
+        header.setStretchLastSection(True)
+        header.resizeSection(0, 100)  # 종목코드
+        header.resizeSection(1, 200)  # 종목명
+        header.resizeSection(2, 80)   # 시장
+        header.resizeSection(3, 120)  # 섹터
+        header.resizeSection(4, 100)  # 시가총액
+        header.resizeSection(5, 80)   # 매치점수
+        
+        layout.addWidget(self.results_table)
+        
+        # 빠른 선택 버튼들
+        quick_layout = QHBoxLayout()
+        quick_layout.addWidget(QLabel("⚡ 빠른 선택:"))
+        
+        popular_stocks = [
+            ("AAPL", "애플"),
+            ("MSFT", "마이크로소프트"), 
+            ("GOOGL", "구글"),
+            ("TSLA", "테슬라"),
+            ("005930.KS", "삼성전자"),
+            ("000660.KS", "SK하이닉스"),
+            ("삼성", "삼성 검색"),
+            ("반도체", "반도체 섹터")
+        ]
+        
+        for ticker, name in popular_stocks:
+            btn = QPushButton(f"{ticker}")
+            btn.setToolTip(name)
+            btn.clicked.connect(lambda checked, t=ticker: self.quick_search(t))
+            quick_layout.addWidget(btn)
+        
+        quick_layout.addStretch()
+        layout.addLayout(quick_layout)
+        
+        # 하단 버튼
+        button_layout = QHBoxLayout()
+        
+        self.ok_btn = QPushButton("✅ 선택")
+        self.ok_btn.clicked.connect(self.accept)
+        self.ok_btn.setEnabled(False)
+        
+        cancel_btn = QPushButton("❌ 취소")
+        cancel_btn.clicked.connect(self.reject)
+        
+        refresh_btn = QPushButton("🔄 새로고침")
+        refresh_btn.setToolTip("마스터 CSV 다시 로드")
+        refresh_btn.clicked.connect(self.refresh_search)
+        
+        button_layout.addWidget(refresh_btn)
+        button_layout.addStretch()
+        button_layout.addWidget(cancel_btn)
+        button_layout.addWidget(self.ok_btn)
+        
+        layout.addLayout(button_layout)
+        self.setLayout(layout)
+        
+        # 초기 인기 종목 표시
+        self.show_popular_stocks()
+    
+    def get_screener_instance(self):
+        """StockScreener 인스턴스 찾기"""
+        # 부모를 따라 올라가면서 StockScreener 찾기
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'enhanced_search_stocks'):
+                return parent
+            parent = parent.parent() if hasattr(parent, 'parent') else None
+        return None
+    
+    def perform_enhanced_search(self):
+        """screener.py의 enhanced_search_stocks 활용한 검색"""
+        query = self.search_input.text().strip()
+        
+        if len(query) < 1:
+            self.show_popular_stocks()
+            return
+        
+        try:
+            # StockScreener 인스턴스 찾기
+            screener = self.get_screener_instance()
+            
+            if screener and hasattr(screener, 'enhanced_search_stocks'):
+                # screener.py의 enhanced_search_stocks 함수 사용
+                results = screener.enhanced_search_stocks(query)
+                self.display_enhanced_results(results)
+                
+                if results:
+                    self.search_status.setText(f"🔍 {len(results)}개 종목 발견 (매치점수순)")
+                else:
+                    self.search_status.setText("❌ 검색 결과가 없습니다")
+            else:
+                # 폴백: 기본 검색
+                self.search_status.setText("⚠️ 마스터 CSV 검색 기능을 사용할 수 없습니다")
+                self.display_enhanced_results([])
+                
+        except Exception as e:
+            self.search_status.setText(f"❌ 검색 오류: {str(e)}")
+            print(f"검색 오류: {e}")
+    
+    def quick_search(self, search_term):
+        """빠른 검색"""
+        self.search_input.setText(search_term)
+        self.perform_enhanced_search()
+    
+    def show_popular_stocks(self):
+        """인기 종목들 표시"""
+        popular_search_terms = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', '005930.KS', '000660.KS']
+        
+        try:
+            screener = self.get_screener_instance()
+            if screener and hasattr(screener, 'enhanced_search_stocks'):
+                all_results = []
+                for term in popular_search_terms:
+                    results = screener.enhanced_search_stocks(term)
+                    if results:
+                        all_results.append(results[0])  # 각 검색의 최고 결과만
+                
+                self.display_enhanced_results(all_results)
+                self.search_status.setText("💡 인기 종목들을 표시했습니다")
+            else:
+                self.display_enhanced_results([])
+                self.search_status.setText("⚠️ 마스터 CSV를 로드할 수 없습니다")
+                
+        except Exception as e:
+            self.search_status.setText(f"⚠️ 인기 종목 로드 오류: {str(e)}")
+    
+    def display_enhanced_results(self, results):
+        """enhanced_search_stocks 결과 표시"""
+        self.results_table.setRowCount(len(results))
+        
+        for i, stock in enumerate(results):
+            self.results_table.setItem(i, 0, QTableWidgetItem(stock.get('ticker', '')))
+            self.results_table.setItem(i, 1, QTableWidgetItem(stock.get('name', '')))
+            self.results_table.setItem(i, 2, QTableWidgetItem(stock.get('market', '')))
+            self.results_table.setItem(i, 3, QTableWidgetItem(stock.get('sector', '')))
+            self.results_table.setItem(i, 4, QTableWidgetItem(stock.get('market_cap', 'N/A')))
+            
+            # 매치점수 표시
+            match_score = stock.get('match_score', 0)
+            score_item = QTableWidgetItem(str(match_score))
+            
+            # 매치점수에 따른 색상 구분
+            if match_score >= 90:
+                score_item.setBackground(QColor(76, 175, 80, 100))  # 초록
+            elif match_score >= 70:
+                score_item.setBackground(QColor(255, 193, 7, 100))  # 노랑
+            elif match_score >= 50:
+                score_item.setBackground(QColor(255, 152, 0, 100))  # 주황
+            
+            self.results_table.setItem(i, 5, score_item)
+        
+        # 첫 번째 결과 선택
+        if results:
+            self.results_table.selectRow(0)
+            self.ok_btn.setEnabled(True)
+        else:
+            self.ok_btn.setEnabled(False)
+    
+    def refresh_search(self):
+        """검색 새로고침"""
+        try:
+            screener = self.get_screener_instance()
+            if screener and hasattr(screener, 'load_stock_lists'):
+                # 마스터 CSV 다시 로드
+                screener.load_stock_lists()
+                self.search_status.setText("🔄 마스터 CSV 새로고침 완료")
+                
+                # 현재 검색어로 다시 검색
+                if self.search_input.text().strip():
+                    self.perform_enhanced_search()
+                else:
+                    self.show_popular_stocks()
+            else:
+                self.search_status.setText("⚠️ 새로고침할 수 없습니다")
+        except Exception as e:
+            self.search_status.setText(f"❌ 새로고침 오류: {str(e)}")
+    
+    def get_selected_ticker(self):
+        """선택된 종목 코드 반환"""
+        if self.selected_ticker:
+            return self.selected_ticker
+        
+        current_row = self.results_table.currentRow()
+        if current_row >= 0:
+            ticker_item = self.results_table.item(current_row, 0)
+            if ticker_item:
+                return ticker_item.text()
+        
+        return None
 
 # 사용 예제 및 테스트
 if __name__ == "__main__":
