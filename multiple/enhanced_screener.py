@@ -1311,7 +1311,7 @@ class EnhancedStockScreenerMethods:
         
         # 통합된 예측
         prediction_action = QAction('🎯 종목 예측', self)
-        prediction_action.triggered.connect(self.show_prediction_input_dialog)
+        prediction_action.triggered.connect(lambda: self.show_prediction_dialog())  # ticker=None
         ai_menu.addAction(prediction_action)
         
         # 배치 예측
@@ -1331,19 +1331,6 @@ class EnhancedStockScreenerMethods:
         help_action.triggered.connect(self.show_ai_help)
         ai_menu.addAction(help_action)
     
-    def show_prediction_input_dialog(self):
-        """종목 입력 다이얼로그 - 간단한 버전"""
-        ticker, ok = QInputDialog.getText(
-            self, 
-            '🤖 AI 종목 예측', 
-            '예측할 종목 코드를 입력하세요:\n(예: AAPL, 005930.KS, TSLA)',
-            text='AAPL'
-        )
-        
-        if ok and ticker.strip():
-            # 현재 남아있는 메서드 사용
-            self.show_prediction_dialog(ticker.strip().upper())
-
     def enhance_table_context_menus(self):
         """테이블 우클릭 메뉴에 AI 예측 추가"""
         # 매수 후보 테이블
@@ -1403,146 +1390,27 @@ class EnhancedStockScreenerMethods:
                 self.show_prediction_dialog(ticker)
     
     def show_prediction_dialog(self, ticker=None):
-        """AI 예측 다이얼로그 표시 - 빠른예측과 동일한 백엔드 사용"""
+        """AI 예측 다이얼로그 표시 - 기존 StockPredictionDialog 활용"""
         if not ML_AVAILABLE:
             QMessageBox.warning(self, "오류", "ML 라이브러리가 설치되지 않았습니다.")
             return
         
-        if ticker:
-            # 테이블에서 직접 호출된 경우 - 빠른 실행
-            self.run_ai_prediction_direct(ticker)
-        else:
-            # 메뉴에서 호출된 경우 - 다이얼로그 표시
+        try:
+            # 기존 StockPredictionDialog 사용
             from prediction_window import StockPredictionDialog
             dialog = StockPredictionDialog(self)
+            
+            # 우클릭에서 호출된 경우 종목 코드 미리 설정
+            if ticker and hasattr(dialog, 'ticker_input'):
+                dialog.ticker_input.setText(ticker)
+                dialog.ticker_input.selectAll()  # 텍스트 선택해서 쉽게 변경 가능하게
+            
+            # 다이얼로그 실행
             dialog.exec_()
-
-    def run_ai_prediction_direct(self, ticker):
-        """AI 예측 직접 실행 - 단순화"""
-        
-        forecast_days = self.prediction_settings.get('forecast_days', 7)
-        min_data_days = self.prediction_settings.get('min_data_days', 300)
-        
-        progress = QProgressDialog(f"{ticker} AI 예측 중...", "취소", 0, 0, self)
-        progress.setWindowModality(Qt.WindowModal)
-        progress.show()
-        QApplication.processEvents()
-        
-        try:
-            # 통합된 예측 함수 사용
-            result, error = self.predictor.predict_stock_consistent(
-                ticker, 
-                forecast_days=forecast_days,
-                min_data_days=min_data_days,
-                mode='smart'  # 기본 모드로 통일
-            )
             
-            progress.close()
-            
-            if error:
-                QMessageBox.critical(self, "예측 오류", f"{ticker}: {error}")
-                return
-            
-            if result:
-                # 결과 표시 (단순화된 버전)
-                self.show_prediction_result(result)
-                
         except Exception as e:
-            progress.close()
-            QMessageBox.critical(self, "오류", f"예측 중 오류: {str(e)}")
-
-
-    def show_prediction_result(self, result):
-        """통합된 예측 결과 표시 - 단순화"""
-        
-        ticker = result['ticker']
-        return_pct = result['expected_return'] * 100
-        confidence_pct = result['confidence'] * 100
-        
-        # 이모지 선택
-        if return_pct > 3:
-            icon = "🚀"
-            trend = "강한 상승"
-            msg_type = QMessageBox.Information
-        elif return_pct > 1:
-            icon = "📈"
-            trend = "상승"
-            msg_type = QMessageBox.Information
-        elif return_pct > -1:
-            icon = "⚖️"
-            trend = "보합"
-            msg_type = QMessageBox.Information
-        elif return_pct > -3:
-            icon = "📉"
-            trend = "하락"
-            msg_type = QMessageBox.Warning
-        else:
-            icon = "⚠️"
-            trend = "강한 하락"
-            msg_type = QMessageBox.Warning
-        
-        # 신뢰도 평가
-        if confidence_pct > 80:
-            confidence_text = "매우 높음"
-        elif confidence_pct > 60:
-            confidence_text = "높음"
-        elif confidence_pct > 40:
-            confidence_text = "보통"
-        else:
-            confidence_text = "낮음"
-        
-        # 추천 결정
-        if return_pct > 2 and confidence_pct > 60:
-            recommendation = "📈 강력 매수"
-        elif return_pct > 0.5 and confidence_pct > 50:
-            recommendation = "📈 매수"
-        elif return_pct < -2 and confidence_pct > 60:
-            recommendation = "📉 강력 매도"
-        elif return_pct < -0.5 and confidence_pct > 50:
-            recommendation = "📉 매도"
-        else:
-            recommendation = "⸖️ 관망"
-        
-        # 상세한 결과 표시
-        result_text = f"""
-    🤖 AI 예측 결과: {ticker}
-
-    💰 가격 정보:
-    • 현재가: {result['current_price']:,.2f}
-    • 예상가: {result['predicted_price']:,.2f}
-    • 예상 수익률: {return_pct:+.2f}%
-    • 예측 기간: {result['forecast_days']}일
-
-    🎯 AI 분석:
-    • 추세: {icon} {trend}
-    • 신뢰도: {confidence_pct:.0f}% ({confidence_text})
-    • 추천: {recommendation}
-
-    📊 모델 성능:
-    • 성공 모델: {result.get('successful_models', 'N/A')}개
-    • 특성 개수: {result.get('feature_count', 'N/A')}개
-    • 학습 샘플: {result.get('training_samples', 'N/A')}개
-    • 데이터 기간: {result.get('data_points', 'N/A')}일
-
-    🔍 개별 예측:"""
-        
-        # 개별 모델 결과 추가
-        if 'individual_predictions' in result:
-            for model_name, prediction in result['individual_predictions'].items():
-                result_text += f"\n  • {model_name}: {prediction*100:+.2f}%"
-        
-        result_text += f"""
-
-    ⚠️ 주의사항:
-    이는 AI 예측 결과이며, 실제 투자 결정은
-    다양한 요소를 종합적으로 고려하여 내리시기 바랍니다.
-        """
-        
-        # 메시지 박스 표시
-        title = f"🤖 AI 예측 - {ticker}"
-        msg = QMessageBox(msg_type, title, result_text, parent=self)
-        msg.exec_()
-        
+            QMessageBox.critical(self, "오류", f"AI 예측 다이얼로그 오류:\n{str(e)}")
+       
     def show_batch_prediction(self):
         """배치 예측 다이얼로그 표시"""
         if not ML_AVAILABLE:
@@ -1662,7 +1530,7 @@ class EnhancedStockScreenerMethods:
 ═══════════════════════════════════════════════════
         """
         
-        msg = QMessageBox(QMessageBox.Information, "🤖 AI 예측 도움말", help_text, self)
+        msg = QMessageBox(QMessageBox.Information, "🤖 AI 예측 도움말", help_text, QMessageBox.Ok, self)
         msg.exec_()
 
 
