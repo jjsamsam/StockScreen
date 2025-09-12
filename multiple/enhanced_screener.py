@@ -477,7 +477,7 @@ class EnhancedCPUPredictor:
                 
                 # 데이터 정리 (결정적 방식)
                 features = features.replace([np.inf, -np.inf], 0)
-                features = features.fillna(method='ffill').fillna(method='bfill').fillna(0)
+                features = features.ffill().bfill().fillna(0)
                 
                 print(f"  ✅ {len(features.columns)}개 결정적 특성 생성 완료")
                 return features

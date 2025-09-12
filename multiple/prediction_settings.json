@@ -1,0 +1,14 @@
+{
+  "forecast_days": 1,
+  "confidence_threshold": 0.6,
+  "batch_delay": 1.0,
+  "min_data_days": 300,
+  "use_arima_validation": true,
+  "models_enabled": {
+    "xgboost": true,
+    "lightgbm": true,
+    "random_forest": true,
+    "extra_trees": true,
+    "gradient_boosting": true
+  }
+}

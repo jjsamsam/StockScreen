@@ -11,6 +11,8 @@ from PyQt5.QtGui import *
 from datetime import datetime, timedelta
 import os
 import re
+import urllib.parse
+import requests
 
 from chart_window import StockChartWindow
 from dialogs import CSVEditorDialog, ConditionBuilderDialog, ConditionManagerDialog
@@ -84,6 +86,12 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         self.setup_stock_lists()
         self.rebuild_search_index()
 
+        # 검색 결과 저장용 변수 추가
+        self.last_search_results = []
+        
+        # 기존 UI 초기화 후에 CSV 기능 추가
+        self.add_csv_search_features()
+
         # 🚀 AI 예측 기능 초기화 (가능한 경우에만)
         if PREDICTION_AVAILABLE:
             try:
@@ -114,6 +122,625 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                 print("ℹ️ 기본 screener 모드로 실행 중")
         except Exception as e:
             print(f"⚠️ Enhanced screener 초기화 오류: {e}")
+
+    def search_stocks_with_api(self, search_term):
+        """API를 사용한 실시간 주식 검색 + 기존 CSV 백업 (screener용)"""
+        
+        print(f"🔍 Screener API로 '{search_term}' 검색 시작...")
+        api_results = []
+        
+        # 1. 먼저 API로 검색 시도
+        try:
+            query = urllib.parse.quote(search_term)
+            url = f"https://query1.finance.yahoo.com/v1/finance/search?q={query}"
+
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+
+            res = requests.get(url, headers=headers, timeout=10)
+            print("Screener API Status code:", res.status_code)
+
+            if res.ok:
+                data = res.json()
+                quotes = data.get('quotes', [])
+                print(f"📊 Screener API에서 {len(quotes)}개 종목 발견")
+                
+                # Make csv from json.
+                api_results = self.convert_api_to_screener_format(quotes, search_term)
+
+            else:
+                print("Screener API Request failed:", res.text[:200])
+
+        except Exception as e:
+            print(f"Screener API 검색 실패: {e}")
+        
+        # 2. CSV에서도 검색 (백업용) - 기존 함수 활용
+        csv_results = self.enhanced_search_stocks(search_term)
+        
+        # 3. 결과 병합
+        combined_results = self.merge_screener_search_results(api_results, csv_results)
+        
+        print(f"✅ Screener 총 {len(combined_results)}개 종목 반환")
+        return combined_results
+
+    def convert_api_to_screener_format(self, quotes, search_term):
+        """Yahoo Finance API 응답을 screener 포맷으로 변환"""
+        screener_format_results = []
+        
+        for quote in quotes:
+            try:
+                # 기본 정보 추출
+                ticker = quote.get('symbol', '').strip()
+                if not ticker:
+                    continue
+                    
+                # 회사명 추출
+                name = quote.get('longname') or quote.get('shortname', ticker)
+                
+                # 섹터/산업 정보
+                sector = quote.get('sector', quote.get('industry', '미분류'))
+                
+                # 시가총액 포맷팅
+                market_cap_raw = quote.get('marketCap', 0)
+                market_cap_str = self.format_screener_market_cap(market_cap_raw)
+                
+                # 거래소 정보
+                exchange = quote.get('exchDisp') or quote.get('exchange', 'Unknown')
+                
+                # screener 형식에 맞게 구성
+                stock_info = {
+                    'ticker': ticker,
+                    'name': name,
+                    'sector': sector,
+                    'market_cap': market_cap_str,
+                    'market': exchange,
+                    'raw_market_cap': market_cap_raw,
+                    'match_score': 90 + self.calculate_screener_relevance_bonus(quote, search_term),
+                    'source': 'API'
+                }
+                
+                screener_format_results.append(stock_info)
+                
+            except Exception as e:
+                print(f"⚠️ Screener API 데이터 변환 오류: {e}")
+                continue
+        
+        return screener_format_results
+
+    def format_screener_market_cap(self, market_cap_value):
+        """시가총액을 screener용으로 포맷팅"""
+        try:
+            if pd.isna(market_cap_value) or market_cap_value == 0:
+                return "N/A"
+            
+            mcap = float(market_cap_value)
+            
+            if mcap >= 1e12:
+                return f"{mcap/1e12:.1f}T"
+            elif mcap >= 1e9:
+                return f"{mcap/1e9:.1f}B"
+            elif mcap >= 1e6:
+                return f"{mcap/1e6:.1f}M"
+            else:
+                return f"{mcap:,.0f}"
+                
+        except (ValueError, TypeError):
+            return "N/A"
+
+    def calculate_screener_relevance_bonus(self, quote, search_term):
+        """screener용 API 결과의 관련성 보너스 점수 계산"""
+        bonus = 0
+        
+        if quote.get('typeDisp') == 'Equity':
+            bonus += 5
+        
+        ticker = quote.get('symbol', '').upper()
+        search_upper = search_term.upper()
+        
+        if ticker == search_upper:
+            bonus += 10
+        elif search_upper in ticker:
+            bonus += 5
+        
+        return bonus
+
+    def merge_screener_search_results(self, api_results, csv_results):
+        """screener용 API 결과와 CSV 결과 병합"""
+        combined = {}
+        
+        # API 결과 우선 추가
+        for stock in api_results:
+            ticker = stock['ticker']
+            combined[ticker] = stock
+        
+        # CSV 결과 추가 (중복 제거)
+        for stock in csv_results:
+            ticker = stock['ticker']
+            if ticker not in combined:
+                stock['source'] = 'CSV'
+                combined[ticker] = stock
+        
+        # 정렬
+        sorted_results = sorted(
+            combined.values(), 
+            key=lambda x: (-x['match_score'], -x.get('raw_market_cap', 0))
+        )
+        
+        return sorted_results
+
+    def search_and_show_chart_enhanced(self):
+        """향상된 검색으로 종목을 찾아서 차트 표시 + CSV 결과 보기"""
+        query = self.search_input.text().strip()
+        if not query:
+            QMessageBox.warning(self, "검색어 필요", "검색할 종목코드나 회사명을 입력해주세요.")
+            return
+
+        # 검색 중복 실행 방지
+        if hasattr(self, '_is_searching') and self._is_searching:
+            print("⚠️ 이미 검색 중입니다. 중복 실행 방지")
+            return
+
+        try:
+            self._is_searching = True  # 검색 플래그 설정
+            self.search_result_label.setText("검색 중... (API+CSV)")
+            QApplication.processEvents()
+            
+            # 향상된 검색 함수 사용
+            results = self.search_stocks_with_api(query)
+            
+            # 결과 저장
+            self.last_search_results = results
+            
+            if results:
+                api_count = len([r for r in results if r.get('source') == 'API'])
+                csv_count = len([r for r in results if r.get('source') == 'CSV'])
+                
+                self.search_result_label.setText(
+                    f"✅ {len(results)}개 발견 (API:{api_count}, CSV:{csv_count})"
+                )
+                
+                # 검색 결과를 보여주는 다이얼로그
+                self.show_enhanced_search_results_dialog(query, results)
+                
+            else:
+                self.search_result_label.setText("❌ 결과 없음")
+                QMessageBox.information(self, "검색 결과", f"'{query}'에 대한 검색 결과가 없습니다.")
+                
+        except Exception as e:
+            self.search_result_label.setText(f"❌ 오류")
+            QMessageBox.critical(self, "검색 오류", f"검색 중 오류가 발생했습니다:\n{str(e)}")
+            print(f"Screener 검색 오류: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        finally:
+            # 검색 플래그 해제
+            if hasattr(self, '_is_searching'):
+                delattr(self, '_is_searching')
+
+    def show_enhanced_search_results_dialog(self, query, results):
+        """향상된 검색 결과를 보여주는 다이얼로그 (CSV 포맷 포함)"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"검색 결과: {query}")
+        dialog.resize(1000, 600)
+        
+        layout = QVBoxLayout()
+        
+        # 상단 정보
+        api_count = len([r for r in results if r.get('source') == 'API'])
+        csv_count = len([r for r in results if r.get('source') == 'CSV'])
+        
+        info_label = QLabel(
+            f"총 {len(results)}개 종목 발견 (API: {api_count}개, CSV: {csv_count}개)"
+        )
+        info_label.setStyleSheet("font-weight: bold; font-size: 12px; color: #2c3e50;")
+        layout.addWidget(info_label)
+        
+        # 탭 위젯 생성
+        tab_widget = QTabWidget()
+        
+        # 탭 1: 테이블 형태로 결과 보기
+        table_tab = self.create_results_table_tab(results)
+        tab_widget.addTab(table_tab, "📊 테이블 보기")
+        
+        # 탭 2: CSV 형태로 결과 보기
+        csv_tab = self.create_results_csv_tab(results)
+        tab_widget.addTab(csv_tab, "📄 CSV 포맷")
+        
+        layout.addWidget(tab_widget)
+        
+        # 하단 버튼들
+        button_layout = QHBoxLayout()
+        
+        # 첫 번째 종목 차트 보기
+        if results:
+            first_ticker = results[0]['ticker']
+            chart_btn = QPushButton(f"📈 {first_ticker} 차트 보기")
+            chart_btn.clicked.connect(lambda: self.show_stock_detail(first_ticker))
+            button_layout.addWidget(chart_btn)
+        
+        # CSV 파일로 저장
+        save_csv_btn = QPushButton("💾 CSV 저장")
+        save_csv_btn.clicked.connect(lambda: self.save_search_results_csv(results))
+        button_layout.addWidget(save_csv_btn)
+        
+        # 클립보드 복사
+        copy_btn = QPushButton("📋 복사")
+        copy_btn.clicked.connect(lambda: self.copy_results_to_clipboard(results))
+        button_layout.addWidget(copy_btn)
+        
+        close_btn = QPushButton("닫기")
+        close_btn.clicked.connect(dialog.close)
+        button_layout.addWidget(close_btn)
+        
+        layout.addLayout(button_layout)
+        dialog.setLayout(layout)
+        dialog.show()
+
+    def create_results_table_tab(self, results):
+        """검색 결과 테이블 탭 생성"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+        
+        # 테이블 생성
+        table = QTableWidget()
+        table.setRowCount(len(results))
+        table.setColumnCount(6)
+        table.setHorizontalHeaderLabels([
+            "종목코드", "회사명", "섹터", "시가총액", "거래소", "출처"
+        ])
+        
+        # 데이터 채우기
+        for i, stock in enumerate(results):
+            table.setItem(i, 0, QTableWidgetItem(stock.get('ticker', '')))
+            table.setItem(i, 1, QTableWidgetItem(stock.get('name', '')))
+            table.setItem(i, 2, QTableWidgetItem(stock.get('sector', '')))
+            table.setItem(i, 3, QTableWidgetItem(stock.get('market_cap', '')))
+            table.setItem(i, 4, QTableWidgetItem(stock.get('market', '')))
+            
+            # 출처에 따른 색상 구분
+            source = stock.get('source', 'CSV')
+            source_item = QTableWidgetItem(source)
+            
+            if source == 'API':
+                source_item.setBackground(QColor(200, 255, 200))  # 연한 초록색
+                source_item.setToolTip("Yahoo Finance API 실시간 검색 결과")
+            else:
+                source_item.setBackground(QColor(255, 255, 200))  # 연한 노란색
+                source_item.setToolTip("로컬 마스터 CSV 파일 검색 결과")
+            
+            table.setItem(i, 5, source_item)
+        
+        # 테이블 더블클릭으로 차트 보기
+        table.doubleClicked.connect(lambda index: self.on_result_table_double_click(results, index))
+        
+        # 테이블 크기 조정
+        table.resizeColumnsToContents()
+        table.setSortingEnabled(True)
+        
+        layout.addWidget(table)
+        widget.setLayout(layout)
+        return widget
+
+    def create_results_csv_tab(self, results):
+        """검색 결과 CSV 탭 생성"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+        
+        # 설명 레이블
+        desc_label = QLabel("아래 내용을 복사하여 Excel이나 다른 프로그램에서 사용할 수 있습니다.")
+        desc_label.setStyleSheet("color: #666; font-style: italic;")
+        layout.addWidget(desc_label)
+        
+        # CSV 텍스트 영역
+        text_edit = QTextEdit()
+        csv_content = self.generate_screener_csv_content(results)
+        text_edit.setPlainText(csv_content)
+        text_edit.setReadOnly(True)
+        text_edit.setFont(QFont("Courier", 9))  # 고정폭 글꼴
+        layout.addWidget(text_edit)
+        
+        widget.setLayout(layout)
+        return widget
+
+    def generate_screener_csv_content(self, results):
+        """screener용 검색 결과를 CSV 문자열로 생성"""
+        lines = ["ticker,name,sector,market_cap,market,source,match_score"]
+        
+        for stock in results:
+            ticker = self.clean_screener_csv_value(stock.get('ticker', ''))
+            name = self.clean_screener_csv_value(stock.get('name', ''))
+            sector = self.clean_screener_csv_value(stock.get('sector', ''))
+            market_cap = self.clean_screener_csv_value(stock.get('market_cap', 'N/A'))
+            market = self.clean_screener_csv_value(stock.get('market', ''))
+            source = self.clean_screener_csv_value(stock.get('source', 'CSV'))
+            match_score = stock.get('match_score', 0)
+            
+            line = f"{ticker},{name},{sector},{market_cap},{market},{source},{match_score}"
+            lines.append(line)
+        
+        return "\n".join(lines)
+
+    def clean_screener_csv_value(self, value):
+        """screener용 CSV 값에서 특수문자 처리"""
+        if not isinstance(value, str):
+            value = str(value)
+        
+        if ',' in value or '"' in value or '\n' in value:
+            value = value.replace('"', '""')
+            return f'"{value}"'
+        
+        return value
+
+    def on_result_table_double_click(self, results, index):
+        """검색 결과 테이블 더블클릭 시 차트 보기"""
+        row = index.row()
+        if 0 <= row < len(results):
+            ticker = results[row]['ticker']
+            self.show_stock_detail(ticker)
+
+    def save_search_results_csv(self, results):
+        """검색 결과를 CSV 파일로 저장"""
+        try:
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            default_filename = f"screener_search_results_{timestamp}.csv"
+            
+            filename, _ = QFileDialog.getSaveFileName(
+                self, 
+                "검색 결과 CSV 저장", 
+                default_filename,
+                "CSV 파일 (*.csv);;모든 파일 (*)"
+            )
+            
+            if filename:
+                csv_content = self.generate_screener_csv_content(results)
+                with open(filename, 'w', encoding='utf-8-sig') as f:
+                    f.write(csv_content)
+                
+                QMessageBox.information(
+                    self, 
+                    "저장 완료", 
+                    f"검색 결과가 저장되었습니다:\n{filename}\n\n총 {len(results)}개 종목"
+                )
+                
+        except Exception as e:
+            QMessageBox.critical(
+                self, 
+                "저장 오류", 
+                f"파일 저장 중 오류가 발생했습니다:\n{str(e)}"
+            )
+
+    def copy_results_to_clipboard(self, results):
+        """검색 결과를 클립보드에 복사"""
+        try:
+            csv_content = self.generate_screener_csv_content(results)
+            QApplication.clipboard().setText(csv_content)
+            
+            # 잠시 상태 표시
+            original_text = self.search_result_label.text()
+            self.search_result_label.setText("📋 클립보드에 복사됨!")
+            QTimer.singleShot(2000, lambda: self.search_result_label.setText(original_text))
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self, 
+                "복사 오류", 
+                f"클립보드 복사 중 오류가 발생했습니다:\n{str(e)}"
+            )
+
+    def add_csv_search_features(self):
+        """CSV 검색 기능을 UI에 추가"""
+        # 검색 패널에 "고급 검색" 버튼 추가
+        if hasattr(self, 'search_btn'):
+            # 기존 검색 버튼을 향상된 검색으로 변경
+            self.search_btn.setText("🔍 고급검색")
+            self.search_btn.setToolTip("Yahoo Finance API + CSV 통합 검색")
+            
+            # 기존 연결을 새로운 함수로 변경
+            try:
+                self.search_btn.clicked.disconnect()  # 기존 연결 해제
+            except:
+                pass
+            
+            self.search_btn.clicked.connect(self.search_and_show_chart_enhanced)
+
+        # 추가 기능 버튼들을 search panel에 추가
+        if hasattr(self, 'search_help_btn'):
+            # CSV 결과 보기 버튼 추가
+            csv_results_btn = QPushButton("📊 최근검색")
+            csv_results_btn.setToolTip("최근 검색 결과를 CSV로 보기")
+            csv_results_btn.clicked.connect(self.show_last_search_csv)
+            csv_results_btn.setMaximumWidth(100)
+            
+            # 검색 패널 레이아웃에 추가 (help 버튼 옆에)
+            # 실제 UI 구조에 맞게 위치 조정 필요
+            self.csv_results_btn = csv_results_btn
+
+    def show_last_search_csv(self):
+        """최근 검색 결과를 CSV 형태로 보기"""
+        if not self.last_search_results:
+            QMessageBox.information(
+                self, 
+                "검색 결과 없음", 
+                "먼저 검색을 수행해주세요.\n고급검색 버튼을 사용하면 API+CSV 통합 검색이 가능합니다."
+            )
+            return
+        
+        # CSV 결과 다이얼로그 표시
+        dialog = QDialog(self)
+        dialog.setWindowTitle("최근 검색 결과 - CSV 포맷")
+        dialog.resize(800, 500)
+        
+        layout = QVBoxLayout()
+        
+        # 정보 헤더
+        info_label = QLabel(f"총 {len(self.last_search_results)}개 종목 - CSV 포맷으로 표시")
+        info_label.setStyleSheet("font-weight: bold; color: #2c3e50;")
+        layout.addWidget(info_label)
+        
+        # CSV 텍스트
+        text_edit = QTextEdit()
+        csv_content = self.generate_screener_csv_content(self.last_search_results)
+        text_edit.setPlainText(csv_content)
+        text_edit.setReadOnly(True)
+        text_edit.setFont(QFont("Courier", 9))
+        layout.addWidget(text_edit)
+        
+        # 버튼들
+        button_layout = QHBoxLayout()
+        
+        copy_btn = QPushButton("📋 클립보드 복사")
+        copy_btn.clicked.connect(lambda: QApplication.clipboard().setText(csv_content))
+        button_layout.addWidget(copy_btn)
+        
+        save_btn = QPushButton("💾 파일 저장")
+        save_btn.clicked.connect(lambda: self.save_search_results_csv(self.last_search_results))
+        button_layout.addWidget(save_btn)
+        
+        close_btn = QPushButton("닫기")
+        close_btn.clicked.connect(dialog.close)
+        button_layout.addWidget(close_btn)
+        
+        layout.addLayout(button_layout)
+        dialog.setLayout(layout)
+        dialog.exec_()
+
+    def search_master_csv_enhanced(self, search_term):
+        """기존 search_master_csv 함수의 향상된 버전 - 무한 재귀 방지"""
+        # 직접 마스터 CSV에서 검색하도록 수정
+        return self.enhanced_search_stocks(search_term)
+
+    def show_random_stock_chart_enhanced(self):
+        """향상된 랜덤 종목 차트 보기 (API 활용)"""
+        try:
+            # 인기 종목들에서 랜덤 선택
+            popular_tickers = [
+                'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA',
+                'NVDA', 'META', 'BRK.B', 'LLY', 'V',
+                '005930.KS', '000660.KS', '035420.KS'  # 한국 주요 종목도 포함
+            ]
+            
+            import random
+            selected_ticker = random.choice(popular_tickers)
+            
+            # API로 해당 종목 정보 검색
+            results = self.search_stocks_with_api(selected_ticker)
+            
+            if results:
+                # 검색된 정보와 함께 차트 표시
+                stock_info = results[0]
+                self.search_result_label.setText(
+                    f"🎲 랜덤: {stock_info['name']} ({stock_info['ticker']})"
+                )
+                self.show_stock_detail(stock_info['ticker'])
+            else:
+                # 백업: 기존 방식으로 차트 표시
+                self.search_result_label.setText(f"🎲 랜덤: {selected_ticker}")
+                self.show_stock_detail(selected_ticker)
+                
+        except Exception as e:
+            print(f"랜덤 종목 향상된 검색 오류: {e}")
+            # 백업: 기존 랜덤 기능 사용
+            if hasattr(self, 'show_random_stock_chart'):
+                self.show_random_stock_chart()
+
+    # 6. 검색 도움말 업데이트
+    def show_search_help_enhanced(self):
+        """향상된 검색 기능에 대한 도움말"""
+        help_text = """
+🔍 **향상된 종목 검색 기능**
+
+**검색 방법:**
+• 종목코드: AAPL, MSFT, 005930.KS
+• 회사명: Apple, Microsoft, 삼성전자
+• 부분 검색: 삼성, Apple
+
+**검색 소스:**
+🟢 **API 검색** (실시간)
+  - Yahoo Finance API에서 최신 종목 정보 검색
+  - 전 세계 거래소의 최신 데이터
+  - 실시간 시가총액과 정보
+
+🟡 **CSV 검색** (로컬)
+  - 로컬 마스터 CSV 파일에서 검색
+  - 한국/미국/스웨덴 주요 종목 데이터
+  - 빠른 검색 속도
+
+**결과 활용:**
+📊 테이블 형태로 보기
+📄 CSV 포맷으로 내보내기
+📋 클립보드 복사
+💾 파일로 저장
+📈 종목 차트 바로 보기
+
+**사용 예시:**
+• "삼성" 입력 → 삼성 관련 모든 종목 검색
+• "AAPL" 입력 → Apple 상세 정보 및 차트
+• "반도체" 입력 → 반도체 섹터 종목들
+
+**팁:**
+✨ API 검색 결과는 초록색으로 표시
+✨ 더블클릭으로 바로 차트 보기
+✨ 매치 점수가 높을수록 관련성 높음
+        """
+        
+        QMessageBox.information(self, "🔍 향상된 검색 도움말", help_text)
+
+    # 7. 메뉴나 툴바에 새로운 기능 추가 (선택사항)
+    def add_enhanced_search_menu(self):
+        """향상된 검색 기능을 메뉴에 추가"""
+        if hasattr(self, 'menubar'):
+            # 검색 메뉴 생성 또는 기존 메뉴에 추가
+            search_menu = self.menubar.addMenu('🔍 검색')
+            
+            # API 검색 액션
+            api_search_action = QAction('🌐 API 통합 검색', self)
+            api_search_action.setShortcut('Ctrl+F')
+            api_search_action.triggered.connect(self.focus_search_input)
+            search_menu.addAction(api_search_action)
+            
+            # CSV 결과 보기 액션
+            csv_results_action = QAction('📄 최근 검색 결과', self)
+            csv_results_action.setShortcut('Ctrl+R')
+            csv_results_action.triggered.connect(self.show_last_search_csv)
+            search_menu.addAction(csv_results_action)
+            
+            search_menu.addSeparator()
+            
+            # 검색 도움말 액션
+            help_action = QAction('❓ 검색 도움말', self)
+            help_action.triggered.connect(self.show_search_help_enhanced)
+            search_menu.addAction(help_action)
+
+    def focus_search_input(self):
+        """검색 입력창에 포커스"""
+        if hasattr(self, 'search_input'):
+            self.search_input.setFocus()
+            self.search_input.selectAll()
+
+    # 8. 기존 버튼들 업데이트 (선택사항)
+    def update_existing_search_buttons(self):
+        """기존 검색 버튼들을 향상된 기능으로 업데이트"""
+        
+        # 랜덤 종목 버튼 업데이트
+        if hasattr(self, 'random_stock_btn'):
+            try:
+                self.random_stock_btn.clicked.disconnect()
+            except:
+                pass
+            self.random_stock_btn.clicked.connect(self.show_random_stock_chart_enhanced)
+            self.random_stock_btn.setToolTip("향상된 랜덤 종목 (API 정보 포함)")
+        
+        # 도움말 버튼 업데이트
+        if hasattr(self, 'search_help_btn'):
+            try:
+                self.search_help_btn.clicked.disconnect()
+            except:
+                pass
+            self.search_help_btn.clicked.connect(self.show_search_help_enhanced)
+            self.search_help_btn.setToolTip("향상된 검색 기능 도움말")
 
     def setup_prediction_features(self):
         """예측 기능 설정 (레거시 호환)"""
@@ -169,10 +796,60 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         tables_widget = self.create_tables()
         layout.addWidget(tables_widget)
         
+        try:
+            self.update_existing_search_buttons()
+            self.add_enhanced_search_menu()  # 메뉴가 있는 경우
+            print("✅ Screener 향상된 검색 기능 초기화 완료")
+        except Exception as e:
+            print(f"⚠️ Screener 향상된 검색 기능 초기화 중 오류: {e}")
+
         # 상태바
         self.statusbar = self.statusBar()
         self.statusbar.showMessage('준비됨 - 종목 검색 또는 스크리닝을 시작하세요')
-    
+
+    def test_enhanced_screener_search():
+        """향상된 screener 검색 기능 테스트"""
+        print("🧪 Enhanced Screener Search 테스트")
+        
+        # 예시 사용법
+        example_usage = '''
+    # screener.py에서 사용 예시:
+
+    # 1. 기본 검색 (기존 search_btn 클릭)
+    screener.search_and_show_chart_enhanced()
+
+    # 2. 프로그래밍 방식 검색
+    results = screener.search_stocks_with_api("삼성")
+    print(f"검색 결과: {len(results)}개")
+
+    # 3. CSV 형태로 결과 보기
+    csv_content = screener.generate_screener_csv_content(results)
+    print(csv_content)
+
+    # 4. 랜덤 종목 (향상된 버전)
+    screener.show_random_stock_chart_enhanced()
+        '''
+        
+        print(example_usage)
+        print("✅ 테스트 코드 준비 완료")
+
+    # 실제 통합 시 기존 함수들과 충돌하지 않도록 주의사항
+    """
+    ⚠️ 주의사항:
+
+    1. 기존 search_master_csv 함수는 그대로 유지
+    2. 새로운 함수들은 _enhanced 접미사 사용
+    3. 기존 버튼 연결은 선택적으로 변경
+    4. import 문 추가 필요: urllib.parse, requests
+    5. QTimer import 필요 (클립보드 복사 알림용)
+
+    👍 권장 적용 순서:
+    1. import 문들 추가
+    2. 새로운 메서드들 추가
+    3. 기존 버튼 연결 변경 (선택)
+    4. 테스트 및 확인
+    """
+
     def on_market_cap_filter_toggled(self, checked):
         """시가총액 필터 체크박스 토글 이벤트"""
         # 관련 위젯들 활성화/비활성화
@@ -729,6 +1406,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         )
         
         self.sell_table.doubleClicked.connect(self.show_stock_detail)
+
         sell_layout.addWidget(self.sell_table)
         sell_group.setLayout(sell_layout)
         
@@ -789,17 +1467,11 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
 
 
     def show_chart_from_context(self, ticker, name=""):
-        """컨텍스트 메뉴에서 차트 보기"""
+        """컨텍스트 메뉴에서 차트 보기 - 직접 ticker 전달"""
         try:
-            # 기존 show_stock_detail 로직 활용
-            if hasattr(self, 'show_stock_chart'):
-                self.show_stock_chart(ticker, name)
-            else:
-                # 간단한 차트 표시 또는 차트 창 호출
-                print(f"📊 차트 요청: {ticker} ({name})")
-                QMessageBox.information(self, "차트 보기", 
-                                    f"📊 {ticker} ({name}) 차트를 표시합니다.\n"
-                                    f"실제 구현에서는 chart_window.py를 사용하여 차트를 표시합니다.")
+            print(f"컨텍스트 메뉴에서 차트 요청: {ticker} ({name})")
+            self.show_stock_detail(ticker, name)  # 문자열로 직접 전달
+                
         except Exception as e:
             QMessageBox.warning(self, "차트 오류", f"차트를 표시할 수 없습니다:\n{str(e)}")
 
@@ -2297,45 +2969,100 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         
         return buy_sort_layout, sell_sort_layout
 
-    def show_stock_detail(self, index):
-        """테이블에서 종목 더블클릭시 상세 차트 표시"""
+    def show_stock_detail(self, index_or_ticker, name=""):
+        """테이블에서 종목 더블클릭시 상세 차트 표시 - 매개변수 타입 안전 처리"""
         try:
-            # 어느 테이블에서 클릭했는지 확인
-            table = self.sender()
-            row = index.row()
+            ticker = ""
+            stock_name = ""
             
-            # 종목 코드와 이름 가져오기
-            symbol = table.item(row, 0).text() if table.item(row, 0) else ""
-            name = table.item(row, 1).text() if table.item(row, 1) else symbol
+            # 매개변수 타입에 따라 처리 방법 결정
+            if isinstance(index_or_ticker, str):
+                # 문자열이 직접 전달된 경우 (ticker)
+                ticker = index_or_ticker
+                stock_name = name if name else ticker
+                print(f"직접 ticker 전달: {ticker}")
+                
+            elif hasattr(index_or_ticker, 'row'):
+                # QModelIndex 객체인 경우 (테이블에서 더블클릭)
+                table = self.sender()
+                if not table:
+                    print("Error: sender()가 None입니다")
+                    return
+                    
+                row = index_or_ticker.row()
+                print(f"테이블 더블클릭: row {row}")
+                
+                # 종목 코드와 이름 가져오기
+                ticker_item = table.item(row, 0)  # 종목코드
+                name_item = table.item(row, 1)    # 종목명
+                
+                if ticker_item:
+                    ticker = ticker_item.text()
+                if name_item:
+                    stock_name = name_item.text()
+                    
+            else:
+                # 기타 경우 - 정수인 경우 row로 간주
+                try:
+                    row = int(index_or_ticker)
+                    table = self.sender()
+                    if table and hasattr(table, 'item'):
+                        ticker_item = table.item(row, 0)
+                        name_item = table.item(row, 1)
+                        
+                        if ticker_item:
+                            ticker = ticker_item.text()
+                        if name_item:
+                            stock_name = name_item.text()
+                    else:
+                        print(f"Error: 유효하지 않은 테이블 참조")
+                        return
+                except (ValueError, TypeError):
+                    print(f"Error: 알 수 없는 매개변수 타입: {type(index_or_ticker)}")
+                    return
             
-            if not symbol:
+            if not ticker:
                 QMessageBox.warning(self, "경고", "종목 정보를 가져올 수 없습니다.")
                 return
             
-            # 차트 윈도우 생성 및 표시
+            print(f"차트 표시 시도: {ticker} ({stock_name})")
+            
+            # 차트 창 생성 및 표시
             try:
                 # chart_window.py에서 StockChartWindow 임포트 시도
                 from chart_window import StockChartWindow
                 
-                chart_window = StockChartWindow(symbol, name, self)
+                # 기존 같은 종목 차트 창이 있으면 닫기
+                for window in QApplication.topLevelWidgets():
+                    if isinstance(window, StockChartWindow) and hasattr(window, 'symbol') and window.symbol == ticker:
+                        window.close()
+                
+                # 새 차트 창 열기
+                chart_window = StockChartWindow(ticker, stock_name, self)
                 chart_window.show()
                 
-                self.statusbar.showMessage(f"📊 {symbol} ({name}) 차트를 열었습니다.")
+                self.statusbar.showMessage(f"📊 {ticker} ({stock_name}) 차트를 열었습니다.")
+                print(f"✅ 차트 창 열림: {ticker} ({stock_name})")
                 
-            except ImportError:
+            except ImportError as e:
                 # StockChartWindow를 찾을 수 없는 경우 간단한 메시지 표시
+                print(f"차트 모듈 import 실패: {e}")
                 QMessageBox.information(self, "차트", 
-                                    f"종목: {symbol} ({name})\n"
+                                    f"종목: {ticker} ({stock_name})\n"
                                     f"차트 기능을 사용하려면 chart_window.py 파일이 필요합니다.")
                                     
             except Exception as chart_error:
                 # 차트 생성 중 오류 발생시
+                print(f"차트 생성 오류: {chart_error}")
                 QMessageBox.warning(self, "차트 오류", 
                                 f"차트를 불러오는 중 오류가 발생했습니다:\n{str(chart_error)}")
                 
         except Exception as e:
             print(f"Error in show_stock_detail: {e}")
+            import traceback
+            traceback.print_exc()
             QMessageBox.critical(self, "오류", f"종목 상세 정보를 표시하는 중 오류가 발생했습니다:\n{str(e)}")
+
 
     # ========== 추가로 필요한 간단한 차트 기능 (chart_window.py가 없는 경우) ==========
 
@@ -2812,17 +3539,26 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         search_term = search_term.strip()
         found_stocks = []
         seen_tickers = set()
-        
-        # 마스터 CSV 파일 경로들
-        master_files = {
-            'korea': 'stock_data/korea_stocks_master.csv',
-            'usa': 'stock_data/usa_stocks_master.csv', 
-            'sweden': 'stock_data/sweden_stocks_master.csv'
-        }
-        
-        print(f"🔍 마스터 CSV에서 '{search_term}' 검색 중...")
-        
+
+        # 검색 깊이 제한 (무한 재귀 방지)
+        if hasattr(self, '_search_depth'):
+            self._search_depth += 1
+            if self._search_depth > 3:  # 최대 3번까지만 재귀
+                print("⚠️ 검색 깊이 제한 도달, 검색 중단")
+                return []
+        else:
+            self._search_depth = 1
+
         try:
+            # 마스터 CSV 파일 경로들
+            master_files = {
+                'korea': 'stock_data/korea_stocks_master.csv',
+                'usa': 'stock_data/usa_stocks_master.csv', 
+                'sweden': 'stock_data/sweden_stocks_master.csv'
+            }
+            
+            print(f"🔍 마스터 CSV에서 '{search_term}' 검색 중...")
+            
             # 각 마스터 CSV 파일에서 검색
             for market, file_path in master_files.items():
                 if not os.path.exists(file_path):
@@ -2926,6 +3662,13 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             print(f"⚠️ 마스터 CSV 검색 중 오류: {e}")
             # 폴백: 기존 로딩된 CSV에서 검색
             return self.search_from_loaded_csv(search_term)
+
+        finally:
+            # 검색 깊이 초기화
+            if hasattr(self, '_search_depth'):
+                self._search_depth -= 1
+                if self._search_depth <= 0:
+                    delattr(self, '_search_depth')
 
     def _process_search_row(self, stock, search_term, market, seen_tickers):
         """검색 행 처리 헬퍼 메서드"""

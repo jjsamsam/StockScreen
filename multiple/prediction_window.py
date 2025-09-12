@@ -19,6 +19,8 @@ from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+import requests
+import urllib.parse
 
 # Enhanced Screener의 예측기 import
 try:
@@ -167,14 +169,6 @@ pip install scikit-learn xgboost lightgbm statsmodels
         
         panel.setLayout(layout)
         return panel
-
-    def show_stock_search_dialog(self):
-        """종목 검색 다이얼로그 표시"""
-        dialog = StockSearchDialog(self)
-        if dialog.exec_() == QDialog.Accepted:
-            selected_ticker = dialog.get_selected_ticker()
-            if selected_ticker:
-                self.ticker_input.setText(selected_ticker)
 
     def show_enhanced_stock_search_dialog(self):
         """마스터 CSV를 활용한 종목 검색 다이얼로그 표시"""
@@ -577,7 +571,23 @@ class StockSearchDialog(QDialog):
         
         layout.addLayout(button_layout)
         self.setLayout(layout)
+        self.last_search_results = []  # 마지막 검색 결과 저장용
+        
+        # CSV 내보내기 버튼 추가 (UI에)
+        self.add_csv_export_button()
     
+    def add_csv_export_button(self):
+        """CSV 내보내기 버튼을 UI에 추가"""
+        # 기존 버튼 레이아웃에 추가
+        csv_btn = QPushButton("📄 CSV 보기")
+        csv_btn.setToolTip("검색 결과를 CSV 형태로 보기/내보내기")
+        csv_btn.clicked.connect(self.show_csv_export_dialog)
+        
+        # 기존 버튼 레이아웃에 추가 (search_btn 옆에)
+        # button_layout.addWidget(csv_btn)  # 실제 UI 레이아웃에 맞게 위치 조정 필요
+        
+        self.csv_export_btn = csv_btn  # 참조 저장
+
     def select_ticker(self):
         current_item = self.results_list.currentItem()
         if current_item:
@@ -714,7 +724,7 @@ class EnhancedStockSearchDialog(QDialog):
             QApplication.processEvents()
             
             # 마스터 CSV에서 검색
-            results = self.search_master_csv(query)
+            results = self.search_stocks_with_api(query)
             self.display_results(results)
             
             if results:
@@ -725,7 +735,221 @@ class EnhancedStockSearchDialog(QDialog):
         except Exception as e:
             self.status_label.setText(f"❌ 검색 오류: {str(e)}")
             print(f"검색 오류: {e}")
-    
+
+    def search_stocks_with_api(self, search_term):
+        """API를 사용한 실시간 주식 검색 + 기존 CSV 백업"""
+        
+        print(f"🔍 API로 '{search_term}' 검색 시작...")
+        api_results = []
+        
+        # 1. 먼저 API로 검색 시도
+        try:
+            query = urllib.parse.quote(search_term)
+            url = f"https://query1.finance.yahoo.com/v1/finance/search?q={query}"
+
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+
+            res = requests.get(url, headers=headers, timeout=10)
+            print("Status code:", res.status_code)
+
+            if res.ok:
+                data = res.json()
+                quotes = data.get('quotes', [])
+                print(f"📊 API에서 {len(quotes)}개 종목 발견")
+                
+                # Make csv from json.
+                api_results = self.convert_api_to_csv_format(quotes, search_term)
+
+            else:
+                print("Request failed:", res.text[:200])  # 에러일 경우 앞부분 출력           
+
+        except Exception as e:
+            print(f"API 검색 실패: {e}")
+        
+        # 2. CSV에서도 검색 (백업용)
+        csv_results = self.search_master_csv(search_term)
+        
+        # 3. 결과 병합
+        combined_results = self.merge_search_results(api_results, csv_results)
+        
+        print(f"✅ 총 {len(combined_results)}개 종목 반환")
+        return combined_results
+
+    def convert_api_to_csv_format(self, quotes, search_term):
+        """Yahoo Finance API 응답을 기존 CSV 포맷으로 변환"""
+        csv_format_results = []
+        
+        for quote in quotes:
+            try:
+                # 기본 정보 추출
+                ticker = quote.get('symbol', '').strip()
+                if not ticker:
+                    continue
+                    
+                # 회사명 추출 (우선순위: longname > shortname)
+                name = quote.get('longname') or quote.get('shortname', ticker)
+                
+                # 섹터/산업 정보
+                sector = quote.get('sector', quote.get('industry', '미분류'))
+                
+                # 시가총액 포맷팅
+                market_cap_raw = quote.get('marketCap', 0)
+                market_cap_str = self.format_market_cap(market_cap_raw)
+                
+                # 거래소 정보
+                exchange = quote.get('exchDisp') or quote.get('exchange', 'Unknown')
+                
+                # 기존 CSV 포맷과 동일하게 구성
+                stock_info = {
+                    'ticker': ticker,
+                    'name': name,
+                    'sector': sector,
+                    'market_cap': market_cap_str,
+                    'market': exchange,
+                    'raw_market_cap': market_cap_raw,
+                    'match_score': 90 + self.calculate_relevance_bonus(quote, search_term),  # API는 높은 점수
+                    'source': 'API'
+                }
+                
+                csv_format_results.append(stock_info)
+                
+            except Exception as e:
+                print(f"⚠️ API 데이터 변환 오류: {e}")
+                continue
+        
+        return csv_format_results
+
+    def format_market_cap(self, market_cap_value):
+        """시가총액을 사람이 읽기 쉬운 형태로 포맷팅"""
+        try:
+            if pd.isna(market_cap_value) or market_cap_value == 0:
+                return "N/A"
+            
+            mcap = float(market_cap_value)
+            
+            if mcap >= 1e12:
+                return f"{mcap/1e12:.1f}T"
+            elif mcap >= 1e9:
+                return f"{mcap/1e9:.1f}B"
+            elif mcap >= 1e6:
+                return f"{mcap/1e6:.1f}M"
+            else:
+                return f"{mcap:,.0f}"
+                
+        except (ValueError, TypeError):
+            return "N/A"
+
+    def calculate_relevance_bonus(self, quote, search_term):
+        """API 결과의 관련성 보너스 점수 계산"""
+        bonus = 0
+        
+        # 정확한 타입인지 확인
+        if quote.get('typeDisp') == 'Equity':
+            bonus += 5
+        
+        # 검색어와 ticker 매칭도
+        ticker = quote.get('symbol', '').upper()
+        search_upper = search_term.upper()
+        
+        if ticker == search_upper:
+            bonus += 10
+        elif search_upper in ticker:
+            bonus += 5
+        
+        return bonus
+
+    def merge_search_results(self, api_results, csv_results):
+        """API 결과와 CSV 결과를 병합하고 중복 제거"""
+        combined = {}
+        
+        # API 결과 우선 추가 (높은 점수 부여)
+        for stock in api_results:
+            ticker = stock['ticker']
+            combined[ticker] = stock
+        
+        # CSV 결과 추가 (이미 있는 ticker는 건너뛰기)
+        for stock in csv_results:
+            ticker = stock['ticker']
+            if ticker not in combined:
+                stock['source'] = 'CSV'
+                combined[ticker] = stock
+        
+        # 매치 점수와 시가총액으로 정렬
+        sorted_results = sorted(
+            combined.values(), 
+            key=lambda x: (-x['match_score'], -x.get('raw_market_cap', 0))
+        )
+        
+        return sorted_results
+
+    def search_stocks_enhanced(self):
+        """향상된 검색 - 결과 저장 기능 추가"""
+        query = self.search_input.text().strip()
+        if len(query) < 1:
+            self.show_popular_stocks()
+            return
+        
+        try:
+            self.status_label.setText(f"'{query}' 검색 중... (API + CSV)")
+            QApplication.processEvents()
+            
+            # 향상된 검색 함수 사용
+            results = self.search_stocks_with_api(query)
+            
+            # 결과 저장
+            self.last_search_results = results
+            
+            self.display_results(results)
+            
+            if results:
+                api_count = len([r for r in results if r.get('source') == 'API'])
+                csv_count = len([r for r in results if r.get('source') == 'CSV'])
+                self.status_label.setText(
+                    f"🔍 {len(results)}개 종목 발견 (API: {api_count}, CSV: {csv_count}) - 매치점수순"
+                )
+                
+                # CSV 포맷으로도 출력 (콘솔에)
+                self.print_results_as_csv(results[:10])  # 상위 10개만
+                
+                # CSV 내보내기 버튼 활성화
+                if hasattr(self, 'csv_export_btn'):
+                    self.csv_export_btn.setEnabled(True)
+            else:
+                self.status_label.setText("❌ 검색 결과가 없습니다")
+                if hasattr(self, 'csv_export_btn'):
+                    self.csv_export_btn.setEnabled(False)
+                
+        except Exception as e:
+            self.status_label.setText(f"❌ 검색 오류: {str(e)}")
+            print(f"검색 오류: {e}")
+            if hasattr(self, 'csv_export_btn'):
+                self.csv_export_btn.setEnabled(False)
+
+    def print_results_as_csv(self, results):
+        """검색 결과를 CSV 포맷으로 콘솔에 출력"""
+        print("\n" + "="*80)
+        print(f"검색 결과 (상위 {len(results)}개) - CSV 포맷:")
+        print("="*80)
+        
+        # CSV 헤더
+        print("ticker,name,sector,market_cap,market,source,match_score")
+        
+        # 데이터 행들
+        for stock in results:
+            ticker = stock.get('ticker', '')
+            name = stock.get('name', '').replace(',', ';')  # 쉼표를 세미콜론으로 변경
+            sector = stock.get('sector', '').replace(',', ';')
+            market_cap = stock.get('market_cap', 'N/A')
+            market = stock.get('market', '')
+            source = stock.get('source', 'CSV')
+            match_score = stock.get('match_score', 0)
+            
+            print(f"{ticker},{name},{sector},{market_cap},{market},{source},{match_score}")
+        
+        print("="*80)
+
     def search_master_csv(self, search_term):
         """마스터 CSV 파일들에서 검색"""
         import os
@@ -823,35 +1047,170 @@ class EnhancedStockSearchDialog(QDialog):
         found_stocks.sort(key=lambda x: (-x['match_score'], -x.get('raw_market_cap', 0)))
         return found_stocks
     
+    # def display_results(self, results):
+    #     """검색 결과 표시"""
+    #     self.results_table.setRowCount(len(results))
+        
+    #     for i, stock in enumerate(results):
+    #         self.results_table.setItem(i, 0, QTableWidgetItem(stock.get('ticker', '')))
+    #         self.results_table.setItem(i, 1, QTableWidgetItem(stock.get('name', '')))
+    #         self.results_table.setItem(i, 2, QTableWidgetItem(stock.get('market', '')))
+    #         self.results_table.setItem(i, 3, QTableWidgetItem(stock.get('sector', '')))
+    #         self.results_table.setItem(i, 4, QTableWidgetItem(stock.get('market_cap', 'N/A')))
+            
+    #         # 매치점수 표시
+    #         match_score = stock.get('match_score', 0)
+    #         score_item = QTableWidgetItem(str(match_score))
+            
+    #         # 매치점수에 따른 색상 구분
+    #         if match_score >= 90:
+    #             score_item.setBackground(QColor(76, 175, 80, 100))  # 초록
+    #         elif match_score >= 70:
+    #             score_item.setBackground(QColor(255, 193, 7, 100))  # 노랑
+    #         elif match_score >= 50:
+    #             score_item.setBackground(QColor(255, 87, 34, 100))  # 주황
+                
+    #         self.results_table.setItem(i, 5, score_item)
+        
+    #     # 첫 번째 행 선택
+    #     if len(results) > 0:
+    #         self.results_table.selectRow(0)
+    
     def display_results(self, results):
-        """검색 결과 표시"""
+        """검색 결과 표시 - source 컬럼 추가"""
         self.results_table.setRowCount(len(results))
         
+        # 컬럼 개수를 늘려서 source 정보도 표시
+        if self.results_table.columnCount() < 6:
+            self.results_table.setColumnCount(6)
+            self.results_table.setHorizontalHeaderLabels([
+                "종목코드", "회사명", "섹터", "시가총액", "거래소", "출처"
+            ])
+        
         for i, stock in enumerate(results):
+            # 기존 컬럼들
             self.results_table.setItem(i, 0, QTableWidgetItem(stock.get('ticker', '')))
             self.results_table.setItem(i, 1, QTableWidgetItem(stock.get('name', '')))
-            self.results_table.setItem(i, 2, QTableWidgetItem(stock.get('market', '')))
-            self.results_table.setItem(i, 3, QTableWidgetItem(stock.get('sector', '')))
-            self.results_table.setItem(i, 4, QTableWidgetItem(stock.get('market_cap', 'N/A')))
+            self.results_table.setItem(i, 2, QTableWidgetItem(stock.get('sector', '')))
+            self.results_table.setItem(i, 3, QTableWidgetItem(stock.get('market_cap', '')))
+            self.results_table.setItem(i, 4, QTableWidgetItem(stock.get('market', '')))
             
-            # 매치점수 표시
-            match_score = stock.get('match_score', 0)
-            score_item = QTableWidgetItem(str(match_score))
+            # 새로운 출처 컬럼
+            source = stock.get('source', 'CSV')
+            source_item = QTableWidgetItem(source)
             
-            # 매치점수에 따른 색상 구분
-            if match_score >= 90:
-                score_item.setBackground(QColor(76, 175, 80, 100))  # 초록
-            elif match_score >= 70:
-                score_item.setBackground(QColor(255, 193, 7, 100))  # 노랑
-            elif match_score >= 50:
-                score_item.setBackground(QColor(255, 87, 34, 100))  # 주황
-                
-            self.results_table.setItem(i, 5, score_item)
+            # API 결과는 다른 색으로 표시
+            if source == 'API':
+                source_item.setBackground(QColor(200, 255, 200))  # 연한 초록색
+                source_item.setToolTip("Yahoo Finance API에서 실시간 검색된 결과")
+            else:
+                source_item.setBackground(QColor(255, 255, 200))  # 연한 노란색
+                source_item.setToolTip("로컬 마스터 CSV 파일에서 검색된 결과")
+            
+            self.results_table.setItem(i, 5, source_item)
         
-        # 첫 번째 행 선택
-        if len(results) > 0:
-            self.results_table.selectRow(0)
-    
+        # 테이블 컬럼 크기 자동 조정
+        self.results_table.resizeColumnsToContents()
+
+    def show_csv_export_dialog(self):
+        """검색 결과를 CSV 형태로 보여주는 다이얼로그"""
+        if not hasattr(self, 'last_search_results') or not self.last_search_results:
+            QMessageBox.information(self, "CSV 내보내기", "먼저 검색을 수행해주세요.")
+            return
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle("검색 결과 - CSV 포맷")
+        dialog.resize(800, 500)
+        
+        layout = QVBoxLayout()
+        
+        # 정보 레이블
+        info_label = QLabel(f"총 {len(self.last_search_results)}개 종목 - CSV 포맷")
+        info_label.setStyleSheet("font-weight: bold; font-size: 12px;")
+        layout.addWidget(info_label)
+        
+        # CSV 텍스트 영역
+        text_edit = QTextEdit()
+        csv_content = self.generate_csv_content(self.last_search_results)
+        text_edit.setPlainText(csv_content)
+        text_edit.setReadOnly(True)
+        text_edit.setFont(QFont("Courier", 9))  # 고정폭 글꼴
+        layout.addWidget(text_edit)
+        
+        # 버튼들
+        button_layout = QHBoxLayout()
+        
+        copy_btn = QPushButton("클립보드 복사")
+        copy_btn.clicked.connect(lambda: QApplication.clipboard().setText(csv_content))
+        button_layout.addWidget(copy_btn)
+        
+        save_btn = QPushButton("파일 저장")
+        save_btn.clicked.connect(lambda: self.save_csv_file(csv_content))
+        button_layout.addWidget(save_btn)
+        
+        close_btn = QPushButton("닫기")
+        close_btn.clicked.connect(dialog.close)
+        button_layout.addWidget(close_btn)
+        
+        layout.addLayout(button_layout)
+        dialog.setLayout(layout)
+        dialog.exec_()
+
+    def generate_csv_content(self, results):
+        """검색 결과를 CSV 문자열로 생성"""
+        lines = ["ticker,name,sector,market_cap,market,source,match_score"]
+        
+        for stock in results:
+            # CSV에서 쉼표나 특수문자 처리
+            ticker = self.clean_csv_value(stock.get('ticker', ''))
+            name = self.clean_csv_value(stock.get('name', ''))
+            sector = self.clean_csv_value(stock.get('sector', ''))
+            market_cap = self.clean_csv_value(stock.get('market_cap', 'N/A'))
+            market = self.clean_csv_value(stock.get('market', ''))
+            source = self.clean_csv_value(stock.get('source', 'CSV'))
+            match_score = stock.get('match_score', 0)
+            
+            line = f"{ticker},{name},{sector},{market_cap},{market},{source},{match_score}"
+            lines.append(line)
+        
+        return "\n".join(lines)
+
+    def clean_csv_value(self, value):
+        """CSV 값에서 특수문자 처리"""
+        if not isinstance(value, str):
+            value = str(value)
+        
+        # 쉼표나 따옴표가 있으면 따옴표로 감싸고 내부 따옴표는 이스케이프
+        if ',' in value or '"' in value or '\n' in value:
+            value = value.replace('"', '""')  # 따옴표 이스케이프
+            return f'"{value}"'
+        
+        return value
+
+    def save_csv_file(self, csv_content):
+        """CSV 내용을 파일로 저장"""
+        try:
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            default_filename = f"stock_search_results_{timestamp}.csv"
+            
+            filename, _ = QFileDialog.getSaveFileName(
+                self, 
+                "CSV 파일 저장", 
+                default_filename,
+                "CSV 파일 (*.csv);;모든 파일 (*)"
+            )
+            
+            if filename:
+                with open(filename, 'w', encoding='utf-8-sig') as f:
+                    f.write(csv_content)
+                
+                QMessageBox.information(self, "저장 완료", f"파일이 저장되었습니다:\n{filename}")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "저장 오류", f"파일 저장 중 오류가 발생했습니다:\n{str(e)}")
+
+
     def refresh_search(self):
         """검색 새로고침"""
         self.status_label.setText("🔄 마스터 CSV 새로고침 중...")
