@@ -685,45 +685,157 @@ class EnhancedStockScreenerMethods:
             QMessageBox.critical(self, "오류", f"AI 예측 다이얼로그 오류:\n{str(e)}")
        
     def show_batch_prediction(self):
-        """배치 예측 다이얼로그 표시"""
+        """배치 예측 다이얼로그 표시 - 데이터 구조 개선 버전"""
         if not ML_AVAILABLE:
             QMessageBox.warning(self, "오류", "ML 라이브러리가 설치되지 않았습니다.")
             return
         
-        # 현재 스크리닝 결과가 있는지 확인
+        # 스크리닝 결과 수집 및 변환
         candidates = []
         
+        print("🔍 스크리닝 결과 확인 중...")
+        
+        # 매수 후보 처리
         if hasattr(self, 'last_buy_candidates') and self.last_buy_candidates:
-            candidates.extend(self.last_buy_candidates)
+            print(f"📈 매수 후보 발견: {len(self.last_buy_candidates)}개")
+            for candidate in self.last_buy_candidates:
+                # 다양한 데이터 구조에 대응
+                converted = self.convert_candidate_format(candidate, '매수')
+                if converted:
+                    candidates.append(converted)
         
+        # 매도 후보 처리
         if hasattr(self, 'last_sell_candidates') and self.last_sell_candidates:
-            candidates.extend(self.last_sell_candidates)
+            print(f"📉 매도 후보 발견: {len(self.last_sell_candidates)}개")
+            for candidate in self.last_sell_candidates:
+                converted = self.convert_candidate_format(candidate, '매도')
+                if converted:
+                    candidates.append(converted)
         
+        print(f"✅ 변환된 후보: {len(candidates)}개")
+        
+        # 후보가 없는 경우 처리
         if not candidates:
-            reply = QMessageBox.question(self, "배치 예측", 
-                "스크리닝 결과가 없습니다. 샘플 종목으로 테스트하시겠습니까?",
-                QMessageBox.Yes | QMessageBox.No)
+            # 디버그 정보 표시
+            debug_info = self.get_screening_debug_info()
+            
+            reply = QMessageBox.question(
+                self, "배치 예측", 
+                f"스크리닝 결과가 없습니다.\n\n{debug_info}\n\n샘플 종목으로 테스트하시겠습니까?",
+                QMessageBox.Yes | QMessageBox.No
+            )
             
             if reply == QMessageBox.Yes:
                 # 샘플 종목들
                 candidates = [
-                    {'Symbol': 'AAPL', 'Name': 'Apple Inc.'},
-                    {'Symbol': 'MSFT', 'Name': 'Microsoft Corp.'},
-                    {'Symbol': 'GOOGL', 'Name': 'Alphabet Inc.'},
-                    {'Symbol': 'TSLA', 'Name': 'Tesla Inc.'},
-                    {'Symbol': '005930.KS', 'Name': 'Samsung Electronics'}
+                    {'Symbol': 'AAPL', 'Name': 'Apple Inc.', 'Type': '샘플'},
+                    {'Symbol': 'MSFT', 'Name': 'Microsoft Corp.', 'Type': '샘플'},
+                    {'Symbol': 'GOOGL', 'Name': 'Alphabet Inc.', 'Type': '샘플'},
+                    {'Symbol': 'TSLA', 'Name': 'Tesla Inc.', 'Type': '샘플'},
+                    {'Symbol': '005930.KS', 'Name': 'Samsung Electronics', 'Type': '샘플'}
                 ]
             else:
                 return
         
+        # 중복 제거 (동일 종목 코드)
+        unique_candidates = []
+        seen_symbols = set()
+        
+        for candidate in candidates:
+            symbol = candidate.get('Symbol', '')
+            if symbol and symbol not in seen_symbols:
+                unique_candidates.append(candidate)
+                seen_symbols.add(symbol)
+        
+        print(f"🎯 최종 예측 대상: {len(unique_candidates)}개 (중복 제거 후)")
+        
         try:
-            dialog = BatchPredictionDialog(candidates, self)
+            # 배치 예측 다이얼로그 실행
+            dialog = BatchPredictionDialog(unique_candidates, self)
             dialog.exec_()
+            
         except NameError as e:
             QMessageBox.critical(self, "Import 오류", f"BatchPredictionDialog를 찾을 수 없습니다:\n{str(e)}")
         except Exception as e:
             QMessageBox.critical(self, "오류", f"배치 예측 다이얼로그 오류:\n{str(e)}")
-    
+
+    def convert_candidate_format(self, candidate, candidate_type):
+        """스크리닝 결과를 배치 예측 형식으로 변환"""
+        try:
+            # 다양한 키 이름에 대응하여 종목 코드 추출
+            symbol = None
+            name = None
+            
+            # 가능한 종목 코드 키들
+            symbol_keys = ['ticker', 'Ticker', 'symbol', 'Symbol', 'code', 'Code', 'stock_code']
+            for key in symbol_keys:
+                if key in candidate and candidate[key]:
+                    symbol = str(candidate[key]).strip().upper()
+                    break
+            
+            # 가능한 종목 이름 키들  
+            name_keys = ['name', 'Name', 'company', 'Company', 'stock_name', 'company_name']
+            for key in name_keys:
+                if key in candidate and candidate[key]:
+                    name = str(candidate[key]).strip()
+                    break
+            
+            if not symbol:
+                print(f"⚠️ 종목 코드 없음: {candidate}")
+                return None
+            
+            if not name:
+                name = f"종목 {symbol}"
+            
+            converted = {
+                'Symbol': symbol,
+                'Name': name,
+                'Type': candidate_type,  # '매수' 또는 '매도'
+            }
+            
+            # 추가 정보 포함 (선택적)
+            if 'current_price' in candidate:
+                converted['CurrentPrice'] = candidate['current_price']
+            if 'recommendation_score' in candidate:
+                converted['Score'] = candidate['recommendation_score']
+            
+            return converted
+            
+        except Exception as e:
+            print(f"⚠️ 후보 변환 오류: {e}, 데이터: {candidate}")
+            return None
+
+    def get_screening_debug_info(self):
+        """스크리닝 결과 디버그 정보"""
+        debug_lines = ["디버그 정보:"]
+        
+        # 매수 후보 확인
+        if hasattr(self, 'last_buy_candidates'):
+            count = len(self.last_buy_candidates) if self.last_buy_candidates else 0
+            debug_lines.append(f"• 매수 후보 변수 존재: {count}개")
+            
+            if count > 0:
+                # 첫 번째 데이터 구조 확인
+                first_item = self.last_buy_candidates[0]
+                keys = list(first_item.keys()) if isinstance(first_item, dict) else ["데이터 구조 오류"]
+                debug_lines.append(f"• 매수 후보 키들: {', '.join(keys[:5])}")
+        else:
+            debug_lines.append("• 매수 후보 변수 없음")
+        
+        # 매도 후보 확인
+        if hasattr(self, 'last_sell_candidates'):
+            count = len(self.last_sell_candidates) if self.last_sell_candidates else 0
+            debug_lines.append(f"• 매도 후보 변수 존재: {count}개")
+            
+            if count > 0:
+                first_item = self.last_sell_candidates[0]
+                keys = list(first_item.keys()) if isinstance(first_item, dict) else ["데이터 구조 오류"]
+                debug_lines.append(f"• 매도 후보 키들: {', '.join(keys[:5])}")
+        else:
+            debug_lines.append("• 매도 후보 변수 없음")
+        
+        return "\n".join(debug_lines)
+
     def show_prediction_settings(self):
         """예측 설정 다이얼로그 표시"""
         dialog = PredictionSettingsDialog(self.prediction_settings, self)
@@ -814,9 +926,21 @@ class BatchPredictionDialog(QDialog):
         super().__init__(parent)
         self.candidates = candidates
         self.predictor = EnhancedCPUPredictor() if ML_AVAILABLE else None
+        self.parent = parent  # ✅ 추가: 부모 객체 저장
         self.is_running = False
         self.current_index = 0
         self.results = []
+        
+        # ✅ prediction_settings 접근 방법 수정
+        if parent and hasattr(parent, 'prediction_settings'):
+            self.prediction_settings = parent.prediction_settings
+        else:
+            # 기본 설정값
+            self.prediction_settings = {
+                'forecast_days': 7,
+                'batch_delay': 1.0,
+                'confidence_threshold': 0.6
+            }
         
         self.setWindowTitle(f'🤖 배치 AI 예측 - {len(candidates)}개 종목')
         self.setGeometry(200, 200, 900, 700)
@@ -952,11 +1076,15 @@ class BatchPredictionDialog(QDialog):
         return layout
     
     def start_batch_prediction(self):
-        """배치 예측 시작"""
+        """배치 예측 시작 - 안전성 개선"""
         if not ML_AVAILABLE:
             QMessageBox.warning(self, "오류", "ML 라이브러리가 설치되지 않았습니다.")
             return
         
+        if not self.candidates:
+            QMessageBox.warning(self, "오류", "예측할 종목이 없습니다.")
+            return
+            
         self.is_running = True
         self.current_index = 0
         self.results = []
@@ -968,25 +1096,50 @@ class BatchPredictionDialog(QDialog):
         
         # 테이블 초기화
         self.result_table.setRowCount(len(self.candidates))
+        
         for i, candidate in enumerate(self.candidates):
-            ticker = candidate.get('Symbol', candidate.get('Ticker', ''))
-            name = candidate.get('Name', candidate.get('Company', ''))
-            
-            self.result_table.setItem(i, 0, QTableWidgetItem(ticker))
-            self.result_table.setItem(i, 1, QTableWidgetItem(name))
-            self.result_table.setItem(i, 7, QTableWidgetItem("대기 중"))
+            try:
+                # 종목 코드와 이름 추출
+                ticker = self.extract_ticker_from_candidate(candidate)
+                name = candidate.get('Name', candidate.get('name', f'종목 {i+1}'))
+                
+                self.result_table.setItem(i, 0, QTableWidgetItem(ticker or 'N/A'))
+                self.result_table.setItem(i, 1, QTableWidgetItem(name))
+                self.result_table.setItem(i, 7, QTableWidgetItem("⏳ 대기 중"))
+                
+            except Exception as e:
+                print(f"⚠️ 테이블 초기화 오류 (행 {i}): {e}")
+                self.result_table.setItem(i, 0, QTableWidgetItem('오류'))
+                self.result_table.setItem(i, 1, QTableWidgetItem('데이터 오류'))
+                self.result_table.setItem(i, 7, QTableWidgetItem("❌ 초기화 오류"))
+        
+        print(f"🚀 배치 예측 시작: {len(self.candidates)}개 종목")
         
         # 예측 시작
         self.run_next_prediction()
     
     def run_next_prediction(self):
-        """다음 종목 예측 실행"""
+        """다음 종목 예측 실행 - 오류 방지 개선"""
         if not self.is_running or self.current_index >= len(self.candidates):
             self.finish_batch_prediction()
             return
         
         candidate = self.candidates[self.current_index]
-        ticker = candidate.get('Symbol', candidate.get('Ticker', ''))
+        
+        # ✅ 개선된 종목 코드 추출
+        ticker = self.extract_ticker_from_candidate(candidate)
+        
+        if not ticker:
+            print(f"⚠️ 종목 코드 추출 실패: {candidate}")
+            # 실패한 경우 다음으로 넘어감
+            self.result_table.setItem(self.current_index, 7, QTableWidgetItem("❌ 종목코드 오류"))
+            self.current_index += 1
+            # ✅ 함수명 수정
+            self.update_stats()
+            QTimer.singleShot(100, self.run_next_prediction)
+            return
+        
+        print(f"🎯 예측 시작: {ticker} ({self.current_index + 1}/{len(self.candidates)})")
         
         # UI 업데이트
         self.current_work_label.setText(f"예측 중: {ticker}")
@@ -996,66 +1149,134 @@ class BatchPredictionDialog(QDialog):
         self.result_table.setItem(self.current_index, 7, QTableWidgetItem("🔄 예측 중"))
         self.result_table.scrollToItem(self.result_table.item(self.current_index, 0))
         
-        QApplication.processEvents()
+        # 비동기 예측 실행
+        QTimer.singleShot(100, lambda: self.execute_prediction_for_ticker(ticker))
+
+
+    def extract_ticker_from_candidate(self, candidate):
+        """후보 데이터에서 종목 코드 추출 - 여러 형식 지원"""
+        if isinstance(candidate, str):
+            return candidate.strip().upper()
         
-        # 예측 실행
+        if not isinstance(candidate, dict):
+            print(f"❌ 잘못된 데이터 타입: {type(candidate)}")
+            return None
+        
+        # 가능한 키 이름들 시도
+        possible_keys = [
+            'Symbol', 'symbol', 'Ticker', 'ticker', 
+            'Code', 'code', 'stock_code', 'stock_symbol'
+        ]
+        
+        for key in possible_keys:
+            if key in candidate and candidate[key]:
+                ticker = str(candidate[key]).strip().upper()
+                if ticker and ticker != 'N/A':
+                    return ticker
+        
+        print(f"❌ 종목 코드를 찾을 수 없음. 사용 가능한 키: {list(candidate.keys())}")
+        return None
+
+    def execute_prediction_for_ticker(self, ticker):
+        """특정 종목에 대한 예측 실행 - 오류 수정 버전"""
         try:
-            self.detail_progress.setValue(25)
-            QApplication.processEvents()
+            print(f"🎯 예측 실행: {ticker}")
             
-            result, error = self.predictor.predict_stock(ticker, 7)
-            
-            self.detail_progress.setValue(75)
-            QApplication.processEvents()
+            # Enhanced Screener를 사용한 예측
+            forecast_days = self.prediction_settings.get('forecast_days', 7)
+            result, error = self.predictor.predict_stock(ticker, forecast_days=forecast_days)
             
             if error:
-                # 실패 처리
-                self.result_table.setItem(self.current_index, 2, QTableWidgetItem("오류"))
-                self.result_table.setItem(self.current_index, 7, QTableWidgetItem(f"❌ {error[:20]}..."))
+                print(f"❌ 예측 실패 ({ticker}): {error}")
+                # 예측 실패
+                self.result_table.setItem(self.current_index, 7, QTableWidgetItem(f"❌ {error[:15]}..."))
+                
+            elif result:
+                print(f"✅ 예측 성공 ({ticker})")
+                # 예측 성공 - 결과를 테이블에 표시
+                self.display_prediction_result(result, self.current_index)
+                self.results.append(result)
+                self.result_table.setItem(self.current_index, 7, QTableWidgetItem("✅ 완료"))
                 
             else:
-                # 성공 처리
-                self.results.append(result)
-                
-                current_price = result.get('current_price', 0)
-                predicted_price = result.get('predicted_price', 0)
-                expected_return = result.get('expected_return', 0)
-                confidence = result.get('confidence', 0)
-                
-                # 추천 계산
-                if confidence > 0.7:
-                    if expected_return > 0.05:
-                        recommendation = "강매수"
-                    elif expected_return > 0.02:
-                        recommendation = "매수"
-                    elif expected_return < -0.05:
-                        recommendation = "매도"
-                    elif expected_return < -0.02:
-                        recommendation = "매도고려"
-                    else:
-                        recommendation = "보유"
-                else:
-                    recommendation = "불확실"
-                
-                # 테이블 업데이트
-                self.result_table.setItem(self.current_index, 2, QTableWidgetItem(f"${current_price:.2f}"))
-                self.result_table.setItem(self.current_index, 3, QTableWidgetItem(f"${predicted_price:.2f}"))
-                self.result_table.setItem(self.current_index, 4, QTableWidgetItem(f"{expected_return*100:+.2f}%"))
-                self.result_table.setItem(self.current_index, 5, QTableWidgetItem(f"{confidence*100:.1f}%"))
-                self.result_table.setItem(self.current_index, 6, QTableWidgetItem(recommendation))
-                self.result_table.setItem(self.current_index, 7, QTableWidgetItem("✅ 완료"))
-            
-            self.detail_progress.setValue(100)
-            self.update_stats()
+                print(f"⚠️ 결과 없음 ({ticker})")
+                # 결과 없음
+                self.result_table.setItem(self.current_index, 7, QTableWidgetItem("❌ 결과 없음"))
             
         except Exception as e:
-            # 예외 처리
-            self.result_table.setItem(self.current_index, 7, QTableWidgetItem(f"❌ 오류: {str(e)[:20]}"))
+            print(f"❌ 예측 오류 ({ticker}): {e}")
+            error_msg = str(e)[:15] + "..." if len(str(e)) > 15 else str(e)
+            self.result_table.setItem(self.current_index, 7, QTableWidgetItem(f"❌ {error_msg}"))
         
-        self.current_index += 1
-        
-        # 딜레이 후 다음 예측
-        QTimer.singleShot(1000, self.run_next_prediction)  # 1초 딜레이
+        finally:
+            # ✅ 함수명 수정: update_statistics → update_stats
+            self.update_stats()
+            
+            # 다음 종목으로 이동
+            self.current_index += 1
+            
+            # 지연 후 다음 예측 실행
+            delay = int(self.prediction_settings.get('batch_delay', 1.0) * 1000)
+            QTimer.singleShot(delay, self.run_next_prediction)
+
+    def display_prediction_result(self, result, row):
+        """예측 결과를 테이블에 표시 - 오류 방지 버전"""
+        try:
+            # 결과에서 필요한 정보 추출 (안전하게)
+            ticker = result.get('ticker', 'N/A')
+            current_price = result.get('current_price', 0)
+            predicted_price = result.get('predicted_price', 0)
+            expected_return = result.get('expected_return', 0)
+            confidence = result.get('confidence', 0)
+            
+            # 추천 결정
+            if expected_return > 0.05:  # 5% 이상
+                recommendation = "강력 매수"
+                color = "green"
+            elif expected_return > 0.02:  # 2% 이상  
+                recommendation = "매수"
+                color = "lightgreen"
+            elif expected_return < -0.05:  # -5% 이하
+                recommendation = "매도"
+                color = "red"
+            elif expected_return < -0.02:  # -2% 이하
+                recommendation = "매도 고려"
+                color = "orange"
+            else:
+                recommendation = "보유"
+                color = "gray"
+            
+            # 테이블 업데이트 (안전하게)
+            try:
+                # 현재가
+                price_item = QTableWidgetItem(f"${current_price:.2f}")
+                self.result_table.setItem(row, 2, price_item)
+                
+                # 예측가
+                pred_item = QTableWidgetItem(f"${predicted_price:.2f}")
+                self.result_table.setItem(row, 3, pred_item)
+                
+                # 예상 수익률
+                return_item = QTableWidgetItem(f"{expected_return*100:+.1f}%")
+                return_item.setBackground(QColor(color))
+                self.result_table.setItem(row, 4, return_item)
+                
+                # 신뢰도
+                conf_item = QTableWidgetItem(f"{confidence*100:.1f}%")
+                self.result_table.setItem(row, 5, conf_item)
+                
+                # 추천
+                rec_item = QTableWidgetItem(recommendation)
+                rec_item.setBackground(QColor(color))
+                self.result_table.setItem(row, 6, rec_item)
+                
+                print(f"📊 결과 표시 완료: {ticker} - {expected_return*100:+.1f}%")
+                
+            except Exception as table_error:
+                print(f"⚠️ 테이블 업데이트 오류: {table_error}")
+            
+        except Exception as e:
+            print(f"⚠️ 결과 표시 오류: {e}")
     
     def update_stats(self):
         """통계 업데이트"""
