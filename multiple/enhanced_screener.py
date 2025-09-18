@@ -147,6 +147,14 @@ class EnhancedCPUPredictor:
         
         self.current_scaler = self.scalers['robust']  # 주식 데이터는 이상치 많음
 
+
+        self.accuracy_history_file = 'prediction_accuracy_history.json'
+        self.accuracy_history = self.load_accuracy_history()
+        
+        # 성능 추적 설정
+        self.max_history_records = 1000  # 최대 기록 수
+        self.accuracy_window_days = 30   # 정확도 평가 기간
+
         print(f"✅ {len(self.models)}개 모델 초기화 완료")
 
     def load_settings(self):
@@ -496,14 +504,627 @@ class EnhancedCPUPredictor:
         ensemble_prediction = weighted_sum / total_weight if total_weight > 0 else np.mean(predictions)
         
         # 신뢰도 계산 (예측값 분산 기반)
-        if len(predictions) > 1:
-            variance = np.var(predictions)
-            confidence = 1.0 / (1.0 + variance * 10)  # 분산이 작을수록 높은 신뢰도
-        else:
-            confidence = 0.5  # 단일 모델인 경우 중간 신뢰도
+        confidence = self.calculate_advanced_confidence(predictions, model_results)
         
-        return ensemble_prediction, min(confidence, 0.95)  # 최대 95% 신뢰도
-    
+        return ensemble_prediction, confidence
+
+    def calculate_advanced_confidence(self, predictions, model_results, market_conditions=None):
+        """고급 신뢰도 계산 시스템"""
+        
+        # 1. 기본 통계적 신뢰도
+        base_confidence = self.calculate_statistical_confidence(predictions)
+        
+        # 2. 모델 성능 기반 신뢰도
+        performance_confidence = self.calculate_performance_confidence(model_results)
+        
+        # 3. 시장 상황 기반 조정
+        if market_conditions is None:
+            market_conditions = self.analyze_market_conditions(ticker=None, data=None)
+        
+        market_adjustment = self.calculate_market_confidence_adjustment(market_conditions)
+        
+        # 4. 역사적 정확도 기반 조정
+        historical_adjustment = self.calculate_historical_accuracy_adjustment()
+        
+        # 5. 종합 계산
+        final_confidence = (
+            base_confidence * 0.3 +
+            performance_confidence * 0.3 +
+            market_adjustment * 0.2 +
+            historical_adjustment * 0.2
+        )
+        
+        # ✅ 실제적인 범위 (10% ~ 95%)
+        return max(0.1, min(0.95, final_confidence))
+
+    def calculate_statistical_confidence(self, predictions):
+        """통계적 신뢰도 계산"""
+        if len(predictions) <= 1:
+            return 0.5
+        
+        # 예측값들의 표준편차
+        std = np.std(predictions)
+        mean_pred = np.mean(predictions)
+        
+        # 변동계수 (CV: Coefficient of Variation)
+        if abs(mean_pred) > 1e-6:
+            cv = abs(std / mean_pred)
+            # CV가 작을수록 높은 신뢰도
+            confidence = 1.0 / (1.0 + cv * 5)
+        else:
+            confidence = 0.5
+        
+        return confidence
+
+    def calculate_performance_confidence(self, model_results):
+        """모델 성능 기반 신뢰도"""
+        if not model_results:
+            return 0.5
+        
+        # R² 점수들 수집
+        r2_scores = []
+        for result in model_results.values():
+            r2 = result.get('r2_score', 0)
+            # R² 정규화: -∞~1 → 0~1
+            normalized_r2 = max(0, min(1, (r2 + 0.5) / 1.5))
+            r2_scores.append(normalized_r2)
+        
+        # 평균 성능
+        avg_performance = np.mean(r2_scores)
+        
+        # 성능 일관성 (모든 모델이 비슷한 성능인지)
+        performance_consistency = 1.0 - np.std(r2_scores)
+        
+        return (avg_performance * 0.7 + performance_consistency * 0.3)
+
+    def analyze_market_conditions(self, ticker, data):
+        """현재 시장 상황 분석"""
+        try:
+            # 1. 기본 시장 데이터 수집
+            market_data = self.get_market_data()
+            
+            # 2. 시장 체제 분류
+            regime = self.classify_market_regime(market_data)
+            
+            # 3. 변동성 분석
+            volatility_info = self.analyze_volatility(market_data)
+            
+            # 4. 추세 분석
+            trend_info = self.analyze_trend(market_data)
+            
+            # 5. 기술적 지표 분석
+            technical_info = self.analyze_technical_indicators(market_data)
+            
+            # 6. 거시경제 정보 (선택적)
+            macro_info = self.get_macro_conditions()
+            
+            return {
+                'regime': regime,
+                'volatility': volatility_info,
+                'trend': trend_info,
+                'technical': technical_info,
+                'macro': macro_info,
+                'timestamp': datetime.now(),
+                'data_quality': 'high'  # high, medium, low
+            }
+            
+        except Exception as e:
+            print(f"⚠️ 시장 상황 분석 오류: {e}")
+            # 기본값 반환
+            return self.get_default_market_conditions()
+
+    def classify_market_regime(self, market_data):
+        """시장 체제 분류"""
+        try:
+            # S&P 500 또는 시장 지수 데이터 사용
+            spy_data = yf.download('SPY', period='6mo', progress=False)
+            
+            if len(spy_data) < 50:
+                return 'unknown'
+            
+            # 최근 가격 추세
+            recent_return = (spy_data['Close'][-1] / spy_data['Close'][-60] - 1)
+            volatility = spy_data['Close'].pct_change().rolling(20).std().iloc[-1]
+            
+            # VIX 데이터 (가능한 경우)
+            vix_level = self.get_vix_level()
+            
+            # 시장 체제 분류 로직
+            if recent_return > 0.05 and volatility < 0.02 and vix_level < 20:
+                return 'bull'
+            elif recent_return < -0.05 and vix_level > 30:
+                return 'bear'
+            elif volatility > 0.03 or vix_level > 25:
+                return 'volatile'
+            else:
+                return 'sideways'
+                
+        except Exception as e:
+            print(f"⚠️ 시장 체제 분류 오류: {e}")
+            return 'sideways'  # 기본값
+
+    def analyze_volatility(self, market_data):
+        """변동성 분석"""
+        try:
+            # VIX 지수 조회
+            vix_level = self.get_vix_level()
+            
+            # 과거 대비 변동성 백분위 계산
+            spy_data = yf.download('SPY', period='1y', progress=False)
+            if len(spy_data) > 100:
+                current_vol = spy_data['Close'].pct_change().rolling(20).std().iloc[-1]
+                historical_vols = spy_data['Close'].pct_change().rolling(20).std().dropna()
+                volatility_percentile = (historical_vols < current_vol).mean()
+                
+                # 변동성 추세
+                recent_vols = historical_vols.tail(10)
+                if recent_vols.iloc[-1] > recent_vols.iloc[0] * 1.2:
+                    vol_trend = 'increasing'
+                elif recent_vols.iloc[-1] < recent_vols.iloc[0] * 0.8:
+                    vol_trend = 'decreasing'
+                else:
+                    vol_trend = 'stable'
+            else:
+                volatility_percentile = 0.5
+                vol_trend = 'stable'
+            
+            return {
+                'current_vix': vix_level,
+                'volatility_percentile': volatility_percentile,
+                'trend': vol_trend
+            }
+            
+        except Exception as e:
+            print(f"⚠️ 변동성 분석 오류: {e}")
+            return {
+                'current_vix': 20.0,
+                'volatility_percentile': 0.5,
+                'trend': 'stable'
+            }
+
+    def get_vix_level(self):
+        """VIX 지수 조회"""
+        try:
+            vix = yf.download('^VIX', period='5d', progress=False)
+            if len(vix) > 0:
+                return float(vix['Close'].iloc[-1])
+        except:
+            pass
+        return 20.0  # 기본값
+
+    def analyze_trend(self, market_data):
+        """추세 분석"""
+        try:
+            spy_data = yf.download('SPY', period='3mo', progress=False)
+            
+            if len(spy_data) < 30:
+                return {'direction': 'sideways', 'strength': 0.5, 'duration_days': 0}
+            
+            # 단기/장기 이동평균
+            spy_data['MA20'] = spy_data['Close'].rolling(20).mean()
+            spy_data['MA50'] = spy_data['Close'].rolling(50).mean()
+            
+            current_price = spy_data['Close'].iloc[-1]
+            ma20 = spy_data['MA20'].iloc[-1]
+            ma50 = spy_data['MA50'].iloc[-1]
+            
+            # 추세 방향
+            if current_price > ma20 > ma50:
+                direction = 'upward'
+                strength = min(1.0, (current_price / ma50 - 1) * 10)  # 정규화
+            elif current_price < ma20 < ma50:
+                direction = 'downward'
+                strength = min(1.0, (1 - current_price / ma50) * 10)  # 정규화
+            else:
+                direction = 'sideways'
+                strength = 0.5
+            
+            # 추세 지속 기간 (간단한 계산)
+            duration_days = self.calculate_trend_duration(spy_data)
+            
+            return {
+                'direction': direction,
+                'strength': max(0.1, min(0.9, strength)),
+                'duration_days': duration_days
+            }
+            
+        except Exception as e:
+            print(f"⚠️ 추세 분석 오류: {e}")
+            return {'direction': 'sideways', 'strength': 0.5, 'duration_days': 30}
+
+    def calculate_market_confidence_adjustment(self, market_conditions):
+        """시장 상황 기반 신뢰도 조정"""
+        if not market_conditions:
+            return 0.8  # 기본값
+        
+        base_confidence = 0.8
+        
+        # 1. 시장 체제별 조정
+        regime_adjustments = {
+            'bull': +0.1,      # 상승장에서 예측이 더 신뢰할만함
+            'bear': -0.05,     # 하락장에서 예측 어려움
+            'sideways': 0.0,   # 보합장은 중립
+            'volatile': -0.15, # 변동성 높을 때 예측 어려움
+            'unknown': -0.1    # 불확실할 때 보수적
+        }
+        
+        regime = market_conditions.get('regime', 'unknown')
+        base_confidence += regime_adjustments.get(regime, 0)
+        
+        # 2. 변동성 기반 조정
+        volatility_info = market_conditions.get('volatility', {})
+        vix_level = volatility_info.get('current_vix', 20)
+        
+        if vix_level < 15:
+            base_confidence += 0.05  # 낮은 변동성 = 높은 신뢰도
+        elif vix_level > 30:
+            base_confidence -= 0.1   # 높은 변동성 = 낮은 신뢰도
+        
+        # 3. 추세 강도 기반 조정
+        trend_info = market_conditions.get('trend', {})
+        trend_strength = trend_info.get('strength', 0.5)
+        
+        if trend_strength > 0.7:
+            base_confidence += 0.05  # 강한 추세 = 예측하기 쉬움
+        elif trend_strength < 0.3:
+            base_confidence -= 0.05  # 약한 추세 = 예측 어려움
+        
+        # 최종 범위 제한
+        return max(0.1, min(0.9, base_confidence))
+
+    def get_default_market_conditions(self):
+        """기본 시장 상황 (오류 시 사용)"""
+        return {
+            'regime': 'sideways',
+            'volatility': {
+                'current_vix': 20.0,
+                'volatility_percentile': 0.5,
+                'trend': 'stable'
+            },
+            'trend': {
+                'direction': 'sideways',
+                'strength': 0.5,
+                'duration_days': 30
+            },
+            'technical': {
+                'market_ma_position': 'neutral',
+                'market_momentum': 0.0,
+                'sector_rotation': False
+            },
+            'macro': {
+                'interest_rate_trend': 'stable',
+                'economic_cycle': 'expansion',
+                'inflation_trend': 'moderate'
+            },
+            'timestamp': datetime.now(),
+            'data_quality': 'medium'
+        }
+
+
+    def load_accuracy_history(self):
+        """과거 예측 성능 기록 로드"""
+        try:
+            if os.path.exists(self.accuracy_history_file):
+                with open(self.accuracy_history_file, 'r', encoding='utf-8') as f:
+                    history = json.load(f)
+                    print(f"✅ 과거 성능 기록 로드: {len(history)}건")
+                    return history
+            else:
+                print("📋 새로운 성능 추적 시작")
+                return []
+        except Exception as e:
+            print(f"⚠️ 성능 기록 로드 오류: {e}")
+            return []
+
+    def save_accuracy_history(self):
+        """성능 기록 저장"""
+        try:
+            # 최대 기록 수 제한
+            if len(self.accuracy_history) > self.max_history_records:
+                self.accuracy_history = self.accuracy_history[-self.max_history_records:]
+            
+            with open(self.accuracy_history_file, 'w', encoding='utf-8') as f:
+                json.dump(self.accuracy_history, f, indent=2, ensure_ascii=False)
+            print(f"💾 성능 기록 저장: {len(self.accuracy_history)}건")
+        except Exception as e:
+            print(f"⚠️ 성능 기록 저장 오류: {e}")
+
+    def record_prediction(self, ticker, prediction_data):
+        """예측 기록 저장 - 나중에 정확도 평가용"""
+        try:
+            record = {
+                'ticker': ticker,
+                'prediction_date': datetime.now().isoformat(),
+                'forecast_days': prediction_data.get('forecast_days', 7),
+                'predicted_return': prediction_data.get('expected_return', 0),
+                'predicted_price': prediction_data.get('predicted_price', 0),
+                'current_price': prediction_data.get('current_price', 0),
+                'confidence': prediction_data.get('confidence', 0),
+                'market_conditions': prediction_data.get('market_conditions', {}),
+                'models_used': prediction_data.get('active_models', []),
+                
+                # 나중에 실제 결과로 업데이트될 필드들
+                'actual_price': None,
+                'actual_return': None,
+                'accuracy_score': None,
+                'evaluation_date': None,
+                'is_evaluated': False
+            }
+            
+            self.accuracy_history.append(record)
+            
+            # 주기적으로 저장 (10개마다)
+            if len(self.accuracy_history) % 10 == 0:
+                self.save_accuracy_history()
+                
+            print(f"📝 예측 기록 저장: {ticker}")
+            
+        except Exception as e:
+            print(f"⚠️ 예측 기록 오류: {e}")
+
+    def evaluate_past_predictions(self):
+        """과거 예측들의 실제 결과 평가"""
+        try:
+            evaluated_count = 0
+            
+            for record in self.accuracy_history:
+                if record['is_evaluated']:
+                    continue
+                    
+                # 예측 후 충분한 시간이 지났는지 확인
+                prediction_date = datetime.fromisoformat(record['prediction_date'])
+                forecast_days = record['forecast_days']
+                target_date = prediction_date + timedelta(days=forecast_days)
+                
+                if datetime.now() >= target_date:
+                    # 실제 결과 조회 및 평가
+                    success = self.evaluate_single_prediction(record)
+                    if success:
+                        evaluated_count += 1
+            
+            if evaluated_count > 0:
+                print(f"📊 {evaluated_count}개 과거 예측 평가 완료")
+                self.save_accuracy_history()
+                
+        except Exception as e:
+            print(f"⚠️ 과거 예측 평가 오류: {e}")
+
+    def evaluate_single_prediction(self, record):
+        """개별 예측 기록 평가"""
+        try:
+            ticker = record['ticker']
+            prediction_date = datetime.fromisoformat(record['prediction_date'])
+            forecast_days = record['forecast_days']
+            target_date = prediction_date + timedelta(days=forecast_days + 5)  # 여유 기간
+            
+            # 실제 주가 데이터 조회
+            stock = yf.Ticker(ticker)
+            
+            # 예측일부터 목표일까지 데이터
+            actual_data = stock.history(
+                start=prediction_date.date(),
+                end=target_date.date()
+            )
+            
+            if len(actual_data) < forecast_days:
+                return False  # 데이터 부족
+            
+            # 실제 결과 계산
+            actual_price = float(actual_data['Close'].iloc[min(forecast_days, len(actual_data)-1)])
+            initial_price = record['current_price']
+            actual_return = (actual_price / initial_price - 1) if initial_price > 0 else 0
+            
+            # 정확도 점수 계산
+            predicted_return = record['predicted_return']
+            accuracy_score = self.calculate_prediction_accuracy(predicted_return, actual_return)
+            
+            # 기록 업데이트
+            record['actual_price'] = actual_price
+            record['actual_return'] = actual_return
+            record['accuracy_score'] = accuracy_score
+            record['evaluation_date'] = datetime.now().isoformat()
+            record['is_evaluated'] = True
+            
+            print(f"✅ {ticker} 예측 평가: 예측{predicted_return*100:+.1f}% vs 실제{actual_return*100:+.1f}% (정확도: {accuracy_score:.2f})")
+            
+            return True
+            
+        except Exception as e:
+            print(f"⚠️ {record.get('ticker', 'N/A')} 평가 오류: {e}")
+            return False
+
+    def calculate_prediction_accuracy(self, predicted_return, actual_return):
+        """예측 정확도 점수 계산"""
+        try:
+            # 1. 방향 정확도 (상승/하락 방향이 맞는지)
+            direction_correct = (predicted_return * actual_return > 0) or (abs(predicted_return) < 0.01 and abs(actual_return) < 0.01)
+            direction_score = 1.0 if direction_correct else 0.0
+            
+            # 2. 크기 정확도 (예측 크기가 얼마나 정확한지)
+            magnitude_error = abs(predicted_return - actual_return)
+            magnitude_score = max(0, 1.0 - magnitude_error * 10)  # 10% 차이에서 0점
+            
+            # 3. 종합 점수 (방향 60%, 크기 40%)
+            total_score = direction_score * 0.6 + magnitude_score * 0.4
+            
+            return max(0.0, min(1.0, total_score))
+            
+        except Exception as e:
+            print(f"⚠️ 정확도 계산 오류: {e}")
+            return 0.5  # 기본값
+
+    def calculate_historical_accuracy_adjustment(self):
+        """과거 예측 성능 기반 신뢰도 조정"""
+        try:
+            # 우선 과거 예측들 평가
+            self.evaluate_past_predictions()
+            
+            if not self.accuracy_history:
+                print("📊 과거 성능 데이터 없음 - 기본값 사용")
+                return 0.8  # 기본값
+            
+            # 평가된 기록들만 필터링
+            evaluated_records = [r for r in self.accuracy_history if r.get('is_evaluated', False)]
+            
+            if len(evaluated_records) < 5:
+                print(f"📊 평가된 기록 부족 ({len(evaluated_records)}개) - 기본값 사용")
+                return 0.8
+            
+            # 1. 전체 정확도 계산
+            overall_accuracy = self.calculate_overall_accuracy(evaluated_records)
+            
+            # 2. 최근 성능 추세 계산
+            recent_trend = self.calculate_recent_performance_trend(evaluated_records)
+            
+            # 3. 시장 상황별 성능 계산
+            contextual_performance = self.calculate_contextual_performance(evaluated_records)
+            
+            # 4. 모델별 성능 계산
+            model_performance = self.calculate_model_specific_performance(evaluated_records)
+            
+            # 5. 종합 조정값 계산
+            adjustment = (
+                overall_accuracy * 0.4 +
+                recent_trend * 0.3 +
+                contextual_performance * 0.2 +
+                model_performance * 0.1
+            )
+            
+            print(f"📈 역사적 성능 조정: {adjustment:.3f} (기록 {len(evaluated_records)}개 기반)")
+            
+            # 합리적 범위로 제한
+            return max(0.3, min(1.0, adjustment))
+            
+        except Exception as e:
+            print(f"⚠️ 역사적 성능 계산 오류: {e}")
+            return 0.8  # 기본값
+
+    def calculate_overall_accuracy(self, evaluated_records):
+        """전체 정확도 계산"""
+        try:
+            accuracy_scores = [r['accuracy_score'] for r in evaluated_records if r.get('accuracy_score') is not None]
+            
+            if not accuracy_scores:
+                return 0.8
+                
+            # 가중평균 (최근 것에 더 높은 가중치)
+            weights = [i + 1 for i in range(len(accuracy_scores))]  # 1, 2, 3, ...
+            weighted_avg = sum(score * weight for score, weight in zip(accuracy_scores, weights)) / sum(weights)
+            
+            return weighted_avg
+            
+        except Exception as e:
+            print(f"⚠️ 전체 정확도 계산 오류: {e}")
+            return 0.8
+
+    def calculate_recent_performance_trend(self, evaluated_records):
+        """최근 성능 추세 계산"""
+        try:
+            # 최근 20개 기록만 사용
+            recent_records = evaluated_records[-20:] if len(evaluated_records) >= 20 else evaluated_records
+            
+            if len(recent_records) < 5:
+                return 0.8
+            
+            # 시간순 정렬
+            recent_records.sort(key=lambda x: x['prediction_date'])
+            
+            # 최근 성능 점수들
+            recent_scores = [r['accuracy_score'] for r in recent_records if r.get('accuracy_score') is not None]
+            
+            if len(recent_scores) < 5:
+                return 0.8
+            
+            # 추세 계산 (선형 회귀)
+            x = list(range(len(recent_scores)))
+            y = recent_scores
+            
+            # 간단한 추세 계산
+            if len(y) >= 2:
+                trend_slope = (y[-1] - y[0]) / (len(y) - 1)
+                base_performance = sum(recent_scores) / len(recent_scores)
+                
+                # 추세를 반영한 조정
+                trend_adjustment = base_performance + trend_slope * 2  # 추세 강화
+                return max(0.3, min(1.0, trend_adjustment))
+            else:
+                return sum(recent_scores) / len(recent_scores)
+                
+        except Exception as e:
+            print(f"⚠️ 최근 추세 계산 오류: {e}")
+            return 0.8
+
+    def calculate_contextual_performance(self, evaluated_records):
+        """시장 상황별 성능 계산"""
+        try:
+            # 현재 시장 상황 분석
+            current_market = self.analyze_market_conditions(None, None)
+            current_regime = current_market.get('regime', 'sideways')
+            
+            # 비슷한 시장 상황에서의 과거 성능 찾기
+            similar_context_records = []
+            for record in evaluated_records:
+                record_market = record.get('market_conditions', {})
+                record_regime = record_market.get('regime', 'unknown')
+                
+                if record_regime == current_regime:
+                    similar_context_records.append(record)
+            
+            if len(similar_context_records) >= 3:
+                # 비슷한 상황에서의 성능
+                context_scores = [r['accuracy_score'] for r in similar_context_records if r.get('accuracy_score') is not None]
+                context_performance = sum(context_scores) / len(context_scores)
+                print(f"🎯 {current_regime} 시장에서 과거 성능: {context_performance:.3f} ({len(context_scores)}건)")
+                return context_performance
+            else:
+                # 전체 평균 사용
+                all_scores = [r['accuracy_score'] for r in evaluated_records if r.get('accuracy_score') is not None]
+                return sum(all_scores) / len(all_scores) if all_scores else 0.8
+                
+        except Exception as e:
+            print(f"⚠️ 상황별 성능 계산 오류: {e}")
+            return 0.8
+
+    def calculate_model_specific_performance(self, evaluated_records):
+        """모델별 성능 계산"""
+        try:
+            # 현재 활성화된 모델들
+            current_models = set(self.settings.get('models_enabled', {}).keys())
+            
+            # 각 모델 조합별 성능 계산
+            model_performances = {}
+            
+            for record in evaluated_records:
+                record_models = set(record.get('models_used', []))
+                
+                # 모델 세트를 키로 사용 (정렬하여 일관성 보장)
+                model_key = ','.join(sorted(record_models))
+                
+                if model_key not in model_performances:
+                    model_performances[model_key] = []
+                
+                if record.get('accuracy_score') is not None:
+                    model_performances[model_key].append(record['accuracy_score'])
+            
+            # 현재 모델 조합과 가장 유사한 성능 찾기
+            current_model_key = ','.join(sorted(current_models))
+            
+            if current_model_key in model_performances and len(model_performances[current_model_key]) >= 3:
+                # 정확히 같은 모델 조합
+                scores = model_performances[current_model_key]
+                return sum(scores) / len(scores)
+            else:
+                # 비슷한 모델 조합 또는 전체 평균
+                all_performances = []
+                for performances in model_performances.values():
+                    all_performances.extend(performances)
+                
+                return sum(all_performances) / len(all_performances) if all_performances else 0.8
+                
+        except Exception as e:
+            print(f"⚠️ 모델별 성능 계산 오류: {e}")
+            return 0.8
+
     def create_advanced_features_deterministic(self, data):
             """결정적 고급 특성 생성 - 일관성 보장"""
             try:
