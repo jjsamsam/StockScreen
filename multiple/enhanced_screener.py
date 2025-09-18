@@ -77,6 +77,8 @@ class EnhancedCPUPredictor:
         
         # 고정된 시드로 초기화
         self.fix_all_random_seeds(42)
+
+        self.load_settings()
         
         # CPU 최적화 모델들
         self.models = {
@@ -144,8 +146,38 @@ class EnhancedCPUPredictor:
         }
         
         self.current_scaler = self.scalers['robust']  # 주식 데이터는 이상치 많음
-        
+
         print(f"✅ {len(self.models)}개 모델 초기화 완료")
+
+    def load_settings(self):
+        """✅ 새로 추가: 설정 파일에서 예측 설정 로드"""
+        default_settings = {
+            'forecast_days': 7,
+            'confidence_threshold': 0.6,
+            'batch_delay': 1.0,
+            'min_data_days': 300,
+            'use_arima_validation': True,
+            'models_enabled': {
+                'xgboost': True,
+                'lightgbm': True,
+                'random_forest': True,
+                'extra_trees': True,
+                'gradient_boosting': True
+            }
+        }
+        
+        try:
+            if os.path.exists('prediction_settings.json'):
+                with open('prediction_settings.json', 'r', encoding='utf-8') as f:
+                    saved_settings = json.load(f)
+                default_settings.update(saved_settings)
+                print(f"✅ 설정 로드 완료: 예측기간 {saved_settings.get('forecast_days', 7)}일")
+            else:
+                print("⚠️ 설정 파일 없음, 기본값 사용")
+        except Exception as e:
+            print(f"❌ 설정 로드 오류: {e}, 기본값 사용")
+        
+        self.settings = default_settings
 
     def fix_all_random_seeds(self, seed=42):
         """모든 랜덤 시드 고정 - 완전한 일관성 보장"""
@@ -167,16 +199,26 @@ class EnhancedCPUPredictor:
             pass
 
     # ✅ 통합된 예측 함수 - predict_stock_consistent의 로직을 predict_stock으로 변경
-    def predict_stock(self, ticker, forecast_days=7, min_data_days=300, mode='smart'):
-        """통합된 예측 함수 - 일관성 있는 예측 (기존 predict_stock_consistent 로직)"""
+    def predict_stock(self, ticker, forecast_days=None, min_data_days=None, mode='smart'):
+        """✅ 수정: 환경설정이 적용된 예측 함수 (기존 모든 기능 유지)"""
         
-        # 매번 시드 재고정 (완전한 일관성 보장)
+        # ✅ 설정 파일 값을 우선 사용 (새로 추가된 부분)
+        if forecast_days is None:
+            forecast_days = self.settings.get('forecast_days', 7)
+        if min_data_days is None:
+            min_data_days = self.settings.get('min_data_days', 300)
+
+        confidence_threshold = getattr(self, 'settings', {}).get('confidence_threshold', 0.6)
+        
+        print(f"📊 {ticker} 예측 시작 (설정기간: {forecast_days}일, 최소데이터: {min_data_days}일)")
+
+        # 매번 시드 재고정 (완전한 일관성 보장) - 기존 코드 그대로
         self.fix_all_random_seeds(42)
         
         try:
             print(f"📊 {ticker} 일관성 예측 시작...")
             
-            # 1. 실제 현재가 조회 (최신 데이터)
+            # 1. 실제 현재가 조회 (최신 데이터) - 기존 코드 그대로
             stock = yf.Ticker(ticker)
             current_data = stock.history(period="2d")
             if len(current_data) == 0:
@@ -185,7 +227,7 @@ class EnhancedCPUPredictor:
             actual_current_price = float(current_data['Close'].iloc[-1])
             actual_current_date = current_data.index[-1]
             
-            # 2. 예측용 고정 기간 데이터 (일관성 보장)
+            # 2. 예측용 고정 기간 데이터 (일관성 보장) - 기존 코드 그대로
             end_date = datetime(2024, 12, 31)  # 고정된 종료일
             start_date = end_date - timedelta(days=600)  # 고정된 시작일
             
@@ -194,35 +236,36 @@ class EnhancedCPUPredictor:
             
             data = stock.history(start=start_date, end=end_date)
             
+            # ✅ 설정에서 가져온 min_data_days 사용 (수정된 부분)
             if len(data) < min_data_days:
                 return None, f"데이터 부족 (필요: {min_data_days}일, 현재: {len(data)}일)"
             
-            # 데이터 정렬 및 정리 (일관성 보장)
+            # 데이터 정렬 및 정리 (일관성 보장) - 기존 코드 그대로
             data = data.sort_index().round(4)
             
-            # 데이터 품질 검사
+            # 데이터 품질 검사 - 기존 코드 그대로
             if data['Close'].isnull().sum() > len(data) * 0.1:
                 return None, "데이터 품질 불량 (결측값 과다)"
             
-            # 시드 재고정
+            # 시드 재고정 - 기존 코드 그대로
             self.fix_all_random_seeds(42)
             
-            # 고급 특성 생성
+            # 고급 특성 생성 - 기존 코드 그대로
             features = self.create_advanced_features_deterministic(data)
             
             if features.empty or features.isnull().all().all():
                 return None, "특성 생성 실패"
             
-            # 타겟 생성
+            # ✅ 설정에서 가져온 forecast_days 사용 (수정된 부분)
             future_returns = data['Close'].pct_change(forecast_days).shift(-forecast_days)
             
             if future_returns.isnull().sum() > len(future_returns) * 0.8:
                 return None, "타겟 데이터 부족"
             
-            # 시드 재고정
+            # 시드 재고정 - 기존 코드 그대로
             self.fix_all_random_seeds(42)
             
-            # 시퀀스 데이터 준비
+            # 시퀀스 데이터 준비 - 기존 코드 그대로
             X, y = self.prepare_sequences_deterministic(features, future_returns, 
                                                     sequence_length=30, 
                                                     forecast_horizon=forecast_days)
@@ -232,12 +275,12 @@ class EnhancedCPUPredictor:
             
             print(f"  ✅ 데이터 준비 완료: {len(X)}개 학습 샘플")
             
-            # 학습/테스트 분할 (시계열 특성 고려)
+            # 학습/테스트 분할 (시계열 특성 고려) - 기존 코드 그대로
             split_idx = int(len(X) * 0.8)
             X_train, X_test = X[:split_idx], X[split_idx:]
             y_train, y_test = y[:split_idx], y[split_idx:]
             
-            # 데이터 정규화
+            # 데이터 정규화 - 기존 코드 그대로
             try:
                 X_train_scaled = self.current_scaler.fit_transform(X_train)
                 X_test_scaled = self.current_scaler.transform(X_test)
@@ -249,17 +292,21 @@ class EnhancedCPUPredictor:
             except Exception as e:
                 return None, f"데이터 정규화 실패: {str(e)}"
             
-            # 시드 재고정
+            # 시드 재고정 - 기존 코드 그대로
             self.fix_all_random_seeds(42)
             
-            # 모델별 예측 실행
+            # ✅ 모델별 예측 실행 (설정 반영 - 수정된 부분)
             predictions = []
             model_results = {}
             successful_models = 0
             
+            # 설정에서 활성화된 모델만 사용
+            models_enabled = self.settings.get('models_enabled', {})
+            
             for model_name, model in self.models.items():
-                if hasattr(self, 'prediction_settings') and \
-                   not self.prediction_settings.get('models_enabled', {}).get(model_name, True):
+                # ✅ 설정에서 비활성화된 모델은 건너뛰기
+                if not models_enabled.get(model_name, True):
+                    print(f"  ⏭️ {model_name} 모델 비활성화됨 (설정)")
                     continue
                 
                 prediction = self.safe_predict_with_model(
@@ -270,7 +317,7 @@ class EnhancedCPUPredictor:
                     predictions.append(prediction)
                     successful_models += 1
                     
-                    # 성능 평가
+                    # 성능 평가 - 기존 코드 그대로
                     try:
                         y_pred_test = model.predict(X_test_scaled)
                         r2 = r2_score(y_test, y_pred_test)
@@ -284,43 +331,82 @@ class EnhancedCPUPredictor:
             if successful_models == 0:
                 return None, "모든 모델이 실패했습니다"
             
-            print(f"  ✅ {successful_models}개 모델 성공")
+            print(f"  ✅ {successful_models}개 모델 성공 (설정 적용됨)")
             
-            # 결정적 앙상블 계산
+            # 결정적 앙상블 계산 - 기존 코드 그대로
             ensemble_prediction, confidence = self.calculate_deterministic_ensemble(
                 predictions, model_results
             )
             
-            # 핵심 수정: 현재가 vs 예측가 분리
+            # 핵심 수정: 현재가 vs 예측가 분리 - 기존 코드 그대로
             historical_price = float(data['Close'].iloc[-1])  # 예측 기준 가격
             predicted_return = float(ensemble_prediction)
             
-            # 실제 현재가 기준으로 예측가 계산
+            # 실제 현재가 기준으로 예측가 계산 - 기존 코드 그대로
             predicted_price_actual = actual_current_price * (1 + predicted_return)
             
-            # 결과 구성
+            # ✅ 신뢰도 임계값 적용
+            is_high_confidence = confidence >= confidence_threshold
+            
+            # ✅ 신뢰도에 따른 추천 결정
+            if is_high_confidence:
+                if predicted_return > 0.02:  # 2% 이상
+                    recommendation = "🚀 매수 추천"
+                    confidence_note = "높은 신뢰도"
+                elif predicted_return < -0.02:  # -2% 이하
+                    recommendation = "📉 매도 고려"
+                    confidence_note = "높은 신뢰도"
+                else:
+                    recommendation = "⏸️ 관망"
+                    confidence_note = "높은 신뢰도"
+            else:
+                # ✅ 낮은 신뢰도일 때 보수적 추천
+                if predicted_return > 0.05:  # 5% 이상일 때만 보수적 매수
+                    recommendation = "⚠️ 보수적 매수 고려"
+                    confidence_note = "낮은 신뢰도 - 신중 판단 필요"
+                elif predicted_return < -0.05:  # -5% 이하일 때만 보수적 매도
+                    recommendation = "⚠️ 보수적 매도 고려"
+                    confidence_note = "낮은 신뢰도 - 신중 판단 필요"
+                else:
+                    recommendation = "⚠️ 관망 권장"
+                    confidence_note = "낮은 신뢰도 - 불확실한 예측"
+
+            # ✅ 결과 구성 (설정 정보 추가)
             result = {
                 'ticker': ticker,
                 
-                # 실제 현재가 정보 (사용자가 보는 정보)
+                # 실제 현재가 정보 (사용자가 보는 정보) - 기존과 동일
                 'current_price': round(actual_current_price, 4),
                 'predicted_price': round(predicted_price_actual, 4),
                 'expected_return': round(predicted_return, 6),
                 
-                # 예측 기술 정보
+                # 예측 기술 정보 - 기존과 동일
                 'confidence': round(confidence, 4),
-                'forecast_days': forecast_days,
+                'forecast_days': forecast_days,  # ✅ 설정에서 가져온 값
                 'prediction_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                
-                # 상세 정보
+
+                # ✅ 신뢰도 관련 정보 추가
+                'confidence_threshold': confidence_threshold,
+                'is_high_confidence': is_high_confidence,
+                'recommendation': recommendation,
+                'confidence_note': confidence_note,
+
+                # 상세 정보 - 기존과 동일
                 'successful_models': successful_models,
                 'model_results': model_results,
                 'individual_predictions': predictions,
                 'feature_count': features.shape[1],
-                'training_samples': len(X_train)
+                'training_samples': len(X_train),
+
+                # ✅ 설정 정보 추가 (새로 추가된 부분)
+                'min_data_days': min_data_days,  # 실제 사용된 최소 데이터 일수
+                'active_models': [name for name, enabled in models_enabled.items() if enabled],
+                'settings_applied': True,  # 설정 적용 여부 표시
+                'settings_source': 'prediction_settings.json'  # 설정 출처
             }
             
-            print(f"  ✅ 예측 완료: {predicted_return*100:+.2f}% (신뢰도: {confidence*100:.1f}%)")
+            confidence_status = "높은 신뢰도" if is_high_confidence else "낮은 신뢰도"
+            print(f"  ✅ 예측 완료: {predicted_return*100:+.2f}% (신뢰도: {confidence*100:.1f}% - {confidence_status})")
             
             return result, None
             
@@ -663,27 +749,83 @@ class EnhancedStockScreenerMethods:
                 self.show_prediction_dialog(ticker)
     
     def show_prediction_dialog(self, ticker=None):
-        """AI 예측 다이얼로그 표시 - 기존 StockPredictionDialog 활용"""
+        """✅ 수정: 설정 적용을 확인하는 예측 다이얼로그"""
         if not ML_AVAILABLE:
-            QMessageBox.warning(self, "오류", "ML 라이브러리가 설치되지 않았습니다.")
+            QMessageBox.warning(self, "오류", "AI 예측에 필요한 라이브러리가 설치되지 않았습니다.")
             return
         
-        try:
-            # 기존 StockPredictionDialog 사용
-            from prediction_window import StockPredictionDialog
-            dialog = StockPredictionDialog(self)
-            
-            # 우클릭에서 호출된 경우 종목 코드 미리 설정
-            if ticker and hasattr(dialog, 'ticker_input'):
-                dialog.ticker_input.setText(ticker)
-                dialog.ticker_input.selectAll()  # 텍스트 선택해서 쉽게 변경 가능하게
-            
-            # 다이얼로그 실행
-            dialog.exec_()
-            
-        except Exception as e:
-            QMessageBox.critical(self, "오류", f"AI 예측 다이얼로그 오류:\n{str(e)}")
-       
+        if ticker:
+            # 직접 예측 실행 (우클릭에서 호출된 경우)
+            try:
+                # ✅ 예측 실행 시 설정 새로고침
+                self.predictor.load_settings()  # 최신 설정 로드
+                
+                result, error = self.predictor.predict_stock(ticker)
+                
+                if error:
+                    QMessageBox.critical(self, "예측 오류", error)
+                    return
+                
+                if result:
+                    # ✅ 설정 적용 여부 확인
+                    if result.get('settings_applied'):
+                        settings_info = f"(설정적용: {result.get('forecast_days')}일 예측, 활성모델: {len(result.get('active_models', []))}개)"
+                    else:
+                        settings_info = "(기본값 사용)"
+                    
+                    self.show_prediction_result(result, settings_info)
+                    
+            except Exception as e:
+                QMessageBox.critical(self, "오류", f"예측 중 오류:\n{str(e)}")
+        else:
+            # 예측 다이얼로그 표시
+            try:
+                from prediction_window import StockPredictionDialog
+                dialog = StockPredictionDialog(self)
+                dialog.exec_()
+            except ImportError:
+                QMessageBox.critical(self, "Import 오류", "StockPredictionDialog를 찾을 수 없습니다.")
+
+    def show_prediction_result(self, result, settings_info=""):
+        """예측 결과 표시"""
+        ticker = result.get('ticker', '')
+        current_price = result.get('current_price', 0)
+        predicted_price = result.get('predicted_price', 0)
+        return_rate = result.get('expected_return', 0)
+        confidence = result.get('confidence', 0)
+        forecast_days = result.get('forecast_days', 7)
+        
+        # 추천 결정
+        if return_rate > 0.02:  # 2% 이상
+            recommendation = "🚀 매수 추천"
+            color = "🟢"
+        elif return_rate < -0.02:  # -2% 이하
+            recommendation = "📉 매도 고려"
+            color = "🔴"
+        else:
+            recommendation = "⏸️ 관망"
+            color = "🟡"
+        
+        # ✅ 설정 정보 포함된 메시지
+        message = f"""
+🎯 {ticker} AI 예측 결과 {settings_info}
+
+💰 현재 가격: ${current_price:.2f}
+🎯 예측 가격: ${predicted_price:.2f} ({forecast_days}일 후)
+📊 예상 수익률: {return_rate*100:+.2f}%
+🎚️ 신뢰도: {confidence*100:.1f}%
+
+{color} {recommendation}
+
+🔧 적용된 설정:
+• 예측 기간: {forecast_days}일
+• 활성 모델: {len(result.get('active_models', []))}개
+• 모델 목록: {', '.join(result.get('active_models', []))}
+        """
+        
+        QMessageBox.information(self, f"AI 예측 - {ticker}", message)
+
+
     def show_batch_prediction(self):
         """배치 예측 다이얼로그 표시 - 데이터 구조 개선 버전"""
         if not ML_AVAILABLE:
@@ -1228,7 +1370,11 @@ class BatchPredictionDialog(QDialog):
             predicted_price = result.get('predicted_price', 0)
             expected_return = result.get('expected_return', 0)
             confidence = result.get('confidence', 0)
-            
+
+            # 신뢰도 임계값
+            confidence_threshold = result.get('confidence_threshold', 0.6)
+            is_high_confidence = confidence >= confidence_threshold
+
             # 추천 결정
             if expected_return > 0.05:  # 5% 이상
                 recommendation = "강력 매수"
@@ -1262,8 +1408,21 @@ class BatchPredictionDialog(QDialog):
                 self.result_table.setItem(row, 4, return_item)
                 
                 # 신뢰도
-                conf_item = QTableWidgetItem(f"{confidence*100:.1f}%")
-                self.result_table.setItem(row, 5, conf_item)
+                confidence_text = f"{confidence*100:.1f}%"
+                if is_high_confidence:
+                    confidence_text += " ✅"
+                else:
+                    confidence_text += " ⚠️"
+                
+                confidence_item = QTableWidgetItem(confidence_text)
+                
+                # 신뢰도에 따른 배경색
+                if is_high_confidence:
+                    confidence_item.setBackground(QColor(200, 255, 200))  # 녹색
+                else:
+                    confidence_item.setBackground(QColor(255, 255, 200))  # 노란색
+                
+                self.result_table.setItem(row, 5, confidence_item)
                 
                 # 추천
                 rec_item = QTableWidgetItem(recommendation)

@@ -22,6 +22,8 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import requests
 import urllib.parse
+import os
+import json
 
 # Enhanced Screener의 예측기 import
 try:
@@ -70,6 +72,8 @@ class StockPredictionDialog(QDialog):
         ]
         self.current_step = 0
         self.total_steps = len(self.prediction_steps)
+
+        self.load_current_settings()
         
         self.initUI()
         
@@ -116,7 +120,33 @@ pip install scikit-learn xgboost lightgbm statsmodels
 • 실제 현재가와 예측 기준가 분리
 • 강력한 데이터 검증 및 오류 처리
             """)
-    
+
+    def load_current_settings(self):
+        """✅ 새로 추가: 현재 설정 파일에서 값 로드"""
+        self.current_settings = {
+            'forecast_days': 7,
+            'confidence_threshold': 0.6,
+            'batch_delay': 1.0,
+            'min_data_days': 300,
+            'use_arima_validation': True,
+            'models_enabled': {
+                'xgboost': True,
+                'lightgbm': True,
+                'random_forest': True,
+                'extra_trees': True,
+                'gradient_boosting': True
+            }
+        }
+        
+        try:
+            if os.path.exists('prediction_settings.json'):
+                with open('prediction_settings.json', 'r', encoding='utf-8') as f:
+                    saved_settings = json.load(f)
+                self.current_settings.update(saved_settings)
+                print(f"✅ Prediction Window 설정 로드: {saved_settings.get('forecast_days', 7)}일 예측")
+        except Exception as e:
+            print(f"⚠️ Prediction Window 설정 로드 실패: {e}")
+
     def create_enhanced_button_layout(self):
         """향상된 버튼 레이아웃 - 예측 차트 버튼 추가"""
         button_layout = QHBoxLayout()
@@ -177,28 +207,123 @@ pip install scikit-learn xgboost lightgbm statsmodels
         
         # 예측 기간
         layout.addWidget(QLabel("예측 기간:"), 1, 0)
+        days_layout = QHBoxLayout()
         self.days_input = QSpinBox()
         self.days_input.setRange(1, 30)
-        self.days_input.setValue(7)
+        # ✅ 설정 파일에서 가져온 값으로 초기화
+        self.days_input.setValue(self.current_settings.get('forecast_days', 7))
         self.days_input.setSuffix(" 일")
-        layout.addWidget(self.days_input, 1, 1)
+        days_layout.addWidget(self.days_input)
+        
+        # ✅ 새로 추가: 설정 정보 표시 라벨
+        self.setting_info_label = QLabel(f"(설정파일: {self.current_settings.get('forecast_days', 7)}일)")
+        self.setting_info_label.setStyleSheet("color: #666; font-size: 10px;")
+        days_layout.addWidget(self.setting_info_label)
+        
+        # ✅ 새로 추가: 설정 동기화 버튼
+        self.sync_settings_btn = QPushButton("⚙️")
+        self.sync_settings_btn.setToolTip("설정 파일과 동기화")
+        self.sync_settings_btn.setMaximumWidth(30)
+        self.sync_settings_btn.clicked.connect(self.sync_with_settings)
+        days_layout.addWidget(self.sync_settings_btn)
+        
+        days_widget = QWidget()
+        days_widget.setLayout(days_layout)
+        layout.addWidget(days_widget, 1, 1)
         
         # 모델 선택 (Enhanced Screener 정보 표시)
         layout.addWidget(QLabel("사용 모델:"), 2, 0)
-        self.model_combo = QComboBox()
+        
+        model_layout = QVBoxLayout()
+        
+        # 모델 정보 표시
         if ML_AVAILABLE:
+            enabled_models = self.current_settings.get('models_enabled', {})
+            active_models = [name for name, enabled in enabled_models.items() if enabled]
+            
+            self.model_combo = QComboBox()
             self.model_combo.addItems([
-                "🚀 Enhanced Ensemble (XGBoost + LightGBM + RF + ET + GB)",
-                "📊 모든 모델 자동 앙상블",
-                "🎯 성능 기반 가중치",
+                f"🚀 Enhanced Ensemble ({len(active_models)}개 모델 활성화)",
+                f"📊 활성 모델: {', '.join(active_models[:3])}" + ("..." if len(active_models) > 3 else ""),
+                "🎯 성능 기반 가중치 + 설정 연동",
                 "🔒 완전한 일관성 보장"
             ])
+            
+            # ✅ 새로 추가: 모델별 체크박스 표시 (읽기전용 정보)
+            models_info = []
+            for model_name, enabled in enabled_models.items():
+                status = "✅" if enabled else "❌"
+                models_info.append(f"{status} {model_name}")
+            
+            self.models_info_label = QLabel(" | ".join(models_info))
+            self.models_info_label.setStyleSheet("color: #666; font-size: 9px;")
+            self.models_info_label.setWordWrap(True)
+            
         else:
+            self.model_combo = QComboBox()
             self.model_combo.addItems(["❌ Enhanced Screener 필요"])
-        layout.addWidget(self.model_combo, 2, 1)
+            self.models_info_label = QLabel("Enhanced Screener를 설치해주세요")
+        
+        model_layout.addWidget(self.model_combo)
+        model_layout.addWidget(self.models_info_label)
+        
+        model_widget = QWidget()
+        model_widget.setLayout(model_layout)
+        layout.addWidget(model_widget, 2, 1)
+        
+        # ✅ 새로 추가: 추가 설정 정보
+        layout.addWidget(QLabel("기타 설정:"), 3, 0)
+        
+        settings_info = f"최소데이터: {self.current_settings.get('min_data_days', 300)}일 | "
+        settings_info += f"신뢰도임계값: {self.current_settings.get('confidence_threshold', 0.6)*100:.0f}%"
+        
+        self.settings_summary_label = QLabel(settings_info)
+        self.settings_summary_label.setStyleSheet("color: #444; font-size: 10px;")
+        layout.addWidget(self.settings_summary_label, 3, 1)
         
         panel.setLayout(layout)
         return panel
+
+    def sync_with_settings(self):
+            """✅ 새로 추가: 설정 파일과 동기화"""
+            self.load_current_settings()
+            
+            # UI 업데이트
+            self.days_input.setValue(self.current_settings.get('forecast_days', 7))
+            self.setting_info_label.setText(f"(설정파일: {self.current_settings.get('forecast_days', 7)}일)")
+            
+            # 모델 정보 업데이트
+            if ML_AVAILABLE:
+                enabled_models = self.current_settings.get('models_enabled', {})
+                active_models = [name for name, enabled in enabled_models.items() if enabled]
+                
+                # 콤보박스 업데이트
+                self.model_combo.clear()
+                self.model_combo.addItems([
+                    f"🚀 Enhanced Ensemble ({len(active_models)}개 모델 활성화)",
+                    f"📊 활성 모델: {', '.join(active_models[:3])}" + ("..." if len(active_models) > 3 else ""),
+                    "🎯 성능 기반 가중치 + 설정 연동",
+                    "🔒 완전한 일관성 보장"
+                ])
+                
+                # 모델 정보 라벨 업데이트
+                models_info = []
+                for model_name, enabled in enabled_models.items():
+                    status = "✅" if enabled else "❌"
+                    models_info.append(f"{status} {model_name}")
+                self.models_info_label.setText(" | ".join(models_info))
+            
+            # 기타 설정 정보 업데이트
+            settings_info = f"최소데이터: {self.current_settings.get('min_data_days', 300)}일 | "
+            settings_info += f"신뢰도임계값: {self.current_settings.get('confidence_threshold', 0.6)*100:.0f}%"
+            self.settings_summary_label.setText(settings_info)
+            
+            QMessageBox.information(self, "설정 동기화", 
+                                f"✅ 설정이 동기화되었습니다!\n\n"
+                                f"• 예측 기간: {self.current_settings.get('forecast_days', 7)}일\n"
+                                f"• 활성 모델: {len(active_models)}개\n"
+                                f"• 최소 데이터: {self.current_settings.get('min_data_days', 300)}일")
+
 
     def show_enhanced_stock_search_dialog(self):
         """마스터 CSV를 활용한 종목 검색 다이얼로그 표시"""
@@ -598,26 +723,30 @@ pip install scikit-learn xgboost lightgbm statsmodels
             }
     
     def display_results(self, result):
-        """결과 표시 - Enhanced Screener 정보 포함"""
-        # 추천 결정
+        """✅ 수정: 신뢰도 임계값 정보가 포함된 결과 표시"""
         return_rate = result['expected_return']
         confidence = result['confidence']
         
-        if return_rate > 0.02 and confidence > 0.7:
-            recommendation = "📈 강력 매수"
-            color = "🟢"
-        elif return_rate > 0.005 and confidence > 0.6:
-            recommendation = "📈 매수"
-            color = "🟡"
-        elif return_rate < -0.02 and confidence > 0.7:
-            recommendation = "📉 강력 매도"
-            color = "🔴"
-        elif return_rate < -0.005 and confidence > 0.6:
-            recommendation = "📉 매도"
-            color = "🟠"
+        # ✅ 신뢰도 임계값 정보 가져오기
+        confidence_threshold = result.get('confidence_threshold', 0.6)
+        is_high_confidence = result.get('is_high_confidence', True)
+        recommendation = result.get('recommendation', '⏸️ 관망')
+        confidence_note = result.get('confidence_note', '')
+        
+        # ✅ 신뢰도에 따른 색상 결정
+        if is_high_confidence:
+            if return_rate > 0.02:
+                color = "🟢"
+            elif return_rate < -0.02:
+                color = "🔴"
+            else:
+                color = "⚪"
         else:
-            recommendation = "⏸️ 관망"
-            color = "⚪"
+            color = "🟡"  # 낮은 신뢰도는 항상 노란색
+        
+        # ✅ 신뢰도 상태 표시
+        confidence_status = f"✅ {confidence*100:.1f}%" if is_high_confidence else f"⚠️ {confidence*100:.1f}%"
+        confidence_bar = "█" * min(10, int(confidence * 10)) + "░" * (10 - min(10, int(confidence * 10)))
         
         # 결과 텍스트 생성
         text = f"""
@@ -628,9 +757,22 @@ pip install scikit-learn xgboost lightgbm statsmodels
 💰 현재 가격: ${result['current_price']:.2f}
 🎯 예측 가격: ${result['predicted_price']:.2f}
 📊 예상 수익률: {return_rate*100:+.2f}%
-🎚️ 신뢰도: {confidence*100:.1f}%
+
+🎚️ 신뢰도: {confidence_status}
+   [{confidence_bar}] {confidence*100:.1f}% / {confidence_threshold*100:.0f}%
+   {confidence_note}
 
 {color} 추천: {recommendation}
+
+──────────────────────────────────────────────────
+🔧 신뢰도 분석:
+──────────────────────────────────────────────────
+• 설정한 임계값: {confidence_threshold*100:.0f}%
+• 현재 신뢰도: {confidence*100:.1f}%
+• 신뢰도 상태: {'높음 (임계값 이상)' if is_high_confidence else '낮음 (임계값 미만)'}
+• 모델 일치도: {'높음' if confidence > 0.8 else '보통' if confidence > 0.6 else '낮음'}
+
+{'✅ 일관된 예측 - 투자 참고 가능' if is_high_confidence else '⚠️ 불일치 예측 - 신중한 판단 필요'}
 
 ──────────────────────────────────────────────────
 🚀 Enhanced Screener 분석 정보:
@@ -647,7 +789,7 @@ pip install scikit-learn xgboost lightgbm statsmodels
 ──────────────────────────────────────────────────
 """
         
-        # 개별 모델 결과 (Enhanced 버전)
+        # 기존 모델별 결과 표시 (그대로 유지)
         model_scores = result.get('model_scores', {})
         individual_predictions = result.get('individual_predictions', {})
         
@@ -668,9 +810,9 @@ pip install scikit-learn xgboost lightgbm statsmodels
 • 고급 특성: RSI, MACD, 볼린저 밴드 등
 • 시퀀스 학습: 30일 패턴 분석
 • 앙상블 방식: 성능 기반 가중 평균
+• 신뢰도 필터링: 임계값 {confidence_threshold*100:.0f}% 적용
 
-💡 참고: Enhanced Screener는 더 정확하고 일관성 있는
-   예측을 제공합니다. 투자 결정 시 다른 요소들도 함께 고려하세요.
+💡 참고: {'신뢰도가 높아 투자 참고 가능합니다.' if is_high_confidence else '신뢰도가 낮아 추가 검토가 필요합니다.'}
         """
         
         self.result_area.setText(text)

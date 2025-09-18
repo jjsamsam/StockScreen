@@ -1,101 +1,501 @@
 ﻿ticker,name,market_cap,price,sector,market
-AZN.ST,AstraZeneca PLC,2349071859712,0,Healthcare,OMX Stockholm
-ABB.ST,ABB Ltd,1145177374720,0,Industrials,OMX Stockholm
-KOGO.ST,Kongsberg Gruppen ASA,971949146112,0,Unknown,OMX Stockholm
-INVE-B.ST,Investor AB (publ),898524512256,0,Financial Services,OMX Stockholm
-INVE-A.ST,Investor AB (publ),897754988544,0,Financial Services,OMX Stockholm
-ATCO-B.ST,Atlas Copco AB (publ),727538466816,0,Industrials,OMX Stockholm
-ATCO-A.ST,Atlas Copco AB (publ),721601429504,0,Industrials,OMX Stockholm
-VOLV-A.ST,AB Volvo (publ),589743718400,0,Industrials,OMX Stockholm
-VOLV-B.ST,AB Volvo (publ),587134992384,0,Industrials,OMX Stockholm
-NDA-SE.ST,Nordea Bank Abp,507930214400,0,Financial Services,OMX Stockholm
-EQT.ST,EQT AB (publ),402064179200,0,Financial Services,OMX Stockholm
-ASSA-B.ST,ASSA ABLOY AB (publ),373334048768,0,Industrials,OMX Stockholm
-SEB-A.ST,Skandinaviska Enskilda Banken AB (publ),352534298624,0,Financial Services,OMX Stockholm
-SEB-C.ST,Skandinaviska Enskilda Banken AB (publ),352328810496,0,Financial Services,OMX Stockholm
-DNBO.ST,DNB Bank ASA,329118023680,0,Unknown,OMX Stockholm
-SWED-A.ST,Swedbank AB (publ),302080622592,0,Financial Services,OMX Stockholm
-SAND.ST,Sandvik AB (publ),299799216128,0,Industrials,OMX Stockholm
-SAAB-B.ST,Saab AB (publ),291949412352,0,Industrials,OMX Stockholm
-SAMPO-SDB.ST,Sampo Oyj,291288449024,0,Financial Services,OMX Stockholm
-HEXA-B.ST,Hexagon AB (publ),287752224768,0,Technology,OMX Stockholm
-ERIC-B.ST,Telefonaktiebolaget LM Ericsson (publ),249207832576,0,Technology,OMX Stockholm
-ERIC-A.ST,Telefonaktiebolaget LM Ericsson (publ),248871731200,0,Technology,OMX Stockholm
-SHB-A.ST,Svenska Handelsbanken AB (publ),243516932096,0,Financial Services,OMX Stockholm
-SHB-B.ST,Svenska Handelsbanken AB (publ),240225943552,0,Financial Services,OMX Stockholm
-EPI-B.ST,Epiroc AB (publ),235120623616,0,Industrials,OMX Stockholm
-EPI-A.ST,Epiroc AB (publ),232828616704,0,Industrials,OMX Stockholm
-HM-B.ST,H & M Hennes & Mauritz AB (publ),225824505856,0,Consumer Cyclical,OMX Stockholm
-NOKIA-SEK.ST,Nokia Oyj,218879377408,0,Technology,OMX Stockholm
-ALFA.ST,Alfa Laval AB (publ),181247803392,0,Industrials,OMX Stockholm
-ESSITY-B.ST,Essity AB (publ),174622801920,0,Consumer Defensive,OMX Stockholm
-ESSITY-A.ST,Essity AB (publ),174319255552,0,Consumer Defensive,OMX Stockholm
-8TRA.ST,Traton SE,173582598144,0,Industrials,OMX Stockholm
-INDU-C.ST,AB Industrivärden (publ),163778379776,0,Financial Services,OMX Stockholm
-EVO.ST,Evolution AB (publ),163749298176,0,Consumer Cyclical,OMX Stockholm
-INDU-A.ST,AB Industrivärden (publ),163453616128,0,Financial Services,OMX Stockholm
-LATO-B.ST,Investment AB Latour (publ),153308463104,0,Industrials,OMX Stockholm
-LIFCO-B.ST,Lifco AB (publ),152616583168,0,Industrials,OMX Stockholm
-LUG.ST,Lundin Gold Inc.,142837350400,0,Basic Materials,OMX Stockholm
-TELIA.ST,Telia Company AB (publ),139666767872,0,Communication Services,OMX Stockholm
-LUND-B.ST,L E Lundbergföretagen AB (publ),120081604608,0,Industrials,OMX Stockholm
-TEL2-A.ST,Tele2 AB (publ),116582866944,0,Communication Services,OMX Stockholm
-TEL2-B.ST,Tele2 AB (publ),116229095424,0,Communication Services,OMX Stockholm
-SKF-A.ST,AB SKF (publ),111588515840,0,Industrials,OMX Stockholm
-SKF-B.ST,AB SKF (publ),111242977280,0,Industrials,OMX Stockholm
-SOBI.ST,Swedish Orphan Biovitrum AB (publ),98882461696,0,Healthcare,OMX Stockholm
-SKA-B.ST,Skanska AB (publ),96585859072,0,Industrials,OMX Stockholm
-LUMI.ST,Lundin Mining Corporation,93475307520,0,Basic Materials,OMX Stockholm
-BOL.ST,Boliden AB (publ),92384444416,0,Basic Materials,OMX Stockholm
-SCA-B.ST,Svenska Cellulosa Aktiebolaget SCA (publ),90468245504,0,Basic Materials,OMX Stockholm
-SCA-A.ST,Svenska Cellulosa Aktiebolaget SCA (publ),90340179968,0,Basic Materials,OMX Stockholm
-ALIV-SDB.ST,"Autoliv, Inc.",89904103424,0,Consumer Cyclical,OMX Stockholm
-STE-A.ST,Stora Enso Oyj,88875565056,0,Basic Materials,OMX Stockholm
-ADDT-B.ST,Addtech AB (publ.),88630894592,0,Industrials,OMX Stockholm
-STE-R.ST,Stora Enso Oyj,87978024960,0,Basic Materials,OMX Stockholm
-INDT.ST,Indutrade AB (publ),86780805120,0,Industrials,OMX Stockholm
-SECU-B.ST,Securitas AB (publ),86183952384,0,Industrials,OMX Stockholm
-TREL-B.ST,Trelleborg AB (publ),83692601344,0,Industrials,OMX Stockholm
-BEIJ-B.ST,Beijer Ref AB (publ),83292545024,0,Industrials,OMX Stockholm
-BALD-B.ST,Fastighets AB Balder (publ),80039403520,0,Real Estate,OMX Stockholm
-NIBE-B.ST,NIBE Industrier AB (publ),78243676160,0,Industrials,OMX Stockholm
-SAGA-D.ST,AB Sagax (publ),73400901632,0,Real Estate,OMX Stockholm
-SAGA-B.ST,AB Sagax (publ),73203974144,0,Real Estate,OMX Stockholm
-SAGA-A.ST,AB Sagax (publ),72991817728,0,Real Estate,OMX Stockholm
-AAK.ST,AAK AB (publ.),70080929792,0,Consumer Defensive,OMX Stockholm
-SAVE.ST,Nordnet AB (publ),70035423232,0,Financial Services,OMX Stockholm
-AXFO.ST,Axfood AB (publ),64366350336,0,Consumer Defensive,OMX Stockholm
-SECT-B.ST,Sectra AB (publ),64350781440,0,Healthcare,OMX Stockholm
-VOLCAR-B.ST,Volvo Car AB (publ.),59605667840,0,Consumer Cyclical,OMX Stockholm
-SWEC-B.ST,Sweco AB (publ),57630912512,0,Industrials,OMX Stockholm
-SWEC-A.ST,Sweco AB (publ),57558765568,0,Industrials,OMX Stockholm
-GETI-B.ST,Getinge AB (publ),57088749568,0,Healthcare,OMX Stockholm
-HOLM-B.ST,Holmen AB (publ),56801005568,0,Basic Materials,OMX Stockholm
-HOLM-A.ST,Holmen AB (publ),56703320064,0,Basic Materials,OMX Stockholm
-AZA.ST,Avanza Bank Holding AB (publ),56525565952,0,Financial Services,OMX Stockholm
-SSAB-A.ST,SSAB AB (publ),53554036736,0,Basic Materials,OMX Stockholm
-SSAB-B.ST,SSAB AB (publ),53525458944,0,Basic Materials,OMX Stockholm
-CAST.ST,Castellum AB (publ),52876361728,0,Real Estate,OMX Stockholm
-LAGR-B.ST,Lagercrantz Group AB (publ),45880979456,0,Industrials,OMX Stockholm
-CAMX.ST,Camurus AB (publ),42663989248,0,Healthcare,OMX Stockholm
-MYCR.ST,Mycronic AB (publ),41222017024,0,Industrials,OMX Stockholm
-MCOV-B.ST,Medicover AB (publ),41145552896,0,Healthcare,OMX Stockholm
-ASKER.ST,Asker Healthcare Group AB,36392345600,0,Healthcare,OMX Stockholm
-PNDX-B.ST,Pandox AB (publ),33121431552,0,Real Estate,OMX Stockholm
-ROKO-B.ST,Röko AB (publ),32761690112,0,Financial Services,OMX Stockholm
-HUSQ-A.ST,Husqvarna AB (publ),30237323264,0,Industrials,OMX Stockholm
-HUSQ-B.ST,Husqvarna AB (publ),30191407104,0,Industrials,OMX Stockholm
-HPOL-B.ST,HEXPOL AB (publ),29208258560,0,Basic Materials,OMX Stockholm
-LOOMIS.ST,Loomis AB (publ),28946700288,0,Industrials,OMX Stockholm
-THULE.ST,Thule Group AB (publ),28943718400,0,Consumer Cyclical,OMX Stockholm
-WALL-B.ST,Wallenstam AB (publ),28887603200,0,Real Estate,OMX Stockholm
-WIHL.ST,Wihlborgs Fastigheter AB (publ),28775168000,0,Real Estate,OMX Stockholm
-BIOA-B.ST,BioArctic AB (publ),27356233728,0,Healthcare,OMX Stockholm
-ASMDEE-B.ST,Asmodee Group AB (publ),26547879936,0,Consumer Cyclical,OMX Stockholm
-CATE.ST,Catena AB (publ),26075564032,0,Real Estate,OMX Stockholm
-FABG.ST,Fabege AB (publ),25496465408,0,Real Estate,OMX Stockholm
-HUFV-A.ST,Hufvudstaden AB (publ),25370136576,0,Real Estate,OMX Stockholm
-SINCH.ST,Sinch AB (publ),24562288640,0,Communication Services,OMX Stockholm
-KINV-B.ST,Kinnevik AB,24138004480,0,Financial Services,OMX Stockholm
-KINV-A.ST,Kinnevik AB,23804928000,0,Financial Services,OMX Stockholm
-MTRS.ST,Munters Group AB (publ),23712073728,0,Industrials,OMX Stockholm
+AZN.ST,AstraZeneca PLC,0,0,Unknown,OMX Stockholm
+ABB.ST,ABB Ltd,0,0,Unknown,OMX Stockholm
+INVE-B.ST,Investor AB (publ),0,0,Unknown,OMX Stockholm
+INVE-A.ST,Investor AB (publ),0,0,Unknown,OMX Stockholm
+ATCO-A.ST,Atlas Copco AB (publ),0,0,Unknown,OMX Stockholm
+ATCO-B.ST,Atlas Copco AB (publ),0,0,Unknown,OMX Stockholm
+VOLV-A.ST,AB Volvo (publ),0,0,Unknown,OMX Stockholm
+VOLV-B.ST,AB Volvo (publ),0,0,Unknown,OMX Stockholm
+NDA-SE.ST,Nordea Bank Abp,0,0,Unknown,OMX Stockholm
+EQT.ST,EQT AB (publ),0,0,Unknown,OMX Stockholm
+DNBO.ST,DNB Bank ASA,0,0,Unknown,OMX Stockholm
+ASSA-B.ST,ASSA ABLOY AB (publ),0,0,Unknown,OMX Stockholm
+SEB-A.ST,Skandinaviska Enskilda Banken AB (publ),0,0,Unknown,OMX Stockholm
+SEB-C.ST,Skandinaviska Enskilda Banken AB (publ),0,0,Unknown,OMX Stockholm
+SAND.ST,Sandvik AB (publ),0,0,Unknown,OMX Stockholm
+SWED-A.ST,Swedbank AB (publ),0,0,Unknown,OMX Stockholm
+HEXA-B.ST,Hexagon AB (publ),0,0,Unknown,OMX Stockholm
+SAMPO-SDB.ST,Sampo Oyj,0,0,Unknown,OMX Stockholm
+SAAB-B.ST,Saab AB (publ),0,0,Unknown,OMX Stockholm
+KOGO.ST,Kongsberg Gruppen ASA,0,0,Unknown,OMX Stockholm
+ERIC-B.ST,Telefonaktiebolaget LM Ericsson (publ),0,0,Unknown,OMX Stockholm
+ERIC-A.ST,Telefonaktiebolaget LM Ericsson (publ),0,0,Unknown,OMX Stockholm
+HM-B.ST,H & M Hennes & Mauritz AB (publ),0,0,Unknown,OMX Stockholm
+SHB-A.ST,Svenska Handelsbanken AB (publ),0,0,Unknown,OMX Stockholm
+SHB-B.ST,Svenska Handelsbanken AB (publ),0,0,Unknown,OMX Stockholm
+EPI-A.ST,Epiroc AB (publ),0,0,Unknown,OMX Stockholm
+EPI-B.ST,Epiroc AB (publ),0,0,Unknown,OMX Stockholm
+NOKIA-SEK.ST,Nokia Oyj,0,0,Unknown,OMX Stockholm
+ALFA.ST,Alfa Laval AB (publ),0,0,Unknown,OMX Stockholm
+ESSITY-A.ST,Essity AB (publ),0,0,Unknown,OMX Stockholm
+ESSITY-B.ST,Essity AB (publ),0,0,Unknown,OMX Stockholm
+8TRA.ST,Traton SE,0,0,Unknown,OMX Stockholm
+EVO.ST,Evolution AB (publ),0,0,Unknown,OMX Stockholm
+INDU-A.ST,AB Industrivärden (publ),0,0,Unknown,OMX Stockholm
+INDU-C.ST,AB Industrivärden (publ),0,0,Unknown,OMX Stockholm
+LATO-B.ST,Investment AB Latour (publ),0,0,Unknown,OMX Stockholm
+LIFCO-B.ST,Lifco AB (publ),0,0,Unknown,OMX Stockholm
+TELIA.ST,Telia Company AB (publ),0,0,Unknown,OMX Stockholm
+LUG.ST,Lundin Gold Inc.,0,0,Unknown,OMX Stockholm
+LUND-B.ST,L E Lundbergföretagen AB (publ),0,0,Unknown,OMX Stockholm
+TEL2-A.ST,Tele2 AB (publ),0,0,Unknown,OMX Stockholm
+TEL2-B.ST,Tele2 AB (publ),0,0,Unknown,OMX Stockholm
+SKF-B.ST,AB SKF (publ),0,0,Unknown,OMX Stockholm
+SKF-A.ST,AB SKF (publ),0,0,Unknown,OMX Stockholm
+SKA-B.ST,Skanska AB (publ),0,0,Unknown,OMX Stockholm
+SOBI.ST,Swedish Orphan Biovitrum AB (publ),0,0,Unknown,OMX Stockholm
+LUMI.ST,Lundin Mining Corporation,0,0,Unknown,OMX Stockholm
+BOL.ST,Boliden AB (publ),0,0,Unknown,OMX Stockholm
+ADDT-B.ST,Addtech AB (publ.),0,0,Unknown,OMX Stockholm
+ALIV-SDB.ST,"Autoliv, Inc.",0,0,Unknown,OMX Stockholm
+SCA-A.ST,Svenska Cellulosa Aktiebolaget SCA (publ),0,0,Unknown,OMX Stockholm
+SCA-B.ST,Svenska Cellulosa Aktiebolaget SCA (publ),0,0,Unknown,OMX Stockholm
+STE-A.ST,Stora Enso Oyj,0,0,Unknown,OMX Stockholm
+TREL-B.ST,Trelleborg AB (publ),0,0,Unknown,OMX Stockholm
+STE-R.ST,Stora Enso Oyj,0,0,Unknown,OMX Stockholm
+INDT.ST,Indutrade AB (publ),0,0,Unknown,OMX Stockholm
+SECU-B.ST,Securitas AB (publ),0,0,Unknown,OMX Stockholm
+BALD-B.ST,Fastighets AB Balder (publ),0,0,Unknown,OMX Stockholm
+BEIJ-B.ST,Beijer Ref AB (publ),0,0,Unknown,OMX Stockholm
+NIBE-B.ST,NIBE Industrier AB (publ),0,0,Unknown,OMX Stockholm
+SAGA-A.ST,AB Sagax (publ),0,0,Unknown,OMX Stockholm
+SAGA-B.ST,AB Sagax (publ),0,0,Unknown,OMX Stockholm
+SAGA-D.ST,AB Sagax (publ),0,0,Unknown,OMX Stockholm
+SAVE.ST,Nordnet AB (publ),0,0,Unknown,OMX Stockholm
+AAK.ST,AAK AB (publ.),0,0,Unknown,OMX Stockholm
+AXFO.ST,Axfood AB (publ),0,0,Unknown,OMX Stockholm
+SECT-B.ST,Sectra AB (publ),0,0,Unknown,OMX Stockholm
+SWEC-A.ST,Sweco AB (publ),0,0,Unknown,OMX Stockholm
+SWEC-B.ST,Sweco AB (publ),0,0,Unknown,OMX Stockholm
+GETI-B.ST,Getinge AB (publ),0,0,Unknown,OMX Stockholm
+HOLM-A.ST,Holmen AB (publ),0,0,Unknown,OMX Stockholm
+HOLM-B.ST,Holmen AB (publ),0,0,Unknown,OMX Stockholm
+VOLCAR-B.ST,Volvo Car AB (publ.),0,0,Unknown,OMX Stockholm
+SSAB-A.ST,SSAB AB (publ),0,0,Unknown,OMX Stockholm
+SSAB-B.ST,SSAB AB (publ),0,0,Unknown,OMX Stockholm
+AZA.ST,Avanza Bank Holding AB (publ),0,0,Unknown,OMX Stockholm
+CAST.ST,Castellum AB (publ),0,0,Unknown,OMX Stockholm
+FROO.ST,Frontline plc,0,0,Unknown,OMX Stockholm
+LAGR-B.ST,Lagercrantz Group AB (publ),0,0,Unknown,OMX Stockholm
+MYCR.ST,Mycronic AB (publ),0,0,Unknown,OMX Stockholm
+CAMX.ST,Camurus AB (publ),0,0,Unknown,OMX Stockholm
+MCOV-B.ST,Medicover AB (publ),0,0,Unknown,OMX Stockholm
+ASKER.ST,Asker Healthcare Group AB,0,0,Unknown,OMX Stockholm
+PNDX-B.ST,Pandox AB (publ),0,0,Unknown,OMX Stockholm
+HPOL-B.ST,HEXPOL AB (publ),0,0,Unknown,OMX Stockholm
+ROKO-B.ST,Röko AB (publ),0,0,Unknown,OMX Stockholm
+WIHL.ST,Wihlborgs Fastigheter AB (publ),0,0,Unknown,OMX Stockholm
+HUSQ-A.ST,Husqvarna AB (publ),0,0,Unknown,OMX Stockholm
+HUSQ-B.ST,Husqvarna AB (publ),0,0,Unknown,OMX Stockholm
+WALL-B.ST,Wallenstam AB (publ),0,0,Unknown,OMX Stockholm
+LOOMIS.ST,Loomis AB (publ),0,0,Unknown,OMX Stockholm
+ASMDEE-B.ST,Asmodee Group AB (publ),0,0,Unknown,OMX Stockholm
+THULE.ST,Thule Group AB (publ),0,0,Unknown,OMX Stockholm
+CATE.ST,Catena AB (publ),0,0,Unknown,OMX Stockholm
+HUFV-A.ST,Hufvudstaden AB (publ),0,0,Unknown,OMX Stockholm
+SINCH.ST,Sinch AB (publ),0,0,Unknown,OMX Stockholm
+FABG.ST,Fabege AB (publ),0,0,Unknown,OMX Stockholm
+HEM.ST,Hemnet Group AB (publ),0,0,Unknown,OMX Stockholm
+CLAS-B.ST,Clas Ohlson AB (publ),0,0,Unknown,OMX Stockholm
+BIOA-B.ST,BioArctic AB (publ),0,0,Unknown,OMX Stockholm
+ALIF-B.ST,AddLife AB (publ),0,0,Unknown,OMX Stockholm
+MTRS.ST,Munters Group AB (publ),0,0,Unknown,OMX Stockholm
+KINV-A.ST,Kinnevik AB,0,0,Unknown,OMX Stockholm
+KINV-B.ST,Kinnevik AB,0,0,Unknown,OMX Stockholm
+PEAB-B.ST,Peab AB (publ),0,0,Unknown,OMX Stockholm
+HMS.ST,HMS Networks AB (publ),0,0,Unknown,OMX Stockholm
+NCC-A.ST,NCC AB (publ),0,0,Unknown,OMX Stockholm
+NCC-B.ST,NCC AB (publ),0,0,Unknown,OMX Stockholm
+BILL.ST,Billerud AB (publ),0,0,Unknown,OMX Stockholm
+HACK.ST,Hacksaw AB (publ),0,0,Unknown,OMX Stockholm
+EMBRAC-B.ST,Embracer Group AB (publ),0,0,Unknown,OMX Stockholm
+BETS-B.ST,Betsson AB (publ),0,0,Unknown,OMX Stockholm
+BURE.ST,Bure Equity AB (publ),0,0,Unknown,OMX Stockholm
+TIETOS.ST,TietoEVRY Oyj,0,0,Unknown,OMX Stockholm
+HAUTOO.ST,Höegh Autoliners ASA,0,0,Unknown,OMX Stockholm
+ATRLJ-B.ST,Atrium Ljungberg AB (publ),0,0,Unknown,OMX Stockholm
+BONEX.ST,Bonesupport Holding AB (publ),0,0,Unknown,OMX Stockholm
+ARION-SDB.ST,Arion banki hf.,0,0,Unknown,OMX Stockholm
+SHOT.ST,Scandic Hotels Group AB (publ),0,0,Unknown,OMX Stockholm
+BRAV.ST,Bravida Holding AB (publ),0,0,Unknown,OMX Stockholm
+PDX.ST,Paradox Interactive AB (publ),0,0,Unknown,OMX Stockholm
+EKTA-B.ST,Elekta AB (publ),0,0,Unknown,OMX Stockholm
+OEM-B.ST,OEM International AB (publ),0,0,Unknown,OMX Stockholm
+VITR.ST,Vitrolife AB (publ),0,0,Unknown,OMX Stockholm
+IPCO.ST,International Petroleum Corporation,0,0,Unknown,OMX Stockholm
+BUFAB.ST,Bufab AB (publ),0,0,Unknown,OMX Stockholm
+AQ.ST,AQ Group AB (publ),0,0,Unknown,OMX Stockholm
+INTEA-B.ST,Intea Fastigheter AB (publ),0,0,Unknown,OMX Stockholm
+INTEA-D.ST,Intea Fastigheter AB (publ),0,0,Unknown,OMX Stockholm
+EPRO-B.ST,Electrolux Professional AB (publ),0,0,Unknown,OMX Stockholm
+AFRY.ST,Afry AB,0,0,Unknown,OMX Stockholm
+ALLEI.ST,Alleima AB (publ),0,0,Unknown,OMX Stockholm
+SYSR.ST,Systemair AB (publ),0,0,Unknown,OMX Stockholm
+ALIG.ST,Alimak Group AB (publ),0,0,Unknown,OMX Stockholm
+NYF.ST,Nyfosa AB (publ),0,0,Unknown,OMX Stockholm
+NOLA-B.ST,Nolato AB (publ),0,0,Unknown,OMX Stockholm
+VIMIAN.ST,Vimian Group AB (publ),0,0,Unknown,OMX Stockholm
+DOM.ST,Dometic Group AB (publ),0,0,Unknown,OMX Stockholm
+BEIA-B.ST,Beijer Alma AB (publ),0,0,Unknown,OMX Stockholm
+LIAB.ST,Lindab International AB (publ),0,0,Unknown,OMX Stockholm
+STOR-B.ST,Storskogen Group AB (publ),0,0,Unknown,OMX Stockholm
+NP3.ST,NP3 Fastigheter AB (publ),0,0,Unknown,OMX Stockholm
+ANOD-B.ST,Addnode Group AB (publ),0,0,Unknown,OMX Stockholm
+IVSO.ST,Invisio AB (publ),0,0,Unknown,OMX Stockholm
+TRUE-B.ST,Truecaller AB (publ),0,0,Unknown,OMX Stockholm
+NEWA-B.ST,New Wave Group AB (publ),0,0,Unknown,OMX Stockholm
+ELUX-A.ST,AB Electrolux (publ),0,0,Unknown,OMX Stockholm
+ELUX-B.ST,AB Electrolux (publ),0,0,Unknown,OMX Stockholm
+NORION.ST,Norion Bank AB (publ),0,0,Unknown,OMX Stockholm
+CIBUS.ST,Cibus Nordic Real Estate AB (publ),0,0,Unknown,OMX Stockholm
+VIT-B.ST,Vitec Software Group AB (publ),0,0,Unknown,OMX Stockholm
+GRNG.ST,Gränges AB (publ),0,0,Unknown,OMX Stockholm
+DYVOX.ST,Dynavox Group AB (publ),0,0,Unknown,OMX Stockholm
+KAR.ST,Karnov Group AB (publ),0,0,Unknown,OMX Stockholm
+MTG-B.ST,Modern Times Group MTG AB,0,0,Unknown,OMX Stockholm
+SKIS-B.ST,SkiStar AB (publ),0,0,Unknown,OMX Stockholm
+MTG-A.ST,Modern Times Group MTG AB,0,0,Unknown,OMX Stockholm
+ENGCON-B.ST,engcon AB (publ),0,0,Unknown,OMX Stockholm
+RATO-B.ST,Ratos AB (publ),0,0,Unknown,OMX Stockholm
+RATO-A.ST,Ratos AB (publ),0,0,Unknown,OMX Stockholm
+CORE-B.ST,Corem Property Group AB (publ),0,0,Unknown,OMX Stockholm
+CORE-D.ST,Corem Property Group AB (publ),0,0,Unknown,OMX Stockholm
+CORE-A.ST,Corem Property Group AB (publ),0,0,Unknown,OMX Stockholm
+YUBICO.ST,Yubico AB,0,0,Unknown,OMX Stockholm
+TFBANK.ST,TF Bank AB (publ),0,0,Unknown,OMX Stockholm
+INWI.ST,Inwido AB (publ),0,0,Unknown,OMX Stockholm
+BILI-A.ST,Bilia AB (publ),0,0,Unknown,OMX Stockholm
+AMBEA.ST,Ambea AB (publ),0,0,Unknown,OMX Stockholm
+BIOG-B.ST,BioGaia AB (publ),0,0,Unknown,OMX Stockholm
+SLP-B.ST,Swedish Logistic Property AB,0,0,Unknown,OMX Stockholm
+FPAR-D.ST,FastPartner AB (publ),0,0,Unknown,OMX Stockholm
+CRED-A.ST,Creades AB,0,0,Unknown,OMX Stockholm
+NCAB.ST,NCAB Group AB (publ),0,0,Unknown,OMX Stockholm
+FPAR-A.ST,FastPartner AB (publ),0,0,Unknown,OMX Stockholm
+MIPS.ST,Mips AB (publ),0,0,Unknown,OMX Stockholm
+ATT.ST,Attendo AB (publ),0,0,Unknown,OMX Stockholm
+APOTEA.ST,Apotea AB (publ),0,0,Unknown,OMX Stockholm
+RUSTA.ST,Rusta AB (publ),0,0,Unknown,OMX Stockholm
+ACAD.ST,AcadeMedia AB (publ),0,0,Unknown,OMX Stockholm
+CLA-B.ST,Cloetta AB (publ),0,0,Unknown,OMX Stockholm
+DIOS.ST,Diös Fastigheter AB (publ),0,0,Unknown,OMX Stockholm
+SBB-B.ST,Samhällsbyggnadsbolaget i Norden AB (publ),0,0,Unknown,OMX Stockholm
+SBB-D.ST,Samhällsbyggnadsbolaget i Norden AB (publ),0,0,Unknown,OMX Stockholm
+BERG-B.ST,Bergman & Beving AB (publ),0,0,Unknown,OMX Stockholm
+ARJO-B.ST,Arjo AB (publ),0,0,Unknown,OMX Stockholm
+BWEO.ST,BW Energy Limited,0,0,Unknown,OMX Stockholm
+CS.ST,CoinShares International Limited,0,0,Unknown,OMX Stockholm
+MCAP.ST,MedCap AB (publ),0,0,Unknown,OMX Stockholm
+SYNSAM.ST,Synsam AB (publ),0,0,Unknown,OMX Stockholm
+MILDEF.ST,MilDef Group AB (publ),0,0,Unknown,OMX Stockholm
+JM.ST,JM AB (publ),0,0,Unknown,OMX Stockholm
+VOLO.ST,Volati AB (publ),0,0,Unknown,OMX Stockholm
+RAY-B.ST,RaySearch Laboratories AB (publ),0,0,Unknown,OMX Stockholm
+MER.ST,Meren Energy Inc.,0,0,Unknown,OMX Stockholm
+PLAZ-B.ST,Platzer Fastigheter Holding AB (publ),0,0,Unknown,OMX Stockholm
+TROAX.ST,Troax Group AB (publ),0,0,Unknown,OMX Stockholm
+HOFI.ST,Hoist Finance AB (publ),0,0,Unknown,OMX Stockholm
+MMGR-B.ST,Momentum Group AB (publ),0,0,Unknown,OMX Stockholm
+VBG-B.ST,VBG Group AB (publ),0,0,Unknown,OMX Stockholm
+SVEAF.ST,Sveafastigheter AB (publ),0,0,Unknown,OMX Stockholm
+LOGI-A.ST,Logistea AB (publ),0,0,Unknown,OMX Stockholm
+LOGI-B.ST,Logistea AB (publ),0,0,Unknown,OMX Stockholm
+FAG.ST,Fagerhult Group AB,0,0,Unknown,OMX Stockholm
+EMIL-B.ST,Fastighetsbolaget Emilshus AB (publ),0,0,Unknown,OMX Stockholm
+INSTAL.ST,Instalco AB (publ),0,0,Unknown,OMX Stockholm
+VPLAY-A.ST,Viaplay Group AB (publ),0,0,Unknown,OMX Stockholm
+SDIP-B.ST,Sdiptech AB (publ),0,0,Unknown,OMX Stockholm
+VPLAY-B.ST,Viaplay Group AB (publ),0,0,Unknown,OMX Stockholm
+FOI-B.ST,Fenix Outdoor International AG,0,0,Unknown,OMX Stockholm
+BETCO.ST,Better Collective A/S,0,0,Unknown,OMX Stockholm
+GOTL-A.ST,Rederiaktiebolaget Gotland (publ),0,0,Unknown,OMX Stockholm
+GOTL-B.ST,Rederiaktiebolaget Gotland (publ),0,0,Unknown,OMX Stockholm
+BAHN-B.ST,Bahnhof AB (publ),0,0,Unknown,OMX Stockholm
+STEF-B.ST,Stendörren Fastigheter AB (publ),0,0,Unknown,OMX Stockholm
+SCST.ST,Scandi Standard AB (publ),0,0,Unknown,OMX Stockholm
+SECARE.ST,Swedencare AB (publ),0,0,Unknown,OMX Stockholm
+PLSVO.ST,Paratus Energy Services Ltd.,0,0,Unknown,OMX Stockholm
+STORY-B.ST,Storytel AB (publ),0,0,Unknown,OMX Stockholm
+INTRUM.ST,Intrum AB (publ),0,0,Unknown,OMX Stockholm
+NMAN.ST,Nederman Holding AB (publ),0,0,Unknown,OMX Stockholm
+BOOZT.ST,Boozt AB (publ),0,0,Unknown,OMX Stockholm
+HANZA.ST,Hanza AB (publ),0,0,Unknown,OMX Stockholm
+SVOL-A.ST,Svolder AB (publ),0,0,Unknown,OMX Stockholm
+SVOL-B.ST,Svolder AB (publ),0,0,Unknown,OMX Stockholm
+XVIVO.ST,Xvivo Perfusion AB (publ),0,0,Unknown,OMX Stockholm
+ZZ-B.ST,Zinzino AB (publ),0,0,Unknown,OMX Stockholm
+RESURS.ST,Resurs Holding AB (publ),0,0,Unknown,OMX Stockholm
+NOTE.ST,NOTE AB (publ),0,0,Unknown,OMX Stockholm
+ALLIGO-B.ST,Alligo AB (publ),0,0,Unknown,OMX Stockholm
+HEBA-B.ST,Heba Fastighets AB (publ),0,0,Unknown,OMX Stockholm
+RVRC.ST,RVRC Holding AB (publ),0,0,Unknown,OMX Stockholm
+ORES.ST,Investment AB Öresund (publ),0,0,Unknown,OMX Stockholm
+HAYPP.ST,Haypp Group AB (publ),0,0,Unknown,OMX Stockholm
+INT.ST,Intellego Technologies AB,0,0,Unknown,OMX Stockholm
+BHG.ST,BHG Group AB (publ),0,0,Unknown,OMX Stockholm
+NYAB.ST,Nyab AB (publ),0,0,Unknown,OMX Stockholm
+JOMA.ST,John Mattson Fastighetsföretagen AB (publ),0,0,Unknown,OMX Stockholm
+VER.ST,Verve Group SE,0,0,Unknown,OMX Stockholm
+MEKO.ST,Meko AB (publ),0,0,Unknown,OMX Stockholm
+SNM.ST,ShaMaran Petroleum Corp.,0,0,Unknown,OMX Stockholm
+EAST.ST,Eastnine AB (publ),0,0,Unknown,OMX Stockholm
+SUS.ST,Surgical Science Sweden AB (publ),0,0,Unknown,OMX Stockholm
+COOR.ST,Coor Service Management Holding AB,0,0,Unknown,OMX Stockholm
+DUNI.ST,Duni AB (publ),0,0,Unknown,OMX Stockholm
+ITAB.ST,ITAB Shop Concept AB (publ),0,0,Unknown,OMX Stockholm
+ENITY.ST,Enity Holding AB (publ),0,0,Unknown,OMX Stockholm
+ENVIPO.ST,Envipco Holding N.V.,0,0,Unknown,OMX Stockholm
+KCCO.ST,Klaveness Combination Carriers ASA,0,0,Unknown,OMX Stockholm
+LINC.ST,Linc AB,0,0,Unknown,OMX Stockholm
+REJL-B.ST,Rejlers AB (publ),0,0,Unknown,OMX Stockholm
+MEDIO.ST,Medistim ASA,0,0,Unknown,OMX Stockholm
+CEVI.ST,CellaVision AB (publ),0,0,Unknown,OMX Stockholm
+HTRO.ST,Hexatronic Group AB (publ),0,0,Unknown,OMX Stockholm
+LIME.ST,Lime Technologies AB (publ),0,0,Unknown,OMX Stockholm
+EPEN.ST,Ependion AB,0,0,Unknown,OMX Stockholm
+IDUN-B.ST,Idun Industrier AB (publ),0,0,Unknown,OMX Stockholm
+PRISMA.ST,Prisma Properties AB (publ),0,0,Unknown,OMX Stockholm
+OVZON.ST,Ovzon AB (publ),0,0,Unknown,OMX Stockholm
+NIVI-B.ST,Nivika Fastigheter AB (publ),0,0,Unknown,OMX Stockholm
+TRAC-B.ST,AB Traction,0,0,Unknown,OMX Stockholm
+SFAST.ST,Stenhus Fastigheter i Norden AB (publ),0,0,Unknown,OMX Stockholm
+KFAST-B.ST,K-Fast Holding AB (publ),0,0,Unknown,OMX Stockholm
+HUMBLE.ST,Humble Group AB (publ),0,0,Unknown,OMX Stockholm
+BRIN-B.ST,Brinova Fastigheter AB (publ),0,0,Unknown,OMX Stockholm
+TRIAN-B.ST,Fastighets AB Trianon (publ),0,0,Unknown,OMX Stockholm
+BTS-B.ST,BTS Group AB (publ),0,0,Unknown,OMX Stockholm
+XANO-B.ST,XANO Industri AB (publ),0,0,Unknown,OMX Stockholm
+KAMBI.ST,Kambi Group plc,0,0,Unknown,OMX Stockholm
+BMAX.ST,Byggmax Group AB (publ),0,0,Unknown,OMX Stockholm
+VIVA.ST,Viva Wine Group AB,0,0,Unknown,OMX Stockholm
+BONAV-A.ST,Bonava AB (publ),0,0,Unknown,OMX Stockholm
+BONAV-B.ST,Bonava AB (publ),0,0,Unknown,OMX Stockholm
+ACAST.ST,Acast AB (publ),0,0,Unknown,OMX Stockholm
+VNV.ST,VNV Global AB (publ),0,0,Unknown,OMX Stockholm
+FLERIE.ST,Flerie AB (publ),0,0,Unknown,OMX Stockholm
+NPAPER.ST,Nordic Paper Holding AB (publ),0,0,Unknown,OMX Stockholm
+KARNEL-B.ST,Karnell Group AB (publ),0,0,Unknown,OMX Stockholm
+BRE2.ST,Bredband2 i Skandinavien AB (publ),0,0,Unknown,OMX Stockholm
+SEYE.ST,Smart Eye AB (publ),0,0,Unknown,OMX Stockholm
+VESTUM.ST,Vestum AB (publ),0,0,Unknown,OMX Stockholm
+NOBI.ST,Nobia AB (publ),0,0,Unknown,OMX Stockholm
+SVED-B.ST,Svedbergs Group AB (publ),0,0,Unknown,OMX Stockholm
+GREEN.ST,Green Landscaping Group AB (publ),0,0,Unknown,OMX Stockholm
+CTT.ST,CTT Systems AB (publ),0,0,Unknown,OMX Stockholm
+KNOW.ST,Knowit AB (publ),0,0,Unknown,OMX Stockholm
+CAT-A.ST,Catella AB (publ),0,0,Unknown,OMX Stockholm
+CAT-B.ST,Catella AB (publ),0,0,Unknown,OMX Stockholm
+NREST.ST,Nordrest Holding AB (publ),0,0,Unknown,OMX Stockholm
+ABSO.ST,Absolent Air Care Group AB (publ),0,0,Unknown,OMX Stockholm
+KBC.ST,KB Components AB (publ),0,0,Unknown,OMX Stockholm
+SF.ST,Stillfront Group AB (publ),0,0,Unknown,OMX Stockholm
+HNSA.ST,Hansa Biopharma AB (publ),0,0,Unknown,OMX Stockholm
+TEQ.ST,Teqnion AB (publ),0,0,Unknown,OMX Stockholm
+EQL.ST,EQL Pharma AB (publ),0,0,Unknown,OMX Stockholm
+CRNO-B.ST,Cereno Scientific AB (publ),0,0,Unknown,OMX Stockholm
+KLARA-B.ST,KlaraBo Sverige AB (publ),0,0,Unknown,OMX Stockholm
+NELLY.ST,Nelly Group AB (publ),0,0,Unknown,OMX Stockholm
+PACT.ST,Proact IT Group AB (publ),0,0,Unknown,OMX Stockholm
+DVYSR.ST,Devyser Diagnostics AB (publ),0,0,Unknown,OMX Stockholm
+FMM-B.ST,FM Mattsson AB (publ),0,0,Unknown,OMX Stockholm
+NEOBO.ST,Neobo Fastigheter AB (publ),0,0,Unknown,OMX Stockholm
+CINT.ST,Cint Group AB (publ),0,0,Unknown,OMX Stockholm
+IAR-B.ST,IAR Systems Group AB (publ),0,0,Unknown,OMX Stockholm
+VICO.ST,Vicore Pharma Holding AB (publ),0,0,Unknown,OMX Stockholm
+FLAT-B.ST,Flat Capital AB (publ),0,0,Unknown,OMX Stockholm
+BESQAB.ST,Besqab AB (publ),0,0,Unknown,OMX Stockholm
+AGROUP.ST,Arlandastad Group AB (publ),0,0,Unknown,OMX Stockholm
+DUST.ST,Dustin Group AB (publ),0,0,Unknown,OMX Stockholm
+VERT-B.ST,Vertiseit AB (publ),0,0,Unknown,OMX Stockholm
+VEFAB.ST,VEF AB (publ),0,0,Unknown,OMX Stockholm
+XSPRAY.ST,Xspray Pharma AB (publ),0,0,Unknown,OMX Stockholm
+LYKO-A.ST,Lyko Group AB (publ),0,0,Unknown,OMX Stockholm
+GOMX.ST,GomSpace Group AB (publ),0,0,Unknown,OMX Stockholm
+HUM.ST,Humana AB (publ),0,0,Unknown,OMX Stockholm
+BINV.ST,BioInvent International AB (publ),0,0,Unknown,OMX Stockholm
+ELAN-B.ST,Elanders AB (publ),0,0,Unknown,OMX Stockholm
+KABE-B.ST,KABE Group AB (publ.),0,0,Unknown,OMX Stockholm
+STIL.ST,Stille AB,0,0,Unknown,OMX Stockholm
+FG.ST,Fasadgruppen Group AB (publ),0,0,Unknown,OMX Stockholm
+CARA.ST,Carasent AB (publ),0,0,Unknown,OMX Stockholm
+EWRK.ST,Ework Group AB (publ),0,0,Unknown,OMX Stockholm
+EXS.ST,Exsitec Holding AB (publ),0,0,Unknown,OMX Stockholm
+EGTX.ST,Egetis Therapeutics AB (publ),0,0,Unknown,OMX Stockholm
+AJA-B.ST,Byggmästare Anders J Ahlström Holding AB (publ),0,0,Unknown,OMX Stockholm
+GPG.ST,Genova Property Group AB (publ),0,0,Unknown,OMX Stockholm
+PAX.ST,Paxman AB (publ),0,0,Unknown,OMX Stockholm
+NETI-B.ST,Net Insight AB (publ),0,0,Unknown,OMX Stockholm
+VISC.ST,Gruvaktiebolaget Viscaria,0,0,Unknown,OMX Stockholm
+DICOT.ST,Dicot Pharma AB,0,0,Unknown,OMX Stockholm
+OSSD.ST,OssDsign AB (publ),0,0,Unknown,OMX Stockholm
+SVIK.ST,Studsvik AB (publ),0,0,Unknown,OMX Stockholm
+SANION.ST,Saniona AB (publ),0,0,Unknown,OMX Stockholm
+ANNE-B.ST,Annehem Fastigheter AB,0,0,Unknown,OMX Stockholm
+PCELL.ST,PowerCell Sweden AB (publ),0,0,Unknown,OMX Stockholm
+BORG.ST,Björn Borg AB (publ),0,0,Unknown,OMX Stockholm
+GENO.ST,Genovis AB (publ.),0,0,Unknown,OMX Stockholm
+ARP.ST,Arctic Paper S.A.,0,0,Unknown,OMX Stockholm
+RUG.ST,RugVista Group AB (publ),0,0,Unknown,OMX Stockholm
+DMYD-B.ST,Diamyd Medical AB (publ),0,0,Unknown,OMX Stockholm
+FPIP.ST,Formpipe Software AB (publ),0,0,Unknown,OMX Stockholm
+BICO.ST,BICO Group AB (publ),0,0,Unknown,OMX Stockholm
+ELTEL.ST,Eltel AB (publ),0,0,Unknown,OMX Stockholm
+TRAIN-B.ST,Train Alliance AB (publ),0,0,Unknown,OMX Stockholm
+SES.ST,Scandinavian Enviro Systems AB (publ),0,0,Unknown,OMX Stockholm
+ENEA.ST,Enea AB (publ),0,0,Unknown,OMX Stockholm
+VSSAB-B.ST,Viking Supply Ships AB (publ),0,0,Unknown,OMX Stockholm
+SALT-B.ST,SaltX Technology Holding AB (publ),0,0,Unknown,OMX Stockholm
+MAHA-A.ST,Maha Capital AB (publ),0,0,Unknown,OMX Stockholm
+BYGGP.ST,ByggPartner Gruppen AB (publ),0,0,Unknown,OMX Stockholm
+BERNER-B.ST,Berner Industrier AB,0,0,Unknown,OMX Stockholm
+STUDBO.ST,Studentbostäder i Norden AB (publ),0,0,Unknown,OMX Stockholm
+ARISE.ST,Arise AB (publ),0,0,Unknown,OMX Stockholm
+SFAB.ST,Solid Försäkringsaktiebolag (publ),0,0,Unknown,OMX Stockholm
+CLAV.ST,Clavister Holding AB (publ.),0,0,Unknown,OMX Stockholm
+SEDANA.ST,Sedana Medical AB (publ),0,0,Unknown,OMX Stockholm
+ORRON.ST,Orrön Energy AB (publ),0,0,Unknown,OMX Stockholm
+FNOVA-B.ST,Fortinova Fastigheter AB (Publ),0,0,Unknown,OMX Stockholm
+NORSEO.ST,Norse Atlantic ASA,0,0,Unknown,OMX Stockholm
+ARPL.ST,Arla Plast AB,0,0,Unknown,OMX Stockholm
+SIVE.ST,Sivers Semiconductors AB (publ),0,0,Unknown,OMX Stockholm
+DE.ST,Dala Energi AB (publ),0,0,Unknown,OMX Stockholm
+SOF-B.ST,Softronic AB (publ),0,0,Unknown,OMX Stockholm
+PROF-B.ST,ProfilGruppen AB (publ),0,0,Unknown,OMX Stockholm
+EG7.ST,Enad Global 7 AB (publ),0,0,Unknown,OMX Stockholm
+LEA.ST,Lea Bank AB,0,0,Unknown,OMX Stockholm
+MSON-A.ST,Midsona AB (publ),0,0,Unknown,OMX Stockholm
+MSON-B.ST,Midsona AB (publ),0,0,Unknown,OMX Stockholm
+DMXSE-SDB.ST,District Metals Corp.,0,0,Unknown,OMX Stockholm
+ITECH.ST,I-Tech AB,0,0,Unknown,OMX Stockholm
+BOKUS.ST,Bokusgruppen AB (publ),0,0,Unknown,OMX Stockholm
+ONCO.ST,Oncopeptides AB (publ),0,0,Unknown,OMX Stockholm
+MSAB-B.ST,Micro Systemation AB (publ),0,0,Unknown,OMX Stockholm
+BULTEN.ST,Bulten AB (publ),0,0,Unknown,OMX Stockholm
+FRACTL.ST,Fractal Gaming Group AB (publ),0,0,Unknown,OMX Stockholm
+FIRE.ST,Firefly AB (publ),0,0,Unknown,OMX Stockholm
+EOLU-B.ST,Eolus Aktiebolag (publ),0,0,Unknown,OMX Stockholm
+SYNACT.ST,SynAct Pharma AB,0,0,Unknown,OMX Stockholm
+W5.ST,W5 Solutions AB (publ),0,0,Unknown,OMX Stockholm
+CASE.ST,Case Group AB (publ),0,0,Unknown,OMX Stockholm
+GARO.ST,Garo Aktiebolag (publ),0,0,Unknown,OMX Stockholm
+DORO.ST,Doro AB (publ),0,0,Unknown,OMX Stockholm
+CRAD-B.ST,C-Rad AB (publ),0,0,Unknown,OMX Stockholm
+ACUVI.ST,Acuvi AB,0,0,Unknown,OMX Stockholm
+SEZI.ST,Senzime AB (publ),0,0,Unknown,OMX Stockholm
+IBT-B.ST,Infant Bacterial Therapeutics AB (publ),0,0,Unknown,OMX Stockholm
+ORX.ST,Orexo AB (publ),0,0,Unknown,OMX Stockholm
+PIERCE.ST,Pierce Group AB (publ),0,0,Unknown,OMX Stockholm
+INISS-B.ST,Inission AB (publ),0,0,Unknown,OMX Stockholm
+G2M.ST,Gentoo Media Inc.,0,0,Unknown,OMX Stockholm
+ALM.ST,ALM Equity AB (publ),0,0,Unknown,OMX Stockholm
+HILB-B.ST,Hilbert Group AB (publ),0,0,Unknown,OMX Stockholm
+MANG.ST,Mangold Fondkommission AB,0,0,Unknown,OMX Stockholm
+EMBELL.ST,Embellence Group AB (publ),0,0,Unknown,OMX Stockholm
+RROS.ST,Rottneros AB (publ),0,0,Unknown,OMX Stockholm
+NTEK-B.ST,Novotek AB,0,0,Unknown,OMX Stockholm
+ACRI-B.ST,Acrinova AB (publ),0,0,Unknown,OMX Stockholm
+PREV-B.ST,Prevas AB,0,0,Unknown,OMX Stockholm
+QBEN.ST,Qben Infra AB (publ),0,0,Unknown,OMX Stockholm
+CTEK.ST,CTEK AB (publ),0,0,Unknown,OMX Stockholm
+ACRI-A.ST,Acrinova AB (publ),0,0,Unknown,OMX Stockholm
+BACTI-B.ST,Bactiguard Holding AB (publ),0,0,Unknown,OMX Stockholm
+FNMC-SDB.ST,First Nordic Metals Corp.,0,0,Unknown,OMX Stockholm
+BIM.ST,BIMobject AB,0,0,Unknown,OMX Stockholm
+CAG.ST,CAG Group AB (publ),0,0,Unknown,OMX Stockholm
+SKOLON.ST,Skolon AB (publ),0,0,Unknown,OMX Stockholm
+ADVE.ST,Advenica AB (publ),0,0,Unknown,OMX Stockholm
+ORT-B.ST,Ortoma AB (publ),0,0,Unknown,OMX Stockholm
+GIG-SDB.ST,GiG Software p.l.c.,0,0,Unknown,OMX Stockholm
+NANOFS.ST,Nanoform Finland Oyj,0,0,Unknown,OMX Stockholm
+CINPHA.ST,Cinclus Pharma Holding AB (publ),0,0,Unknown,OMX Stockholm
+ONEF.ST,Oneflow AB (publ),0,0,Unknown,OMX Stockholm
+SINT.ST,SinterCast AB (publ),0,0,Unknown,OMX Stockholm
+MIDS.ST,Midsummer AB (publ),0,0,Unknown,OMX Stockholm
+KAPIAB.ST,Kallebäck Property Invest AB (publ),0,0,Unknown,OMX Stockholm
+ADDV-A.ST,ADDvise Group AB (publ),0,0,Unknown,OMX Stockholm
+ADDV-B.ST,ADDvise Group AB (publ),0,0,Unknown,OMX Stockholm
+PRIC-B.ST,Pricer AB (publ),0,0,Unknown,OMX Stockholm
+AAC.ST,AAC Clyde Space AB (publ),0,0,Unknown,OMX Stockholm
+CHEF.ST,Cheffelo AB (publ),0,0,Unknown,OMX Stockholm
+G5EN.ST,G5 Entertainment AB (publ),0,0,Unknown,OMX Stockholm
+CX.ST,CombinedX AB (publ),0,0,Unknown,OMX Stockholm
+TOBII.ST,Tobii AB (publ),0,0,Unknown,OMX Stockholm
+SKMO.ST,Skåne-möllan AB (publ),0,0,Unknown,OMX Stockholm
+CANTA.ST,Cantargia AB (publ),0,0,Unknown,OMX Stockholm
+DONE.ST,Done.ai Group AB,0,0,Unknown,OMX Stockholm
+PRFO.ST,Profoto Holding AB (publ),0,0,Unknown,OMX Stockholm
+FNM.ST,Ferronordic AB (publ),0,0,Unknown,OMX Stockholm
+DURC-B.ST,Duroc AB (publ),0,0,Unknown,OMX Stockholm
+DOXA.ST,Doxa AB (publ),0,0,Unknown,OMX Stockholm
+NORB-B.ST,Nordisk Bergteknik AB (publ),0,0,Unknown,OMX Stockholm
+ATIC.ST,Actic Group AB (publ),0,0,Unknown,OMX Stockholm
+AVT-B.ST,AVTECH Sweden AB (publ),0,0,Unknown,OMX Stockholm
+CDON.ST,CDON AB,0,0,Unknown,OMX Stockholm
+RAIL.ST,Railcare Group AB (publ),0,0,Unknown,OMX Stockholm
+GAPW-B.ST,Gapwaves AB (publ),0,0,Unknown,OMX Stockholm
+XBRANE.ST,Xbrane Biopharma AB (publ),0,0,Unknown,OMX Stockholm
+CNCJO-B.ST,Concejo AB (publ),0,0,Unknown,OMX Stockholm
+KEBNI-B.ST,KebNi AB (publ),0,0,Unknown,OMX Stockholm
+K33.ST,K33 AB (publ),0,0,Unknown,OMX Stockholm
+GRANGX.ST,Grangex AB,0,0,Unknown,OMX Stockholm
+GENI.ST,Generic Sweden AB,0,0,Unknown,OMX Stockholm
+BOAT.ST,Nimbus Group AB (Publ),0,0,Unknown,OMX Stockholm
+LUMEN.ST,LumenRadio AB (publ),0,0,Unknown,OMX Stockholm
+UPSALE.ST,Upsales Technology AB (publ),0,0,Unknown,OMX Stockholm
+NIL-B.ST,Nilörngruppen AB,0,0,Unknown,OMX Stockholm
+TITA-B.ST,Titania Holding AB (publ),0,0,Unknown,OMX Stockholm
+TINGS-A.ST,Tingsvalvet Fastighets AB (publ),0,0,Unknown,OMX Stockholm
+TINGS-B.ST,Tingsvalvet Fastighets AB (publ),0,0,Unknown,OMX Stockholm
+QSYS.ST,Qualisys Holding AB (publ),0,0,Unknown,OMX Stockholm
+LUC.ST,Lucara Diamond Corp.,0,0,Unknown,OMX Stockholm
+4C.ST,4C Group AB (publ),0,0,Unknown,OMX Stockholm
+HAKI-A.ST,HAKI Safety AB (publ),0,0,Unknown,OMX Stockholm
+HAKI-B.ST,HAKI Safety AB (publ),0,0,Unknown,OMX Stockholm
+ENZY.ST,Enzymatica AB (publ),0,0,Unknown,OMX Stockholm
+KJELL.ST,Kjell Group AB (publ),0,0,Unknown,OMX Stockholm
+CEDER.ST,Cedergrenska AB (publ),0,0,Unknown,OMX Stockholm
+CARE.ST,Careium AB (Publ),0,0,Unknown,OMX Stockholm
+SNX.ST,Premium Snacks Nordic AB (publ),0,0,Unknown,OMX Stockholm
+NETEL.ST,Netel Holding AB (publ),0,0,Unknown,OMX Stockholm
+OPTER.ST,Opter AB (publ),0,0,Unknown,OMX Stockholm
+QLIRO.ST,Qliro AB (publ),0,0,Unknown,OMX Stockholm
+BOTX.ST,Botnia Gold AB (publ),0,0,Unknown,OMX Stockholm
+BALCO.ST,Balco Group AB,0,0,Unknown,OMX Stockholm
+WTW-A.ST,Wall to Wall Group AB,0,0,Unknown,OMX Stockholm
+TRANS.ST,Transtema Group AB,0,0,Unknown,OMX Stockholm
+FLUO.ST,FluoGuide A/S,0,0,Unknown,OMX Stockholm
+AEC.ST,Africa Energy Corp.,0,0,Unknown,OMX Stockholm
+SLEEP.ST,Sleep Cycle AB (publ),0,0,Unknown,OMX Stockholm
+NAXS.ST,NAXS AB (publ),0,0,Unknown,OMX Stockholm
+ALCA.ST,Alcadon Group AB (publ),0,0,Unknown,OMX Stockholm
+WBGR-B.ST,Wästbygg Gruppen AB (publ),0,0,Unknown,OMX Stockholm
+ADTR.ST,Adtraction Group AB,0,0,Unknown,OMX Stockholm
+WPTG-B.ST,White Pearl Technology Group AB,0,0,Unknown,OMX Stockholm
+K2A-B.ST,K2A Knaust & Andersson Fastigheter AB (publ),0,0,Unknown,OMX Stockholm
+INTEG-B.ST,Integrum AB (publ),0,0,Unknown,OMX Stockholm
+B3.ST,B3 Consulting Group AB (publ),0,0,Unknown,OMX Stockholm
+TRAD.ST,TradeDoubler AB (publ),0,0,Unknown,OMX Stockholm
+SIBEK.ST,Sibek AB (publ),0,0,Unknown,OMX Stockholm
+ENVAR.ST,Envar Holding AB (publ),0,0,Unknown,OMX Stockholm
+BMC.ST,Brock Milton Capital AB (publ),0,0,Unknown,OMX Stockholm
+SGG.ST,Sensys Gatso Group AB (publ),0,0,Unknown,OMX Stockholm
+UNIBAP.ST,Unibap Space Solutions AB (publ),0,0,Unknown,OMX Stockholm
+SOLNA.ST,Solnaberg Property AB (publ),0,0,Unknown,OMX Stockholm
+ACE.ST,Ascelia Pharma AB (publ),0,0,Unknown,OMX Stockholm
+META.ST,Metacon AB (publ),0,0,Unknown,OMX Stockholm
+CAPSLO.ST,Capsol Technologies ASA,0,0,Unknown,OMX Stockholm
+BOHO.ST,Boho Group AB (publ),0,0,Unknown,OMX Stockholm
+MAGLE.ST,Magle Chemoswed Holding AB (publ),0,0,Unknown,OMX Stockholm
+MAVEN.ST,Maven Wireless Sweden AB (Publ),0,0,Unknown,OMX Stockholm
+DEDI.ST,Dedicare AB (publ),0,0,Unknown,OMX Stockholm
+GUARD.ST,Guard Therapeutics International AB (publ),0,0,Unknown,OMX Stockholm
+ATIN.ST,Athanase Innovation AB (publ),0,0,Unknown,OMX Stockholm
+DSNO.ST,Desenio Group AB (publ),0,0,Unknown,OMX Stockholm
+MOB.ST,Moberg Pharma AB (publ),0,0,Unknown,OMX Stockholm
+AGES-B.ST,AGES Industri AB (publ),0,0,Unknown,OMX Stockholm
+INFREA.ST,Infrea AB,0,0,Unknown,OMX Stockholm
+MINEST.ST,Minesto AB (publ),0,0,Unknown,OMX Stockholm
+LEMSE.ST,Leading Edge Materials Corp.,0,0,Unknown,OMX Stockholm
+GREAT.ST,Greater Than AB,0,0,Unknown,OMX Stockholm
+IVACC.ST,Intervacc AB (publ),0,0,Unknown,OMX Stockholm

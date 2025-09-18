@@ -1,5 +1,5 @@
 {
-  "forecast_days": 1,
+  "forecast_days": 3,
   "confidence_threshold": 0.6,
   "batch_delay": 1.0,
   "min_data_days": 300,
