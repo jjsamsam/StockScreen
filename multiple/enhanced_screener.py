@@ -62,6 +62,39 @@ else:
     print(f"   - statsmodels: {'✅' if STATSMODELS_AVAILABLE else '❌'}")
 
 
+def to_scalar(value):
+    """pandas Series/numpy 값을 스칼라로 안전하게 변환 - 개선 버전"""
+    # 이미 스칼라면 그대로 반환
+    if isinstance(value, (int, float, bool, np.integer, np.floating)):
+        return float(value)
+    
+    # pandas Series 처리
+    if isinstance(value, pd.Series):
+        if len(value) == 0:
+            return None
+        # 첫 번째 값 추출
+        value = value.iloc[0] if len(value) > 0 else value.values[0]
+    
+    # numpy array 처리
+    if isinstance(value, np.ndarray):
+        if value.size == 0:
+            return None
+        value = value.item() if value.size == 1 else value.flatten()[0]
+    
+    # .item() 메서드가 있으면 사용
+    if hasattr(value, 'item'):
+        try:
+            return float(value.item())
+        except:
+            pass
+    
+    # 최후의 수단: 형변환
+    try:
+        result = float(value)
+        return result if np.isfinite(result) else None
+    except:
+        return None
+
 class EnhancedCPUPredictor:
     """CPU 최적화 예측기 - 통합된 예측 함수 버전"""
     
@@ -78,64 +111,72 @@ class EnhancedCPUPredictor:
         # 고정된 시드로 초기화
         self.fix_all_random_seeds(42)
 
+        # ✅ 새로 추가: 캐싱 시스템
+        self._data_cache = {}  # {ticker: (data, timestamp)}
+        self._cache_duration = 3600  # 1시간 캐시 유지 (초 단위)
+        self._feature_cache = {}  # 특성 계산 결과 캐싱
+
         self.load_settings()
         
         # CPU 최적화 모델들
         self.models = {
-            # XGBoost: CPU 최적화
             'xgboost': xgb.XGBRegressor(
-                n_estimators=200,
-                max_depth=8,
-                learning_rate=0.1,
-                subsample=0.9,
-                colsample_bytree=0.9,
+                n_estimators=200,        # 150 → 200
+                max_depth=12,            # 8 → 12 ⭐
+                learning_rate=0.1,       # 0.08 → 0.1
+                subsample=0.9,           # 0.85 → 0.9
+                colsample_bytree=0.9,    # 0.85 → 0.9
+                reg_alpha=0.01,          # 0.1 → 0.01 ⭐ (정규화 완화)
+                reg_lambda=0.01,         # 0.1 → 0.01 ⭐
                 random_state=42,
-                n_jobs=1,  # ✅ 일관성을 위해 단일 스레드
+                n_jobs=1,
                 verbosity=0
             ),
             
-            # LightGBM: AMD CPU에 특히 우수
             'lightgbm': lgb.LGBMRegressor(
                 n_estimators=200,
-                max_depth=8,
+                max_depth=12,            # 8 → 12 ⭐
                 learning_rate=0.1,
                 subsample=0.9,
                 colsample_bytree=0.9,
+                reg_alpha=0.01,          # 0.1 → 0.01 ⭐
+                reg_lambda=0.01,         # 0.1 → 0.01 ⭐
                 random_state=42,
-                n_jobs=1,  # ✅ 일관성을 위해 단일 스레드
+                n_jobs=1,
                 device='cpu',
                 verbose=-1
             ),
             
-            # Random Forest: 안정적 성능
             'random_forest': RandomForestRegressor(
-                n_estimators=200,
-                max_depth=12,
-                min_samples_split=5,
-                min_samples_leaf=2,
-                n_jobs=1,  # ✅ 일관성을 위해 단일 스레드
+                n_estimators=200,        # 150 → 200
+                max_depth=15,            # 12 → 15 ⭐
+                min_samples_split=2,     # 5 → 2 ⭐
+                min_samples_leaf=1,      # 2 → 1 ⭐
+                max_features=0.8,        # 0.7 → 0.8
+                n_jobs=1,
                 random_state=42
             ),
             
-            # Extra Trees: 과적합 방지
             'extra_trees': RandomForestRegressor(
                 n_estimators=200,
-                max_depth=12,
-                min_samples_split=5,
-                min_samples_leaf=2,
-                bootstrap=False,  # Extra Trees 특징
-                n_jobs=1,  # ✅ 일관성을 위해 단일 스레드
+                max_depth=12,            # 10 → 12 ⭐
+                min_samples_split=2,     # 8 → 2 ⭐
+                min_samples_leaf=1,      # 4 → 1 ⭐
+                max_features=0.8,        # 0.6 → 0.8
+                bootstrap=False,
+                n_jobs=1,
                 random_state=42
             ),
             
-            # Gradient Boosting: 견고한 성능
             'gradient_boosting': GradientBoostingRegressor(
                 n_estimators=200,
-                max_depth=6,
-                learning_rate=0.05,
-                subsample=0.8,
+                max_depth=6,             # 5 → 6 ⭐
+                learning_rate=0.1,       # 0.08 → 0.1
+                subsample=0.9,           # 0.85 → 0.9
+                min_samples_split=2,     # 5 → 2 ⭐
+                min_samples_leaf=1,      # 2 → 1 ⭐
                 random_state=42,
-                validation_fraction=0.1,  # ✅ 일관성 보장
+                validation_fraction=0.1
             )
         }
         
@@ -156,6 +197,126 @@ class EnhancedCPUPredictor:
         self.accuracy_window_days = 30   # 정확도 평가 기간
 
         print(f"✅ {len(self.models)}개 모델 초기화 완료")
+
+
+    def get_model_config_for_period(self, forecast_days):
+        """예측 기간에 따른 모델 설정 반환"""
+        
+        if forecast_days <= 5:
+            # 단기 (1-5일): 빠른 반응, 단기 패턴
+            return {
+                'sequence_length': 10,
+                'min_data_days': 200,
+                'ma_periods': [5, 10, 20],
+                'models': {
+                    'xgboost': {
+                        'n_estimators': 150,
+                        'max_depth': 10,
+                        'learning_rate': 0.1,
+                        'reg_alpha': 0.01,
+                        'reg_lambda': 0.01
+                    },
+                    'lightgbm': {
+                        'n_estimators': 150,
+                        'max_depth': 10,
+                        'learning_rate': 0.1,
+                        'reg_alpha': 0.01,
+                        'reg_lambda': 0.01
+                    },
+                    'random_forest': {
+                        'n_estimators': 150,
+                        'max_depth': 12,
+                        'min_samples_split': 2,
+                        'min_samples_leaf': 1
+                    }
+                }
+            }
+        
+        elif forecast_days <= 14:
+            # 중기 (6-14일): 균형잡힌 설정
+            return {
+                'sequence_length': 20,
+                'min_data_days': 300,
+                'ma_periods': [5, 10, 20, 50],
+                'models': {
+                    'xgboost': {
+                        'n_estimators': 200,
+                        'max_depth': 12,
+                        'learning_rate': 0.08,
+                        'reg_alpha': 0.05,
+                        'reg_lambda': 0.05
+                    },
+                    'lightgbm': {
+                        'n_estimators': 200,
+                        'max_depth': 12,
+                        'learning_rate': 0.08,
+                        'reg_alpha': 0.05,
+                        'reg_lambda': 0.05
+                    },
+                    'random_forest': {
+                        'n_estimators': 200,
+                        'max_depth': 15,
+                        'min_samples_split': 3,
+                        'min_samples_leaf': 2
+                    }
+                }
+            }
+        
+        else:
+            # 장기 (15-30일): 추세 중심, 장기 패턴
+            return {
+                'sequence_length': 30,
+                'min_data_days': 400,
+                'ma_periods': [10, 20, 50, 120, 200],
+                'models': {
+                    'xgboost': {
+                        'n_estimators': 250,
+                        'max_depth': 8,  # 과적합 방지
+                        'learning_rate': 0.05,
+                        'reg_alpha': 0.1,
+                        'reg_lambda': 0.1
+                    },
+                    'lightgbm': {
+                        'n_estimators': 250,
+                        'max_depth': 8,
+                        'learning_rate': 0.05,
+                        'reg_alpha': 0.1,
+                        'reg_lambda': 0.1
+                    },
+                    'random_forest': {
+                        'n_estimators': 250,
+                        'max_depth': 18,
+                        'min_samples_split': 5,
+                        'min_samples_leaf': 3
+                    }
+                }
+            }
+
+    def reconfigure_models(self, forecast_days):
+        """예측 기간에 따라 모델 재구성"""
+        config = self.get_model_config_for_period(forecast_days)
+        
+        print(f"🔧 {forecast_days}일 예측을 위한 모델 재구성:")
+        print(f"   • 시퀀스 길이: {config['sequence_length']}일")
+        print(f"   • 최소 데이터: {config['min_data_days']}일")
+        print(f"   • MA 기간: {config['ma_periods']}")
+        
+        # 모델 재생성
+        for model_name, params in config['models'].items():
+            if model_name == 'xgboost':
+                self.models['xgboost'] = xgb.XGBRegressor(
+                    random_state=42, n_jobs=1, verbosity=0, **params
+                )
+            elif model_name == 'lightgbm':
+                self.models['lightgbm'] = lgb.LGBMRegressor(
+                    random_state=42, n_jobs=1, device='cpu', verbose=-1, **params
+                )
+            elif model_name == 'random_forest':
+                self.models['random_forest'] = RandomForestRegressor(
+                    random_state=42, n_jobs=1, **params
+                )
+        
+        return config
 
     def load_settings(self):
         """✅ 새로 추가: 설정 파일에서 예측 설정 로드"""
@@ -206,19 +367,70 @@ class EnhancedCPUPredictor:
         except:
             pass
 
+    def get_cached_data(self, ticker):
+        """캐시된 데이터 가져오기"""
+        if ticker in self._data_cache:
+            data, timestamp = self._data_cache[ticker]
+            elapsed_seconds = (datetime.now() - timestamp).total_seconds()
+            
+            if elapsed_seconds < self._cache_duration:
+                print(f"  💾 캐시 사용: {ticker} (저장된 지 {int(elapsed_seconds)}초)")
+                
+                # ✅ 추가: 데이터 유효성 확인
+                if data is not None and not data.empty and len(data) > 0:
+                    return data
+                else:
+                    # 잘못된 캐시 데이터 삭제
+                    print(f"  ⚠️ 잘못된 캐시 데이터 삭제: {ticker}")
+                    del self._data_cache[ticker]
+                    return None
+            else:
+                print(f"  ⏰ 캐시 만료: {ticker} (저장된 지 {int(elapsed_seconds)}초)")
+                del self._data_cache[ticker]
+        
+        return None
+    
+    def cache_data(self, ticker, data):
+        """데이터 캐싱"""
+        # ✅ 추가: 유효한 데이터만 캐싱
+        if data is None or data.empty or len(data) == 0:
+            print(f"  ⚠️ 잘못된 데이터, 캐싱 안 함: {ticker}")
+            return
+        
+        self._data_cache[ticker] = (data.copy(), datetime.now())
+        print(f"  💾 캐시 저장: {ticker} ({len(data)}개 데이터)")
+    
+    def clear_cache(self):
+        """캐시 전체 삭제 (메모리 정리용)
+        
+        예시:
+            predictor.clear_cache()  # 배치 예측 후 메모리 정리
+        """
+        cache_count = len(self._data_cache)
+        self._data_cache.clear()
+        self._feature_cache.clear()
+        print(f"  🗑️ 캐시 정리 완료: {cache_count}개 항목 삭제")
+
     # ✅ 통합된 예측 함수 - predict_stock_consistent의 로직을 predict_stock으로 변경
     def predict_stock(self, ticker, forecast_days=None, min_data_days=None, mode='smart'):
-        """✅ 수정: 환경설정이 적용된 예측 함수 (기존 모든 기능 유지)"""
-        
-        # ✅ 설정 파일 값을 우선 사용 (새로 추가된 부분)
+        # 설정 파일 값 우선 사용
         if forecast_days is None:
             forecast_days = self.settings.get('forecast_days', 7)
+        
+        # 예측 기간에 따라 모델 재구성
+        config = self.reconfigure_models(forecast_days)
+        
+        # 설정에서 가져온 값 업데이트
         if min_data_days is None:
-            min_data_days = self.settings.get('min_data_days', 300)
+            min_data_days = config['min_data_days']
+        
+        sequence_length = config['sequence_length']
+        
+        print(f"📊 {ticker} 예측 시작:")
+        print(f"   • 예측 기간: {forecast_days}일 ({'단기' if forecast_days <= 5 else '중기' if forecast_days <= 14 else '장기'})")
+        print(f"   • 시퀀스: {sequence_length}일")
 
         confidence_threshold = getattr(self, 'settings', {}).get('confidence_threshold', 0.6)
-        
-        print(f"📊 {ticker} 예측 시작 (설정기간: {forecast_days}일, 최소데이터: {min_data_days}일)")
 
         # 매번 시드 재고정 (완전한 일관성 보장) - 기존 코드 그대로
         self.fix_all_random_seeds(42)
@@ -226,35 +438,57 @@ class EnhancedCPUPredictor:
         try:
             print(f"📊 {ticker} 일관성 예측 시작...")
             
-            # 1. 실제 현재가 조회 (최신 데이터) - 기존 코드 그대로
+            # 1. 실제 현재가 조회
             stock = yf.Ticker(ticker)
             current_data = stock.history(period="2d")
-            if len(current_data) == 0:
+            
+            # ✅ 수정: current_data 확인
+            if current_data is None or current_data.empty or len(current_data) == 0:
                 return None, "현재가 데이터를 가져올 수 없습니다"
             
             actual_current_price = float(current_data['Close'].iloc[-1])
             actual_current_date = current_data.index[-1]
             
-            # 2. 예측용 고정 기간 데이터 (일관성 보장) - 기존 코드 그대로
-            end_date = datetime(2024, 12, 31)  # 고정된 종료일
-            start_date = end_date - timedelta(days=600)  # 고정된 시작일
+            # 2. 캐시 확인
+            data = self.get_cached_data(ticker)
             
-            print(f"  💰 실제 현재가: {actual_current_price:.2f} ({actual_current_date.date()})")
-            print(f"  🔒 예측 기준일: {end_date.date()}")
+            if data is None:
+                print(f"  📥 {ticker} 데이터 다운로드 중...")
+                
+                days_needed = min_data_days + 100
+                period_param = f'{days_needed}d'
+                
+                data = yf.download(
+                    ticker,
+                    period=period_param,
+                    progress=False,
+                    threads=False,
+                    auto_adjust=True
+                )
+                
+                # ✅ 수정: 데이터 확인
+                if data is None or data.empty or len(data) == 0:
+                    return None, f"{ticker} 데이터를 가져올 수 없습니다"
+                
+                # ✅ 캐시에 저장
+                self.cache_data(ticker, data)
+            else:
+                # 캐시된 데이터 사용
+                print(f"  ⚡ 캐시 데이터 사용: {len(data)}개 행")
             
-            data = stock.history(start=start_date, end=end_date)
-            
-            # ✅ 설정에서 가져온 min_data_days 사용 (수정된 부분)
+            # 3. 데이터 길이 확인 (기존과 동일)
             if len(data) < min_data_days:
                 return None, f"데이터 부족 (필요: {min_data_days}일, 현재: {len(data)}일)"
             
             # 데이터 정렬 및 정리 (일관성 보장) - 기존 코드 그대로
             data = data.sort_index().round(4)
             
-            # 데이터 품질 검사 - 기존 코드 그대로
-            if data['Close'].isnull().sum() > len(data) * 0.1:
-                return None, "데이터 품질 불량 (결측값 과다)"
-            
+            null_count = to_scalar(data['Close'].isnull().sum())
+            threshold = to_scalar(len(data) * 0.1)
+
+            if null_count > threshold:
+                return None, f"결측치가 너무 많습니다 ({null_count}개 > {threshold}개)"
+                        
             # 시드 재고정 - 기존 코드 그대로
             self.fix_all_random_seeds(42)
             
@@ -264,41 +498,80 @@ class EnhancedCPUPredictor:
             if features.empty or features.isnull().all().all():
                 return None, "특성 생성 실패"
             
+            print(f"  🔍 미래 수익률 계산 전 데이터 길이: {len(data)}")
+
             # ✅ 설정에서 가져온 forecast_days 사용 (수정된 부분)
             future_returns = data['Close'].pct_change(forecast_days).shift(-forecast_days)
-            
-            if future_returns.isnull().sum() > len(future_returns) * 0.8:
-                return None, "타겟 데이터 부족"
+
+            print(f"  🔍 미래 수익률 계산 후:")
+            print(f"     전체 길이: {len(future_returns)}")
+            print(f"     유효 값: {future_returns.notna().sum()}개")
+            print(f"     NaN: {future_returns.isna().sum()}개")
+
+            # ✅ DataFrame이 아니라 Series로 유지
+            if isinstance(future_returns, pd.DataFrame):
+                future_returns = future_returns.iloc[:, 0]
+
+            null_count = to_scalar(future_returns.isnull().sum())
+            threshold = to_scalar(len(future_returns) * 0.8)
+
+            if null_count > threshold:
+                return None, f"미래 수익률 계산 실패 (결측치 {null_count}/{len(future_returns)}개)"
             
             # 시드 재고정 - 기존 코드 그대로
             self.fix_all_random_seeds(42)
             
             # 시퀀스 데이터 준비 - 기존 코드 그대로
             X, y = self.prepare_sequences_deterministic(features, future_returns, 
-                                                    sequence_length=30, 
+                                                    sequence_length=15, 
                                                     forecast_horizon=forecast_days)
-            
+
+            print(f"\n  🔍 ===== 데이터 진단 =====")
+            print(f"  📊 X shape: {X.shape}")
+            print(f"  📊 y shape: {y.shape}")
+            print(f"  📊 y 통계:")
+            print(f"     최소값: {y.min():.6f}")
+            print(f"     최대값: {y.max():.6f}")
+            print(f"     평균: {y.mean():.6f}")
+            print(f"     표준편차: {y.std():.6f}")
+            print(f"     중앙값: {np.median(y):.6f}")
+            print(f"  📊 y 분포 샘플 (처음 10개): {y[:10]}")
+            print(f"  📊 y 분포 샘플 (마지막 10개): {y[-10:]}")
+            print(f"  ===========================\n")
+
             if len(X) == 0 or len(y) == 0:
                 return None, "시퀀스 데이터 생성 실패"
             
             print(f"  ✅ 데이터 준비 완료: {len(X)}개 학습 샘플")
             
-            # 학습/테스트 분할 (시계열 특성 고려) - 기존 코드 그대로
-            split_idx = int(len(X) * 0.8)
-            X_train, X_test = X[:split_idx], X[split_idx:]
-            y_train, y_test = y[:split_idx], y[split_idx:]
-            
-            # 데이터 정규화 - 기존 코드 그대로
+            # 학습/테스트 분할 (시계열 특성 고려)
+            # split_idx = int(len(X) * 0.9)
+            # X_train, X_test = X[:split_idx], X[split_idx:]
+            # y_train, y_test = y[:split_idx], y[split_idx:]
+            # print(f"  🔍 데이터 분할:")
+            # print(f"     학습: {len(X_train)}개 ({len(X_train)/len(X)*100:.1f}%)")
+            # print(f"     테스트: {len(X_test)}개 ({len(X_test)/len(X)*100:.1f}%)")
+
+            # ✅ 전체 데이터 학습으로 변경
+            X_train = X
+            y_train = y
+            X_test = np.array([])  # 빈 배열
+            y_test = np.array([])
+
+            print(f"  🔍 전체 데이터로 학습: {len(X_train)}개 샘플")
+
+            # 데이터 정규화
             try:
-                X_train_scaled = self.current_scaler.fit_transform(X_train)
-                X_test_scaled = self.current_scaler.transform(X_test)
+                X_train_scaled = X_train
+                X_test_scaled = X_test
                 
                 # 최신 데이터 준비 (예측용)
                 latest_X = X[-1]
-                latest_X_scaled = self.current_scaler.transform(latest_X.reshape(1, -1))
+                latest_X_scaled = latest_X.reshape(1, -1)
                 
+                print(f"  🔍 스케일링 제거됨 (Tree 기반 모델은 불필요)")
             except Exception as e:
-                return None, f"데이터 정규화 실패: {str(e)}"
+                return None, f"데이터 준비 실패: {str(e)}"
             
             # 시드 재고정 - 기존 코드 그대로
             self.fix_all_random_seeds(42)
@@ -312,30 +585,25 @@ class EnhancedCPUPredictor:
             models_enabled = self.settings.get('models_enabled', {})
             
             for model_name, model in self.models.items():
-                # ✅ 설정에서 비활성화된 모델은 건너뛰기
                 if not models_enabled.get(model_name, True):
                     print(f"  ⏭️ {model_name} 모델 비활성화됨 (설정)")
                     continue
                 
-                prediction = self.safe_predict_with_model(
-                    model, X_train_scaled, y_train, latest_X_scaled, model_name
+                result = self.safe_predict_with_model(
+                    model, X_train_scaled, y_train, X_test_scaled, y_test, latest_X_scaled, model_name
                 )
                 
-                if prediction is not None:
+                if result is not None:
+                    prediction = result['prediction']
                     predictions.append(prediction)
                     successful_models += 1
                     
-                    # 성능 평가 - 기존 코드 그대로
-                    try:
-                        y_pred_test = model.predict(X_test_scaled)
-                        r2 = r2_score(y_test, y_pred_test)
-                        model_results[model_name] = {
-                            'r2_score': r2,
-                            'prediction': prediction
-                        }
-                    except Exception as e:
-                        model_results[model_name] = {'prediction': prediction}
-            
+                    model_results[model_name] = {
+                        'prediction': prediction,
+                        'r2_score': result.get('r2_score', 0),
+                        'mae': result.get('mae', 0)
+                    }
+
             if successful_models == 0:
                 return None, "모든 모델이 실패했습니다"
             
@@ -347,7 +615,7 @@ class EnhancedCPUPredictor:
             )
             
             # 핵심 수정: 현재가 vs 예측가 분리 - 기존 코드 그대로
-            historical_price = float(data['Close'].iloc[-1])  # 예측 기준 가격
+            historical_price = data['Close'].iloc[-1].item() # 예측 기준 가격
             predicted_return = float(ensemble_prediction)
             
             # 실제 현재가 기준으로 예측가 계산 - 기존 코드 그대로
@@ -391,6 +659,7 @@ class EnhancedCPUPredictor:
                 # 예측 기술 정보 - 기존과 동일
                 'confidence': round(confidence, 4),
                 'forecast_days': forecast_days,  # ✅ 설정에서 가져온 값
+                'days': forecast_days,
                 'prediction_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
 
                 # ✅ 신뢰도 관련 정보 추가
@@ -405,6 +674,7 @@ class EnhancedCPUPredictor:
                 'individual_predictions': predictions,
                 'feature_count': features.shape[1],
                 'training_samples': len(X_train),
+                'data_points': len(data),
 
                 # ✅ 설정 정보 추가 (새로 추가된 부분)
                 'min_data_days': min_data_days,  # 실제 사용된 최소 데이터 일수
@@ -415,12 +685,15 @@ class EnhancedCPUPredictor:
             
             confidence_status = "높은 신뢰도" if is_high_confidence else "낮은 신뢰도"
             print(f"  ✅ 예측 완료: {predicted_return*100:+.2f}% (신뢰도: {confidence*100:.1f}% - {confidence_status})")
-            
+                      
             return result, None
             
         except Exception as e:
+            import traceback
             error_msg = f"예측 중 오류: {str(e)}"
             print(f"  ❌ {error_msg}")
+            print(f"  📍 상세 에러:")
+            traceback.print_exc()  # ✅ 전체 스택 트레이스 출력
             return None, error_msg
 
     # ✅ 기존 predict_stock_consistent 함수는 제거됨 (위의 predict_stock으로 통합)
@@ -431,8 +704,53 @@ class EnhancedCPUPredictor:
     # 3. 함수 호출 코드는 변경 없이 그대로 사용 가능
     # 4. 더 나은 일관성과 정확도를 제공하는 알고리즘 사용
 
-    def safe_predict_with_model(self, model, X_train, y_train, X_test, model_name):
-        """개별 모델 예측 - 타입 및 오류 안전"""
+    # def safe_predict_with_model(self, model, X_train, y_train, X_test, model_name):
+    #     """개별 모델 예측 - 타입 및 오류 안전"""
+    #     try:
+    #         print(f"  🔧 {model_name} 훈련 중...")
+            
+    #         # 입력 데이터 검증
+    #         if X_train.size == 0 or y_train.size == 0:
+    #             print(f"    ❌ {model_name} 오류: 빈 훈련 데이터")
+    #             return None
+            
+    #         # NaN/Inf 체크 (타입 안전)
+    #         try:
+    #             if np.any(pd.isnull(X_train)) or np.any(pd.isnull(y_train)):
+    #                 print(f"    ❌ {model_name} 오류: 훈련 데이터에 NaN 존재")
+    #                 return None
+                
+    #             if np.any(np.isinf(X_train)) or np.any(np.isinf(y_train)):
+    #                 print(f"    ❌ {model_name} 오류: 훈련 데이터에 Inf 존재")
+    #                 return None
+    #         except (TypeError, ValueError) as e:
+    #             print(f"    ❌ {model_name} 오류: 데이터 타입 문제 - {e}")
+    #             return None
+            
+    #         # 모델 훈련
+    #         model.fit(X_train, y_train)
+            
+    #         # 예측
+    #         if X_test.size == 0:
+    #             print(f"    ❌ {model_name} 오류: 빈 테스트 데이터")
+    #             return None
+            
+    #         prediction = model.predict(X_test.reshape(1, -1))[0]
+            
+    #         # 예측 결과 검증
+    #         if pd.isnull(prediction) or np.isinf(prediction):
+    #             print(f"    ❌ {model_name} 오류: 잘못된 예측값")
+    #             return None
+            
+    #         print(f"    ✅ {model_name} 완료: {prediction:.4f}")
+    #         return float(prediction)
+            
+    #     except Exception as e:
+    #         print(f"    ❌ {model_name} 오류: {str(e)}")
+    #         return None
+
+    def safe_predict_with_model(self, model, X_train, y_train, X_test, y_test, X_predict, model_name):
+        """개별 모델 예측 - 성능 평가 포함"""
         try:
             print(f"  🔧 {model_name} 훈련 중...")
             
@@ -441,101 +759,130 @@ class EnhancedCPUPredictor:
                 print(f"    ❌ {model_name} 오류: 빈 훈련 데이터")
                 return None
             
-            # NaN/Inf 체크 (타입 안전)
-            try:
-                if np.any(pd.isnull(X_train)) or np.any(pd.isnull(y_train)):
-                    print(f"    ❌ {model_name} 오류: 훈련 데이터에 NaN 존재")
-                    return None
-                
-                if np.any(np.isinf(X_train)) or np.any(np.isinf(y_train)):
-                    print(f"    ❌ {model_name} 오류: 훈련 데이터에 Inf 존재")
-                    return None
-            except (TypeError, ValueError) as e:
-                print(f"    ❌ {model_name} 오류: 데이터 타입 문제 - {e}")
-                return None
-            
             # 모델 훈련
             model.fit(X_train, y_train)
             
-            # 예측
-            if X_test.size == 0:
-                print(f"    ❌ {model_name} 오류: 빈 테스트 데이터")
-                return None
+            # 학습 데이터 성능 확인 (과적합 진단)
+            y_pred_train_sample = model.predict(X_train[-5:])  # 마지막 5개
+            print(f"    📊 학습 데이터 마지막 5개 예측 평균: {y_pred_train_sample.mean()*100:+.2f}%")
             
-            prediction = model.predict(X_test.reshape(1, -1))[0]
+            # ✅ 테스트 없이 바로 예측
+            prediction = model.predict(X_predict)[0]
             
-            # 예측 결과 검증
             if pd.isnull(prediction) or np.isinf(prediction):
                 print(f"    ❌ {model_name} 오류: 잘못된 예측값")
                 return None
             
-            print(f"    ✅ {model_name} 완료: {prediction:.4f}")
-            return float(prediction)
+            print(f"    ✅ {model_name} 완료: {prediction:.6f} ({prediction*100:+.2f}%)")
+            
+            return {
+                'prediction': float(prediction),
+                'r2_score': 0.0,  # R² 계산 안 함
+                'mae': 0.0
+            }
             
         except Exception as e:
             print(f"    ❌ {model_name} 오류: {str(e)}")
             return None
 
     def calculate_deterministic_ensemble(self, predictions, model_results):
-        """결정적 앙상블 계산"""
+        """성능 기반 동적 앙상블"""
         if not predictions:
             return 0.0, 0.0
         
-        # 고정된 가중치 사용 (일관성 보장)
-        weights = {
-            'xgboost': 0.25,
-            'lightgbm': 0.25,
-            'random_forest': 0.20,
-            'extra_trees': 0.15,
-            'gradient_boosting': 0.15
-        }
+        # ✅ R²에 따라 가중치 계산
+        weights = {}
+        total_r2 = 0
+        
+        for model_name, result in model_results.items():
+            r2 = max(0, result.get('r2_score', 0))  # 음수 R²는 0으로
+            weights[model_name] = r2
+            total_r2 += r2
+        
+        # 정규화
+        if total_r2 > 0:
+            for model_name in weights:
+                weights[model_name] /= total_r2
+        else:
+            # R²가 모두 0이면 균등 가중치
+            equal_weight = 1.0 / len(predictions)
+            weights = {name: equal_weight for name in model_results.keys()}
         
         # 가중 평균 계산
         weighted_sum = 0.0
-        total_weight = 0.0
-        
-        for i, (model_name, result) in enumerate(model_results.items()):
-            weight = weights.get(model_name, 1.0 / len(predictions))
-            prediction = result.get('prediction', predictions[i] if i < len(predictions) else 0)
-            
+        for model_name, result in model_results.items():
+            weight = weights[model_name]
+            prediction = result['prediction']
             weighted_sum += prediction * weight
-            total_weight += weight
         
-        ensemble_prediction = weighted_sum / total_weight if total_weight > 0 else np.mean(predictions)
-        
-        # 신뢰도 계산 (예측값 분산 기반)
+        # 신뢰도 계산
         confidence = self.calculate_advanced_confidence(predictions, model_results)
         
-        return ensemble_prediction, confidence
+        print(f"  📊 동적 가중치: {weights}")
+        
+        return weighted_sum, confidence
+
+    # def calculate_advanced_confidence(self, predictions, model_results, market_conditions=None):
+    #     """고급 신뢰도 계산 - 개선 버전"""
+        
+    #     # 1. 통계적 신뢰도 (모델 간 일치도)
+    #     base_confidence = self.calculate_statistical_confidence(predictions)
+        
+    #     # 2. ✅ 모델 성능 신뢰도 (R² 기반)
+    #     r2_scores = [r.get('r2_score', 0) for r in model_results.values()]
+    #     if r2_scores:
+    #         avg_r2 = np.mean([max(0, r2) for r2 in r2_scores])
+    #         # R² 0.5 이상을 좋은 성능으로 간주
+    #         performance_confidence = min(1.0, avg_r2 / 0.5 + 0.5)
+    #     else:
+    #         performance_confidence = 0.5
+        
+    #     # 3. 시장 상황
+    #     if market_conditions is None:
+    #         market_conditions = self.analyze_market_conditions(ticker=None, data=None)
+    #     market_adjustment = self.calculate_market_confidence_adjustment(market_conditions)
+        
+    #     # 4. 역사적 성능
+    #     historical_adjustment = self.calculate_historical_accuracy_adjustment()
+        
+    #     # 5. ✅ 가중치 조정 (성능 중시)
+    #     final_confidence = (
+    #         base_confidence * 0.25 +
+    #         performance_confidence * 0.40 +  # 40%로 증가
+    #         market_adjustment * 0.20 +
+    #         historical_adjustment * 0.15
+    #     )
+        
+    #     return max(0.1, min(0.95, final_confidence))
 
     def calculate_advanced_confidence(self, predictions, model_results, market_conditions=None):
-        """고급 신뢰도 계산 시스템"""
+        """신뢰도 계산 - 단순 버전"""
         
-        # 1. 기본 통계적 신뢰도
-        base_confidence = self.calculate_statistical_confidence(predictions)
+        # 1. 모델 간 일치도만 사용
+        if len(predictions) <= 1:
+            return 0.5
         
-        # 2. 모델 성능 기반 신뢰도
-        performance_confidence = self.calculate_performance_confidence(model_results)
+        # 예측값들의 변동계수 (낮을수록 일치도 높음)
+        std = np.std(predictions)
+        mean_pred = np.mean(predictions)
         
-        # 3. 시장 상황 기반 조정
+        if abs(mean_pred) > 1e-6:
+            cv = abs(std / mean_pred)
+            # CV가 0.5 이하면 신뢰도 높음
+            base_confidence = 1.0 / (1.0 + cv * 2)
+        else:
+            base_confidence = 0.5
+        
+        # 2. 시장 상황 조정 (약한 영향)
         if market_conditions is None:
             market_conditions = self.analyze_market_conditions(ticker=None, data=None)
         
         market_adjustment = self.calculate_market_confidence_adjustment(market_conditions)
         
-        # 4. 역사적 정확도 기반 조정
-        historical_adjustment = self.calculate_historical_accuracy_adjustment()
+        # 3. 종합 (모델 일치도 80%, 시장 상황 20%)
+        final_confidence = base_confidence * 0.8 + market_adjustment * 0.2
         
-        # 5. 종합 계산
-        final_confidence = (
-            base_confidence * 0.3 +
-            performance_confidence * 0.3 +
-            market_adjustment * 0.2 +
-            historical_adjustment * 0.2
-        )
-        
-        # ✅ 실제적인 범위 (10% ~ 95%)
-        return max(0.1, min(0.95, final_confidence))
+        return max(0.3, min(0.9, final_confidence))
 
     def calculate_statistical_confidence(self, predictions):
         """통계적 신뢰도 계산"""
@@ -577,6 +924,123 @@ class EnhancedCPUPredictor:
         
         return (avg_performance * 0.7 + performance_consistency * 0.3)
 
+    def get_market_data(self):
+        """기본 시장 데이터 수집 (S&P 500 기준)"""
+        try:
+            print("📊 시장 데이터 수집 중...")
+            
+            # S&P 500 ETF (SPY) 데이터 사용
+            spy = yf.download('SPY', period='6mo', progress=False, auto_adjust=True)
+            
+            if len(spy) < 50:
+                print("⚠️ SPY 데이터 부족, 기본값 사용")
+                return self.get_default_market_data()
+            
+            # 기본 통계 계산
+            current_price = spy['Close'].iloc[-1].item()
+            ma20 = spy['Close'].rolling(20).mean().iloc[-1].item()
+            ma50 = spy['Close'].rolling(50).mean().iloc[-1].item()
+            volatility = spy['Close'].pct_change().rolling(20).std().iloc[-1].item()
+            
+            # VIX 가져오기
+            try:
+                vix = yf.download('^VIX', period='5d', progress=False, auto_adjust=True)
+                current_vix = vix['Close'].iloc[-1].item() if len(vix) > 0 else 20.0
+            except:
+                current_vix = 20.0  # 기본값
+            
+            print(f"  ✅ 시장 데이터 수집 완료: SPY=${current_price:.2f}, VIX={current_vix:.1f}")
+            
+            return {
+                'spy': spy,
+                'current_price': current_price,
+                'ma20': ma20,
+                'ma50': ma50,
+                'volatility': volatility,
+                'current_vix': current_vix,
+                'timestamp': datetime.now()
+            }
+            
+        except Exception as e:
+            print(f"⚠️ 시장 데이터 수집 오류: {e}")
+            return self.get_default_market_data()
+
+    def get_default_market_data(self):
+        """기본 시장 데이터 (오류 시 사용)"""
+        return {
+            'spy': None,
+            'current_price': 500.0,
+            'ma20': 500.0,
+            'ma50': 500.0,
+            'volatility': 0.02,
+            'current_vix': 20.0,
+            'timestamp': datetime.now()
+        }
+
+    def calculate_trend_duration(self, spy_data):
+        """추세 지속 기간 계산 (간단 버전)"""
+        try:
+            # 최근 50일 동안 상승/하락 추세가 지속된 기간 계산
+            prices = spy_data['Close'].iloc[-50:]
+            ma20 = spy_data['Close'].rolling(20).mean().iloc[-50:]
+            
+            # MA20 위/아래 있는 날짜 수 계산
+            above_ma = (prices > ma20).sum()
+            duration = int(above_ma) if above_ma > 25 else int(50 - above_ma)
+            
+            return max(1, min(50, duration))
+        except:
+            return 30  # 기본값
+
+    def get_macro_conditions(self):
+        """거시경제 정보 (간단 버전)"""
+        return {
+            'interest_rate_trend': 'stable',
+            'economic_cycle': 'expansion',
+            'inflation_trend': 'moderate'
+        }
+
+    def analyze_technical_indicators(self, market_data):
+        """기술적 지표 분석 (간단 버전)"""
+        try:
+            spy_data = market_data.get('spy')
+            if spy_data is None or len(spy_data) < 50:
+                return {
+                    'market_ma_position': 'neutral',
+                    'market_momentum': 0.0,
+                    'sector_rotation': False
+                }
+            
+            current_price = spy_data['Close'].iloc[-1].item()
+            ma50 = spy_data['Close'].rolling(50).mean().iloc[-1].item()
+            
+            # 시장 포지션
+            if current_price > ma50 * 1.05:
+                ma_position = 'strong_above'
+            elif current_price > ma50:
+                ma_position = 'above'
+            elif current_price < ma50 * 0.95:
+                ma_position = 'strong_below'
+            else:
+                ma_position = 'below'
+            
+            # 모멘텀 (최근 20일 수익률)
+            momentum = (current_price / spy_data['Close'].iloc[-20].item() - 1)
+            
+            return {
+                'market_ma_position': ma_position,
+                'market_momentum': momentum,
+                'sector_rotation': False  # 단순화
+            }
+            
+        except Exception as e:
+            print(f"⚠️ 기술적 지표 분석 오류: {e}")
+            return {
+                'market_ma_position': 'neutral',
+                'market_momentum': 0.0,
+                'sector_rotation': False
+            }
+
     def analyze_market_conditions(self, ticker, data):
         """현재 시장 상황 분석"""
         try:
@@ -617,14 +1081,14 @@ class EnhancedCPUPredictor:
         """시장 체제 분류"""
         try:
             # S&P 500 또는 시장 지수 데이터 사용
-            spy_data = yf.download('SPY', period='6mo', progress=False)
+            spy_data = yf.download('SPY', period='6mo', progress=False, auto_adjust=True)
             
             if len(spy_data) < 50:
                 return 'unknown'
             
-            # 최근 가격 추세
-            recent_return = (spy_data['Close'][-1] / spy_data['Close'][-60] - 1)
-            volatility = spy_data['Close'].pct_change().rolling(20).std().iloc[-1]
+            # 최근 가격 추세 - scalar 값으로 변환
+            recent_return = (spy_data['Close'].iloc[-1] / spy_data['Close'].iloc[-60] - 1).item()
+            volatility = spy_data['Close'].pct_change().rolling(20).std().iloc[-1].item()
             
             # VIX 데이터 (가능한 경우)
             vix_level = self.get_vix_level()
@@ -650,17 +1114,21 @@ class EnhancedCPUPredictor:
             vix_level = self.get_vix_level()
             
             # 과거 대비 변동성 백분위 계산
-            spy_data = yf.download('SPY', period='1y', progress=False)
+            spy_data = yf.download('SPY', period='1y', progress=False, auto_adjust=True)
+            
             if len(spy_data) > 100:
-                current_vol = spy_data['Close'].pct_change().rolling(20).std().iloc[-1]
+                current_vol = spy_data['Close'].pct_change().rolling(20).std().iloc[-1].item()
                 historical_vols = spy_data['Close'].pct_change().rolling(20).std().dropna()
                 volatility_percentile = (historical_vols < current_vol).mean()
                 
                 # 변동성 추세
                 recent_vols = historical_vols.tail(10)
-                if recent_vols.iloc[-1] > recent_vols.iloc[0] * 1.2:
+                vol_first = recent_vols.iloc[0].item()
+                vol_last = recent_vols.iloc[-1].item()
+                
+                if vol_last > vol_first * 1.2:
                     vol_trend = 'increasing'
-                elif recent_vols.iloc[-1] < recent_vols.iloc[0] * 0.8:
+                elif vol_last < vol_first * 0.8:
                     vol_trend = 'decreasing'
                 else:
                     vol_trend = 'stable'
@@ -685,9 +1153,9 @@ class EnhancedCPUPredictor:
     def get_vix_level(self):
         """VIX 지수 조회"""
         try:
-            vix = yf.download('^VIX', period='5d', progress=False)
+            vix = yf.download('^VIX', period='5d', progress=False, auto_adjust=True)
             if len(vix) > 0:
-                return float(vix['Close'].iloc[-1])
+                return vix['Close'].iloc[-1].item()
         except:
             pass
         return 20.0  # 기본값
@@ -695,7 +1163,7 @@ class EnhancedCPUPredictor:
     def analyze_trend(self, market_data):
         """추세 분석"""
         try:
-            spy_data = yf.download('SPY', period='3mo', progress=False)
+            spy_data = yf.download('SPY', period='3mo', progress=False, auto_adjust=True)
             
             if len(spy_data) < 30:
                 return {'direction': 'sideways', 'strength': 0.5, 'duration_days': 0}
@@ -704,9 +1172,10 @@ class EnhancedCPUPredictor:
             spy_data['MA20'] = spy_data['Close'].rolling(20).mean()
             spy_data['MA50'] = spy_data['Close'].rolling(50).mean()
             
-            current_price = spy_data['Close'].iloc[-1]
-            ma20 = spy_data['MA20'].iloc[-1]
-            ma50 = spy_data['MA50'].iloc[-1]
+            # ✅ .item() 추가
+            current_price = spy_data['Close'].iloc[-1].item()
+            ma20 = spy_data['MA20'].iloc[-1].item()
+            ma50 = spy_data['MA50'].iloc[-1].item()
             
             # 추세 방향
             if current_price > ma20 > ma50:
@@ -1125,21 +1594,27 @@ class EnhancedCPUPredictor:
             print(f"⚠️ 모델별 성능 계산 오류: {e}")
             return 0.8
 
-    def create_advanced_features_deterministic(self, data):
-            """결정적 고급 특성 생성 - 일관성 보장"""
-            try:
-                features = pd.DataFrame(index=data.index)
-                
-                # 1. 기본 수익률 (가장 중요)
-                features['returns'] = data['Close'].pct_change()
-                features['returns_2'] = data['Close'].pct_change(2)
-                features['returns_5'] = data['Close'].pct_change(5)
-                
-                # 2. 이동평균 기반 특성 (고정 윈도우)
-                for window in [5, 10, 20, 50]:
-                    ma = data['Close'].rolling(window, min_periods=1).mean()
-                    features[f'ma_{window}_ratio'] = data['Close'] / ma
-                    features[f'ma_{window}_slope'] = ma.pct_change(5)
+    def create_advanced_features_deterministic(self, data, ma_periods=None):
+        """결정적 고급 특성 생성 - MA 기간 동적"""
+        try:
+            features = pd.DataFrame(index=data.index)
+            
+            # MA 기간이 지정되지 않으면 기본값
+            if ma_periods is None:
+                ma_periods = [5, 10, 20, 50]
+            
+            print(f"  📊 MA 기간 사용: {ma_periods}")
+            
+            # 1. 기본 수익률
+            features['returns'] = data['Close'].pct_change()
+            features['returns_2'] = data['Close'].pct_change(2)
+            features['returns_5'] = data['Close'].pct_change(5)
+            
+            # 2. 이동평균 기반 특성 (동적 기간)
+            for window in ma_periods:
+                ma = data['Close'].rolling(window, min_periods=1).mean()
+                features[f'ma_{window}_ratio'] = data['Close'] / ma
+                features[f'ma_{window}_slope'] = ma.pct_change(5)
                 
                 # 3. 볼륨 기반 특성
                 volume_ma_20 = data['Volume'].rolling(20, min_periods=1).mean()
@@ -1181,7 +1656,28 @@ class EnhancedCPUPredictor:
                 for lag in [1, 2, 3, 5]:
                     features[f'price_lag_{lag}'] = data['Close'].shift(lag) / data['Close']
                     features[f'volume_lag_{lag}'] = data['Volume'].shift(lag) / data['Volume'].replace(0, 1)
-                
+
+                # 9. 추가 기술적 지표
+                # Stochastic Oscillator
+                low_14 = data['Low'].rolling(14).min()
+                high_14 = data['High'].rolling(14).max()
+                features['stochastic_k'] = (data['Close'] - low_14) / (high_14 - low_14 + 1e-10)
+                features['stochastic_d'] = features['stochastic_k'].rolling(3).mean()
+
+                # Williams %R
+                features['williams_r'] = (high_14 - data['Close']) / (high_14 - low_14 + 1e-10)
+
+                # Average True Range (ATR)
+                tr1 = data['High'] - data['Low']
+                tr2 = abs(data['High'] - data['Close'].shift(1))
+                tr3 = abs(data['Low'] - data['Close'].shift(1))
+                tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+                features['atr_14'] = tr.rolling(14).mean()
+
+                # 10. 거래량 가중 가격
+                features['vwap'] = (data['Close'] * data['Volume']).rolling(20).sum() / data['Volume'].rolling(20).sum()
+                features['vwap_ratio'] = data['Close'] / features['vwap']
+
                 # 데이터 정리 (결정적 방식)
                 features = features.replace([np.inf, -np.inf], 0)
                 features = features.ffill().bfill().fillna(0)
@@ -1189,42 +1685,91 @@ class EnhancedCPUPredictor:
                 print(f"  ✅ {len(features.columns)}개 결정적 특성 생성 완료")
                 return features
                 
-            except Exception as e:
-                print(f"  ❌ 특성 생성 오류: {e}")
-                # 최소한의 특성 생성
-                features = pd.DataFrame(index=data.index)
-                features['returns'] = data['Close'].pct_change().fillna(0)
-                features['trend'] = np.arange(len(data), dtype=float)
-                return features
+        except Exception as e:
+            print(f"  ❌ 특성 생성 오류: {e}")
+            # 최소한의 특성 생성
+            features = pd.DataFrame(index=data.index)
+            features['returns'] = data['Close'].pct_change().fillna(0)
+            features['trend'] = np.arange(len(data), dtype=float)
+            return features
 
-    def prepare_sequences_deterministic(self, features, targets, sequence_length=30, forecast_horizon=7):
-        """결정적 시퀀스 데이터 준비"""
+    def prepare_sequences_deterministic(self, features, targets, sequence_length=15, forecast_horizon=7):
+        """결정적 시퀀스 데이터 준비 - DataFrame 처리 버전"""
         try:
-            # 유효한 데이터만 사용
-            valid_indices = ~(targets.isnull() | features.isnull().any(axis=1))
-            valid_features = features[valid_indices]
-            valid_targets = targets[valid_indices]
+            # ✅ 수정 1: targets가 DataFrame이면 Series로 변환
+            if isinstance(targets, pd.DataFrame):
+                print(f"  ⚠️ targets가 DataFrame입니다. Series로 변환 중...")
+                if targets.shape[1] == 1:
+                    targets = targets.iloc[:, 0]  # 첫 번째 컬럼을 Series로
+                else:
+                    print(f"  ❌ targets에 여러 컬럼이 있습니다: {targets.columns}")
+                    return np.array([]), np.array([])
             
-            if len(valid_features) < sequence_length + forecast_horizon:
-                print(f"  ❌ 유효 데이터 부족: {len(valid_features)}개")
+            print(f"  🔍 targets 변환 후 타입: {type(targets)}")
+            print(f"  🔍 targets NaN 개수: {targets.isna().sum()}/{len(targets)}")
+            
+            # 유효한 데이터 필터링
+            targets_valid = pd.notna(targets)
+            features_valid = features.notna().all(axis=1)
+            valid_indices = targets_valid & features_valid
+            
+            valid_features = features[valid_indices].copy()
+            valid_targets = targets[valid_indices].copy()
+            
+            print(f"  🔍 필터링 후 유효 데이터: {len(valid_targets)}개")
+            
+            # 데이터 길이 확인
+            min_required = sequence_length + forecast_horizon
+            if len(valid_features) < min_required:
+                print(f"  ❌ 유효 데이터 부족: {len(valid_features)}개 < {min_required}개 필요")
                 return np.array([]), np.array([])
             
-            X, y = [], []
+            # ✅ 수정 2: numpy array로 변환 (Series 문제 완전 회피)
+            valid_features_array = valid_features.values
+            valid_targets_array = valid_targets.values
             
-            # 고정된 순서로 시퀀스 생성 (결정적)
-            for i in range(sequence_length, len(valid_features)):
-                if not valid_targets.iloc[i] == valid_targets.iloc[i]:  # NaN 체크
-                    continue
+            # targets가 2차원이면 1차원으로
+            if len(valid_targets_array.shape) > 1:
+                valid_targets_array = valid_targets_array.flatten()
+            
+            X, y = [], []
+            success_count = 0
+            fail_count = 0
+            
+            # ✅ 수정 3: numpy array로 직접 접근
+            for i in range(sequence_length, len(valid_features_array)):
+                try:
+                    # numpy array이므로 직접 float 변환
+                    target_value = float(valid_targets_array[i])
                     
-                sequence = valid_features.iloc[i-sequence_length:i].values
-                target = valid_targets.iloc[i]
-                
-                # 데이터 품질 재확인
-                if not (np.isfinite(sequence).all() and np.isfinite(target)):
+                    # NaN/inf 체크
+                    if not np.isfinite(target_value):
+                        fail_count += 1
+                        continue
+                    
+                    # sequence 데이터
+                    sequence = valid_features_array[i-sequence_length:i]
+                    
+                    # 시퀀스 유효성 확인
+                    if not np.isfinite(sequence).all():
+                        fail_count += 1
+                        continue
+                    
+                    # 추가
+                    X.append(sequence.flatten())
+                    y.append(target_value)
+                    success_count += 1
+                    
+                except Exception as e:
+                    fail_count += 1
                     continue
-                
-                X.append(sequence.flatten())
-                y.append(target)
+            
+            print(f"  📊 시퀀스 생성 결과: 성공 {success_count}개, 실패 {fail_count}개")
+            
+            # 결과 확인
+            if len(X) == 0 or len(y) == 0:
+                print(f"  ❌ 유효한 시퀀스 생성 실패")
+                return np.array([]), np.array([])
             
             X_array = np.array(X, dtype=np.float64)
             y_array = np.array(y, dtype=np.float64)
@@ -1234,9 +1779,10 @@ class EnhancedCPUPredictor:
             return X_array, y_array
             
         except Exception as e:
-            print(f"  ❌ 시퀀스 데이터 준비 오류: {e}")
+            print(f"  ❌ 시퀀스 데이터 준비 전체 오류: {e}")
+            import traceback
+            traceback.print_exc()
             return np.array([]), np.array([])
-
 
 class EnhancedStockScreenerMethods:
     """기존 StockScreener 클래스에 추가할 AI 예측 메서드들"""

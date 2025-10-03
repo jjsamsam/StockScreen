@@ -410,11 +410,33 @@ pip install scikit-learn xgboost lightgbm statsmodels
         
         ticker = self.ticker_input.text().strip().upper()
         days = self.days_input.value()
-        
+
         if not ticker:
             QMessageBox.warning(self, "오류", "종목 코드를 입력해주세요.")
             return
+
+        if days <= 5:
+            period_type = "단기"
+            description = "빠른 반응, 단기 패턴 포착"
+        elif days <= 14:
+            period_type = "중기"
+            description = "균형잡힌 설정"
+        else:
+            period_type = "장기"
+            description = "추세 중심, 장기 패턴"
+        reply = QMessageBox.question(
+            self, "예측 모드 확인",
+            f"📊 {ticker} 예측\n\n"
+            f"• 예측 기간: {days}일\n"
+            f"• 모드: {period_type} 최적화\n"
+            f"• 특징: {description}\n\n"
+            f"이 설정으로 예측하시겠습니까?",
+            QMessageBox.Yes | QMessageBox.No
+        )
         
+        if reply == QMessageBox.No:
+            return
+
         # UI 비활성화
         self.predict_btn.setEnabled(False)
         if hasattr(self, 'chart_btn'):
@@ -430,7 +452,6 @@ pip install scikit-learn xgboost lightgbm statsmodels
         # 비동기 예측 시작
         self.start_step_by_step_prediction()
 
-
     def on_prediction_finished_enhanced(self, result, error_msg):
         """Enhanced 예측 완료 처리 - 차트 버튼 활성화 추가"""
         self.predict_btn.setEnabled(True)
@@ -445,7 +466,7 @@ pip install scikit-learn xgboost lightgbm statsmodels
         
         # 결과 저장 및 표시
         self.last_result = result
-        self.display_enhanced_result(result)
+        self.display_results(result)
         
         # 기존 단순 차트도 표시 (기본)
         self.plot_prediction_timeseries(result)
@@ -459,11 +480,40 @@ pip install scikit-learn xgboost lightgbm statsmodels
                             f"✅ {result['ticker']} AI 예측이 완료되었습니다!\n\n"
                             f"📈 '예측 차트 보기' 버튼을 눌러 상세 차트를 확인하세요.")
 
+    def run_prediction_step(self, ticker, forecast_days):
+        """실제 예측 실행"""
+        try:
+            # predictor.predict_stock()이 자동으로 forecast_days에 맞게 최적화됨
+            result, error = self.predictor.predict_stock(ticker, forecast_days=forecast_days)
+            
+            # 결과 처리
+            self.on_prediction_finished_enhanced(result, error)
+            
+        except Exception as e:
+            self.on_prediction_finished_enhanced(None, str(e))
+
     def start_step_by_step_prediction(self):
         """단계별 예측 실행 - 진행률 표시와 함께"""
-        self.prediction_timer = QTimer()
-        self.prediction_timer.timeout.connect(self.execute_next_prediction_step)
-        self.prediction_timer.start(300)  # 300ms마다 다음 단계
+        # self.prediction_timer = QTimer()
+        # self.prediction_timer.timeout.connect(self.execute_next_prediction_step)
+        # self.prediction_timer.start(300)  # 300ms마다 다음 단계
+
+        """단계별 예측 실행"""
+        # 예측 기간 가져오기
+        forecast_days = self.days_input.value()
+        ticker = self.ticker_input.text().strip().upper()
+        
+        # 예측 기간 정보 표시
+        period_type = "단기" if forecast_days <= 5 else "중기" if forecast_days <= 14 else "장기"
+        self.result_area.append(f"\n{'='*50}")
+        self.result_area.append(f"📊 {ticker} {period_type} 예측 ({forecast_days}일)")
+        self.result_area.append(f"{'='*50}\n")
+        
+        # 진행률 초기화
+        self.current_step = 0
+        
+        # 비동기 예측 시작 (predictor가 자동으로 최적화)
+        QTimer.singleShot(100, lambda: self.run_prediction_step(ticker, forecast_days))
 
     def execute_next_prediction_step(self):
         """예측의 다음 단계 실행"""
@@ -1133,8 +1183,15 @@ class EnhancedStockSearchDialog(QDialog):
         self.setWindowTitle('🔍 Enhanced 종목 검색 (Master CSV)')
         self.setGeometry(300, 300, 700, 500)
         self.selected_ticker = None
-        self.initUI()
+        self.search_cache = {}  # 캐시 추가
+
+        # ✅ 디바운스 타이머 추가
+        self.search_timer = QTimer()
+        self.search_timer.setSingleShot(True)  # 한 번만 실행
+        self.search_timer.timeout.connect(self.perform_search)
         
+        self.initUI()
+
         # 초기 인기 종목 표시
         self.show_popular_stocks()
     
@@ -1142,7 +1199,7 @@ class EnhancedStockSearchDialog(QDialog):
         layout = QVBoxLayout()
         
         # 상단 정보
-        info_label = QLabel("💡 마스터 CSV에서 종목을 검색합니다 (한국, 미국, 스웨덴 전체)")
+        info_label = QLabel("💡 종목을 검색합니다")
         info_label.setStyleSheet("color: #2196F3; font-weight: bold; padding: 5px;")
         layout.addWidget(info_label)
         
@@ -1210,11 +1267,18 @@ class EnhancedStockSearchDialog(QDialog):
         self.setLayout(layout)
     
     def on_search_text_changed(self, text):
-        """텍스트 변경 시 자동 검색 (3글자 이상)"""
-        if len(text.strip()) >= 3:
-            self.perform_search()
-        elif len(text.strip()) == 0:
-            self.show_popular_stocks()
+        """검색어 변경 시 디바운싱 적용"""
+        # 기존 타이머 중지
+        self.search_timer.stop()
+        
+        if len(text) >= 3:
+            # 200ms 후 검색
+            self.search_timer.start(200)
+        else:
+            # 1-2자 입력 중이면 결과만 지우기
+            self.results_table.setRowCount(0)
+            if hasattr(self, 'status_label'):
+                self.status_label.setText("검색어를 더 입력하세요 (최소 3자)")
     
     def quick_search(self, ticker):
         """빠른 검색"""
@@ -1242,12 +1306,20 @@ class EnhancedStockSearchDialog(QDialog):
     def perform_search(self):
         """마스터 CSV에서 검색 수행"""
         query = self.search_input.text().strip()
-        if len(query) < 1:
+        
+        if query in self.search_cache:
+            print(f"💾 캐시 사용: {query}")
+            self.display_results(self.search_cache[query])
+            self.status_label.setText(f"✅ {len(self.search_cache[query])}개 종목 (캐시)")
+            return
+
+        if len(query) < 3:
             self.show_popular_stocks()
             return
         
         try:
             self.status_label.setText(f"'{query}' 검색 중...")
+            self.results_table.setRowCount(0)
             QApplication.processEvents()
             
             # 마스터 CSV에서 검색
@@ -1255,10 +1327,13 @@ class EnhancedStockSearchDialog(QDialog):
             self.display_results(results)
             
             if results:
-                self.status_label.setText(f"🔍 {len(results)}개 종목 발견 (매치점수순)")
+                self.status_label.setText(f"🔍 {len(results)}개 종목 발견")
             else:
                 self.status_label.setText("❌ 검색 결과가 없습니다")
-                
+
+            self.search_cache[query] = results
+            self.display_results(results)
+
         except Exception as e:
             self.status_label.setText(f"❌ 검색 오류: {str(e)}")
             print(f"검색 오류: {e}")
