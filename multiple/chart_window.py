@@ -18,6 +18,10 @@ import platform
 from utils import TechnicalAnalysis
 import unicodedata
 
+# 최적화 모듈 import
+from cache_manager import get_stock_data
+from matplotlib_optimizer import ChartManager
+
 def has_hangul(s):
     for ch in s:
         try:
@@ -74,21 +78,24 @@ def setup_korean_font():
 setup_korean_font()
 
 class StockChartWindow(QMainWindow):
-    """종목 차트 윈도우 - 개선된 버전"""
+    """종목 차트 윈도우 - 개선된 버전 (메모리 최적화)"""
     def __init__(self, symbol, name, parent=None):
         super().__init__(parent)
         self.symbol = symbol
         self.name = name
         self.technical_analyzer = TechnicalAnalysis()
-        
+
+        # 차트 메모리 관리자
+        self.chart_manager = ChartManager()
+
         # 한글 이름을 영문으로 변경 (폰트 문제 해결)
         display_name = name if not has_hangul(name) else symbol
-        
+
         self.setWindowTitle(f'📊 {symbol} ({display_name}) - Technical Analysis Chart')
-        
+
         # 윈도우 크기를 더 크게 설정
         self.setGeometry(100, 100, 1600, 1000)  # 1200x800 → 1600x1000
-        
+
         self.setup_ui()
         self.load_chart_data()
     
@@ -290,29 +297,34 @@ class StockChartWindow(QMainWindow):
             print(f"Chart loading error for {self.symbol}: {e}")
 
     def fetch_stock_data_with_retry(self, symbol, start_date, end_date):
-        """여러 방법으로 주식 데이터 시도"""
-        
-        # 1차 시도: 원래 심볼 그대로
+        """여러 방법으로 주식 데이터 시도 (캐싱 사용)"""
+
+        # 1차 시도: 원래 심볼 그대로 (캐싱 사용)
         try:
             print(f"📊 데이터 로딩 시도 1: {symbol}")
-            stock = yf.Ticker(symbol)
-            data = stock.history(start=start_date, end=end_date, timeout=10)
-            
-            if not data.empty:
+            # 기간 계산
+            days_diff = (end_date - start_date).days + 10
+            period_str = f"{days_diff}d"
+
+            data = get_stock_data(symbol, period=period_str)
+
+            if data is not None and not data.empty:
                 print(f"✅ 성공: {symbol} - {len(data)}개 데이터")
                 return data
         except Exception as e:
             print(f"❌ 1차 시도 실패: {e}")
-        
+
         # 2차 시도: 심볼 변형 (한국 주식의 경우)
         if '.KQ' in symbol:
             try:
                 alt_symbol = symbol.replace('.KQ', '.KS')
                 print(f"📊 데이터 로딩 시도 2: {alt_symbol} (.KQ → .KS)")
-                stock = yf.Ticker(alt_symbol)
-                data = stock.history(start=start_date, end=end_date, timeout=10)
-                
-                if not data.empty:
+                days_diff = (end_date - start_date).days + 10
+                period_str = f"{days_diff}d"
+
+                data = get_stock_data(alt_symbol, period=period_str)
+
+                if data is not None and not data.empty:
                     print(f"✅ 성공: {alt_symbol} - {len(data)}개 데이터")
                     return data
             except Exception as e:
@@ -322,42 +334,36 @@ class StockChartWindow(QMainWindow):
             try:
                 alt_symbol = symbol.replace('.KS', '.KQ')
                 print(f"📊 데이터 로딩 시도 2: {alt_symbol} (.KS → .KQ)")
-                stock = yf.Ticker(alt_symbol)
-                data = stock.history(start=start_date, end=end_date, timeout=10)
-                
-                if not data.empty:
+                days_diff = (end_date - start_date).days + 10
+                period_str = f"{days_diff}d"
+
+                data = get_stock_data(alt_symbol, period=period_str)
+
+                if data is not None and not data.empty:
                     print(f"✅ 성공: {alt_symbol} - {len(data)}개 데이터")
                     return data
             except Exception as e:
                 print(f"❌ 2차 시도 실패: {e}")
-        
-        # 3차 시도: 더 긴 기간으로 시도 (일부 종목은 최근 데이터가 없을 수 있음)
+
+        # 3차 시도: 더 긴 기간으로 시도
         try:
-            extended_start = start_date - timedelta(days=365)
             print(f"📊 데이터 로딩 시도 3: {symbol} (기간 확장)")
-            stock = yf.Ticker(symbol)
-            data = stock.history(start=extended_start, end=end_date, timeout=15)
-            
-            if not data.empty:
+            data = get_stock_data(symbol, period="1y")
+
+            if data is not None and not data.empty:
                 print(f"✅ 성공 (확장): {symbol} - {len(data)}개 데이터")
                 return data
         except Exception as e:
             print(f"❌ 3차 시도 실패: {e}")
-        
-        # 4차 시도: 기본 정보만 가져오기
+
+        # 4차 시도: 단기 데이터
         try:
-            print(f"📊 데이터 로딩 시도 4: {symbol} (기본 정보)")
-            stock = yf.Ticker(symbol)
-            info = stock.info
-            
-            if info:
-                # 기본 정보가 있으면 짧은 기간으로 다시 시도
-                short_start = end_date - timedelta(days=30)
-                data = stock.history(start=short_start, end=end_date, timeout=10)
-                
-                if not data.empty:
-                    print(f"✅ 성공 (단기): {symbol} - {len(data)}개 데이터")
-                    return data
+            print(f"📊 데이터 로딩 시도 4: {symbol} (단기)")
+            data = get_stock_data(symbol, period="1mo")
+
+            if data is not None and not data.empty:
+                print(f"✅ 성공 (단기): {symbol} - {len(data)}개 데이터")
+                return data
         except Exception as e:
             print(f"❌ 4차 시도 실패: {e}")
         
@@ -879,3 +885,14 @@ class StockChartWindow(QMainWindow):
         font = self.info_label.font()
         font.setPointSize(self.current_font_size)
         self.info_label.setFont(font)
+
+    def closeEvent(self, event):
+        """윈도우 닫을 때 메모리 정리"""
+        try:
+            # 차트 메모리 정리
+            self.chart_manager.close_all()
+            print("✅ 차트 메모리 정리 완료")
+        except Exception as e:
+            print(f"⚠️ 메모리 정리 오류: {e}")
+        finally:
+            event.accept()

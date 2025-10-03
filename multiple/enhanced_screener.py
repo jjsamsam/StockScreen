@@ -21,6 +21,9 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
+# 최적화 모듈 import
+from cache_manager import get_stock_data, get_ticker_info, get_cache_instance
+
 # 기본 라이브러리 가용성 확인
 try:
     from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
@@ -438,39 +441,33 @@ class EnhancedCPUPredictor:
         try:
             print(f"📊 {ticker} 일관성 예측 시작...")
             
-            # 1. 실제 현재가 조회
-            stock = yf.Ticker(ticker)
-            current_data = stock.history(period="2d")
-            
+            # 1. 실제 현재가 조회 (캐싱 사용)
+            current_data = get_stock_data(ticker, period="2d")
+
             # ✅ 수정: current_data 확인
             if current_data is None or current_data.empty or len(current_data) == 0:
                 return None, "현재가 데이터를 가져올 수 없습니다"
-            
+
             actual_current_price = float(current_data['Close'].iloc[-1])
             actual_current_date = current_data.index[-1]
             
-            # 2. 캐시 확인
+            # 2. 캐시 확인 (내부 캐시)
             data = self.get_cached_data(ticker)
-            
+
             if data is None:
                 print(f"  📥 {ticker} 데이터 다운로드 중...")
-                
+
                 days_needed = min_data_days + 100
                 period_param = f'{days_needed}d'
-                
-                data = yf.download(
-                    ticker,
-                    period=period_param,
-                    progress=False,
-                    threads=False,
-                    auto_adjust=True
-                )
-                
+
+                # 캐싱 매니저 사용 (중복 API 호출 방지)
+                data = get_stock_data(ticker, period=period_param)
+
                 # ✅ 수정: 데이터 확인
                 if data is None or data.empty or len(data) == 0:
                     return None, f"{ticker} 데이터를 가져올 수 없습니다"
-                
-                # ✅ 캐시에 저장
+
+                # ✅ 내부 캐시에도 저장
                 self.cache_data(ticker, data)
             else:
                 # 캐시된 데이터 사용
@@ -1366,14 +1363,12 @@ class EnhancedCPUPredictor:
             forecast_days = record['forecast_days']
             target_date = prediction_date + timedelta(days=forecast_days + 5)  # 여유 기간
             
-            # 실제 주가 데이터 조회
-            stock = yf.Ticker(ticker)
-            
-            # 예측일부터 목표일까지 데이터
-            actual_data = stock.history(
-                start=prediction_date.date(),
-                end=target_date.date()
-            )
+            # 실제 주가 데이터 조회 (캐싱 사용)
+            # 예측일부터 목표일까지의 기간 계산
+            days_diff = (target_date - prediction_date).days + 10
+            period_str = f"{days_diff}d"
+
+            actual_data = get_stock_data(ticker, period=period_str)
             
             if len(actual_data) < forecast_days:
                 return False  # 데이터 부족

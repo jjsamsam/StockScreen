@@ -24,6 +24,10 @@ from utils import MasterCSVThread, MasterFilterThread
 from trend_analysis import TrendTimingAnalyzer
 from backtesting_system import BacktestingDialog
 
+# 최적화 모듈 import
+from cache_manager import get_stock_data, get_ticker_info
+from unified_search import search_stocks
+
 # AI 예측 기능 통합 import
 try:
     from prediction_window import StockPredictionDialog
@@ -2439,29 +2443,31 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             return None
 
     def safe_get_stock_data(self, symbol, start_date, end_date):
-        """안전한 주식 데이터 가져오기"""
+        """안전한 주식 데이터 가져오기 (캐싱 사용)"""
         try:
-            stock = yf.Ticker(symbol)
-            
-            # 짧은 타임아웃으로 빠르게 시도
-            data = stock.history(start=start_date, end=end_date, timeout=5)
-            
-            if not data.empty:
+            # 기간 계산
+            days_diff = (end_date - start_date).days + 10
+            period_str = f"{days_diff}d"
+
+            # 캐싱 매니저 사용
+            data = get_stock_data(symbol, period=period_str)
+
+            if data is not None and not data.empty:
                 return data
-            
+
             print(f"⚠️ {symbol} - 빈 데이터")
             return None
-            
+
         except Exception as e:
             error_msg = str(e).lower()
-            
+
             if "delisted" in error_msg or "no timezone found" in error_msg:
                 print(f"⚠️ {symbol} - 상장폐지 또는 데이터 없음")
             elif "timeout" in error_msg:
                 print(f"⚠️ {symbol} - 타임아웃")
             else:
                 print(f"⚠️ {symbol} - 기타 오류: {e}")
-            
+
             return None
 
     def validate_stock_symbols(self, stock_list):
@@ -2473,12 +2479,11 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         
         for stock_info in stock_list:
             symbol = stock_info['ticker']
-            
+
             try:
-                # 빠른 기본 정보 체크
-                stock = yf.Ticker(symbol)
-                info = stock.info
-                
+                # 빠른 기본 정보 체크 (캐싱 사용)
+                info = get_ticker_info(symbol)
+
                 # 기본 정보가 있고 유효한 심볼이면
                 if info and info.get('symbol'):
                     valid_stocks.append(stock_info)
@@ -3069,16 +3074,8 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
     def show_simple_stock_info(self, symbol, name):
         """간단한 종목 정보 다이얼로그 (차트 대안)"""
         try:
-            # yfinance로 기본 정보 가져오기
-            import yfinance as yf
-            from datetime import datetime, timedelta
-            
-            stock = yf.Ticker(symbol)
-            
-            # 최근 1개월 데이터
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=30)
-            data = stock.history(start=start_date, end=end_date)
+            # 최근 1개월 데이터 (캐싱 사용)
+            data = get_stock_data(symbol, period="1mo")
             
             if len(data) == 0:
                 QMessageBox.warning(self, "데이터 없음", f"{symbol} 데이터를 가져올 수 없습니다.")
@@ -3956,15 +3953,15 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             
             for pattern in search_patterns:
                 try:
-                    ticker = yf.Ticker(pattern)
-                    info = ticker.info
-                    
+                    # 캐싱 사용
+                    info = get_ticker_info(pattern)
+
                     if info and info.get('symbol'):
                         name = info.get('longName') or info.get('shortName') or pattern
                         self.search_result_label.setText(f"🌐 온라인 발견: {name} ({pattern})")
                         self.show_stock_chart(pattern, name)
                         return True
-                        
+
                 except Exception as e:
                     continue
             

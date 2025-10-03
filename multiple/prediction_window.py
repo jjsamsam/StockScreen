@@ -25,6 +25,11 @@ import urllib.parse
 import os
 import json
 
+# 최적화 모듈 import
+from cache_manager import get_stock_data, get_ticker_info
+from unified_search import search_stocks
+from matplotlib_optimizer import safe_figure, ChartManager
+
 # Enhanced Screener의 예측기 import
 try:
     from enhanced_screener import EnhancedCPUPredictor
@@ -881,15 +886,10 @@ pip install scikit-learn xgboost lightgbm statsmodels
         forecast_days = result['days']
         
         try:
-            # 📊 1. 과거 데이터 가져오기 (최근 30일)
+            # 📊 1. 과거 데이터 가져오기 (최근 30일) - 캐싱 사용
             ticker = result['ticker']
-            import yfinance as yf
-            from datetime import datetime, timedelta
-            
-            stock = yf.Ticker(ticker)
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=45)
-            historical_data = stock.history(start=start_date, end=end_date)
+
+            historical_data = get_stock_data(ticker, period="45d")
             
             if len(historical_data) == 0:
                 print("⚠️ 과거 데이터 없음 - 단순 차트로 대체")
@@ -1629,101 +1629,46 @@ class EnhancedStockSearchDialog(QDialog):
         print("="*80)
 
     def search_master_csv(self, search_term):
-        """마스터 CSV 파일들에서 검색"""
-        import os
-        import pandas as pd
-        
-        found_stocks = []
-        seen_tickers = set()
-        search_term_upper = search_term.strip().upper()
-        
-        # 두 가지 가능한 위치 확인
-        possible_locations = [
-            # 첫 번째 우선순위: master_csv 폴더
-            [
-                'master_csv/korea_stocks_master.csv',
-                'master_csv/usa_stocks_master.csv', 
-                'master_csv/sweden_stocks_master.csv'
-            ],
-            # 두 번째 우선순위: stock_data 폴더
-            [
-                'stock_data/korea_stocks_master.csv',
-                'stock_data/usa_stocks_master.csv', 
-                'stock_data/sweden_stocks_master.csv'
-            ]
-        ]
-        
-        # 첫 번째로 찾은 위치 사용
-        master_files = []
-        for location_set in possible_locations:
-            if any(os.path.exists(f) for f in location_set):
-                master_files = location_set
-                break
-        
-        if not master_files:
-            print("⚠️ 마스터 CSV 파일을 찾을 수 없습니다")
-            return []
-        
-        for file_path in master_files:
-            if not os.path.exists(file_path):
-                continue
-                
-            try:
-                df = pd.read_csv(file_path, encoding='utf-8-sig')
-                
-                for _, row in df.iterrows():
-                    ticker = str(row.get('ticker', '')).strip()
-                    name = str(row.get('name', '')).strip()
-                    sector = str(row.get('sector', '')).strip()
-                    market = str(row.get('market', '')).strip()
-                    market_cap = row.get('market_cap', 0)
-                    
-                    if not ticker or ticker in seen_tickers:
-                        continue
-                    
-                    # 매칭 로직
-                    match_score = 0
-                    if ticker.upper() == search_term_upper:
-                        match_score = 100
-                    elif search_term_upper in ticker.upper():
-                        match_score = 80
-                    elif search_term_upper in name.upper():
-                        match_score = 70
-                    elif search_term_upper in sector.upper():
-                        match_score = 50
-                    
-                    if match_score > 0:
-                        # 시가총액 포맷팅
-                        market_cap_str = "N/A"
-                        if pd.notna(market_cap) and market_cap > 0:
-                            if market_cap >= 1e12:
-                                market_cap_str = f"{market_cap/1e12:.1f}T"
-                            elif market_cap >= 1e9:
-                                market_cap_str = f"{market_cap/1e9:.1f}B"
-                            elif market_cap >= 1e6:
-                                market_cap_str = f"{market_cap/1e6:.1f}M"
-                            else:
-                                market_cap_str = f"{market_cap:,.0f}"
-                        
-                        stock_info = {
-                            'ticker': ticker,
-                            'name': name,
-                            'sector': sector,
-                            'market_cap': market_cap_str,
-                            'market': market,
-                            'match_score': match_score,
-                            'raw_market_cap': market_cap
-                        }
-                        found_stocks.append(stock_info)
-                        seen_tickers.add(ticker)
-                        
-            except Exception as e:
-                print(f"⚠️ {file_path} 읽기 오류: {e}")
-                continue
-        
-        # 매치 점수와 시가총액 기준으로 정렬
-        found_stocks.sort(key=lambda x: (-x['match_score'], -x.get('raw_market_cap', 0)))
-        return found_stocks
+        """마스터 CSV 파일들에서 검색 - 통합 검색 모듈 사용"""
+        # ✅ 최적화: unified_search 사용 (96줄 → 3줄)
+        results = search_stocks(search_term)
+
+        # 기존 형식에 맞춰 변환 (match_score 추가)
+        for result in results:
+            ticker_upper = result['ticker'].upper()
+            name_upper = result['name'].upper()
+            search_upper = search_term.strip().upper()
+
+            # 매칭 점수 계산
+            if ticker_upper == search_upper:
+                match_score = 100
+            elif search_upper in ticker_upper:
+                match_score = 80
+            elif search_upper in name_upper:
+                match_score = 70
+            else:
+                match_score = 50
+
+            result['match_score'] = match_score
+            result['raw_market_cap'] = result.get('market_cap', 0)
+
+            # 시가총액 포맷팅
+            market_cap = result.get('market_cap', 0)
+            if pd.notna(market_cap) and market_cap > 0:
+                if market_cap >= 1e12:
+                    result['market_cap'] = f"{market_cap/1e12:.1f}T"
+                elif market_cap >= 1e9:
+                    result['market_cap'] = f"{market_cap/1e9:.1f}B"
+                elif market_cap >= 1e6:
+                    result['market_cap'] = f"{market_cap/1e6:.1f}M"
+                else:
+                    result['market_cap'] = f"{market_cap:,.0f}"
+            else:
+                result['market_cap'] = "N/A"
+
+        # 매치 점수와 시가총액으로 정렬
+        results.sort(key=lambda x: (-x.get('match_score', 0), -x.get('raw_market_cap', 0)))
+        return results
     
     # def display_results(self, results):
     #     """검색 결과 표시"""
@@ -1986,12 +1931,8 @@ class PredictionChartDialog(QDialog):
         try:
             # 과거 데이터 더 많이 표시 (60일)
             import yfinance as yf
-            from datetime import datetime, timedelta
-            
-            stock = yf.Ticker(ticker)
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=90)
-            historical_data = stock.history(start=start_date, end=end_date)
+            # 과거 데이터 가져오기 (캐싱 사용)
+            historical_data = get_stock_data(ticker, period="90d")
             
             if len(historical_data) > 0:
                 # 과거 60일 표시
