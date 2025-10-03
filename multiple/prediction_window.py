@@ -155,7 +155,13 @@ pip install scikit-learn xgboost lightgbm statsmodels
         self.predict_btn = QPushButton('🚀 AI 예측 시작')
         self.predict_btn.clicked.connect(self.start_prediction_enhanced)  # 새로운 함수 연결
         button_layout.addWidget(self.predict_btn)
-        
+
+        # 백테스팅 버튼 추가
+        self.backtest_btn = QPushButton('🔬 백테스팅')
+        self.backtest_btn.setToolTip('과거 데이터로 예측 알고리즘 검증')
+        self.backtest_btn.clicked.connect(self.run_backtest)
+        button_layout.addWidget(self.backtest_btn)
+
         # ✨ 새로운 예측 차트 버튼
         self.chart_btn = QPushButton('📈 예측 차트 보기')
         self.chart_btn.clicked.connect(self.show_prediction_chart)
@@ -1110,6 +1116,76 @@ pip install scikit-learn xgboost lightgbm statsmodels
             QMessageBox.information(self, "저장 완료", f"Enhanced 예측 결과가 {filename}에 저장되었습니다.")
         except Exception as e:
             QMessageBox.critical(self, "저장 오류", f"파일 저장 중 오류: {str(e)}")
+
+
+    def run_backtest(self):
+        """백테스팅 실행"""
+        ticker = self.ticker_input.text().strip().upper()
+        days = self.days_input.value()
+        
+        if not ticker:
+            QMessageBox.warning(self, "오류", "종목 코드를 입력해주세요.")
+            return
+        
+        reply = QMessageBox.question(
+            self, "백테스팅",
+            f"{ticker} 예측 알고리즘을 과거 데이터로 검증합니다.\n\n"
+            f"• 예측 기간: {days}일\n"
+            f"• 테스트 횟수: 30회\n\n"
+            f"시간이 다소 걸릴 수 있습니다. 계속하시겠습니까?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply == QMessageBox.No:
+            return
+        
+        # UI 비활성화
+        self.backtest_btn.setEnabled(False)
+        self.result_area.setText("백테스팅 진행 중...\n")
+        QApplication.processEvents()
+        
+        # 백테스팅 실행
+        try:
+            summary, error = self.predictor.backtest_predictions(ticker, test_periods=30, forecast_days=days)
+            
+            if error:
+                QMessageBox.critical(self, "오류", f"백테스팅 실패:\n{error}")
+                return
+            
+            # 결과 표시
+            self.display_backtest_results(summary)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "오류", f"백테스팅 중 오류:\n{str(e)}")
+        finally:
+            self.backtest_btn.setEnabled(True)
+
+    def display_backtest_results(self, summary):
+        """백테스팅 결과 표시"""
+        result_text = f"""
+    {'='*60}
+    🔬 {summary['ticker']} 백테스팅 결과
+    {'='*60}
+
+    📊 전체 통계:
+    • 테스트 횟수: {summary['test_count']}회
+    • 방향 정확도: {summary['direction_accuracy']*100:.1f}%
+    • 평균 오차: {summary['avg_magnitude_error']*100:.2f}%
+
+    📈 개별 결과:
+    """
+        
+        for i, r in enumerate(summary['results'], 1):
+            direction = "✅" if r['direction_correct'] else "❌"
+            result_text += f"""
+    {i}. {r['date'].strftime('%Y-%m-%d')}
+        예측: {r['predicted_return']*100:+.2f}% → 실제: {r['actual_return']*100:+.2f}%
+        {direction} 방향 {'정확' if r['direction_correct'] else '틀림'}
+    """
+        
+        result_text += f"\n{'='*60}"
+        
+        self.result_area.setText(result_text)
 
 # ===============================================
 # 기존 검색 다이얼로그들 (변경 없음)

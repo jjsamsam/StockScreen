@@ -1784,6 +1784,168 @@ class EnhancedCPUPredictor:
             traceback.print_exc()
             return np.array([]), np.array([])
 
+    def backtest_predictions(self, ticker, test_periods=10, forecast_days=7):
+        """
+        과거 데이터로 예측 알고리즘 검증
+        
+        Args:
+            ticker: 종목 코드
+            test_periods: 테스트할 기간 수 (예: 10 = 10번 예측)
+            forecast_days: 예측 기간
+        
+        Returns:
+            검증 결과 딕셔너리
+        """
+        print(f"\n{'='*60}")
+        print(f"🔬 {ticker} 백테스팅 시작")
+        print(f"   • 테스트 기간: {test_periods}회")
+        print(f"   • 예측 기간: {forecast_days}일")
+        print(f"{'='*60}\n")
+        
+        # 전체 데이터 다운로드
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=365 * 2)  # 2년 데이터
+        
+        data = yf.download(ticker, start=start_date, end=end_date, progress=False, auto_adjust=True)
+        
+        if len(data) < 300:
+            return None, "데이터 부족"
+        
+        results = []
+        
+        # 각 테스트 기간마다 예측 실행
+        for i in range(test_periods):
+            # 예측 시점 설정 (뒤에서부터 역순으로)
+            prediction_point = len(data) - (test_periods - i) * forecast_days - forecast_days
+            
+            if prediction_point < 300:
+                continue
+            
+            # 예측 시점까지의 데이터만 사용
+            train_data = data.iloc[:prediction_point].copy()
+            
+            # 실제 미래 가격 (정답)
+            actual_future_point = prediction_point + forecast_days
+            if actual_future_point >= len(data):
+                continue
+            
+            actual_price = float(data['Close'].iloc[actual_future_point])
+            current_price = float(train_data['Close'].iloc[-1])
+            actual_return = (actual_price / current_price - 1)
+            
+            prediction_date = train_data.index[-1]
+            
+            print(f"\n📅 테스트 {i+1}/{test_periods}: {prediction_date.strftime('%Y-%m-%d')}")
+            print(f"   현재가: ${current_price:.2f}")
+            
+            # 예측 실행 (과거 시점에서)
+            try:
+                predicted_return = self.predict_with_historical_data(
+                    train_data, forecast_days
+                )
+                
+                if predicted_return is None:
+                    print(f"   ⚠️ 예측 실패")
+                    continue
+                
+                predicted_price = current_price * (1 + predicted_return)
+                
+                # 정확도 계산
+                direction_correct = (predicted_return * actual_return > 0)
+                magnitude_error = abs(predicted_return - actual_return)
+                
+                result = {
+                    'date': prediction_date,
+                    'current_price': float(current_price),
+                    'predicted_price': float(predicted_price),
+                    'predicted_return': float(predicted_return),
+                    'actual_price': float(actual_price),
+                    'actual_return': float(actual_return),
+                    'direction_correct': direction_correct,
+                    'magnitude_error': float(magnitude_error),
+                    'accuracy_score': 1.0 if direction_correct else 0.0
+                }
+                
+                results.append(result)
+                
+                print(f"   예측: {predicted_return*100:+.2f}% → 실제: {actual_return*100:+.2f}%")
+                print(f"   방향: {'✅ 정확' if direction_correct else '❌ 틀림'}")
+                
+            except Exception as e:
+                print(f"   ⚠️ 오류: {e}")
+                continue
+        
+        # 전체 통계
+        if not results:
+            return None, "테스트 결과 없음"
+        
+        direction_accuracy = sum(r['direction_correct'] for r in results) / len(results)
+        avg_magnitude_error = np.mean([r['magnitude_error'] for r in results])
+        
+        summary = {
+            'ticker': ticker,
+            'test_count': len(results),
+            'direction_accuracy': direction_accuracy,
+            'avg_magnitude_error': avg_magnitude_error,
+            'results': results
+        }
+        
+        print(f"\n{'='*60}")
+        print(f"📊 백테스팅 결과 요약")
+        print(f"{'='*60}")
+        print(f"✅ 성공한 테스트: {len(results)}/{test_periods}회")
+        print(f"📈 방향 정확도: {direction_accuracy*100:.1f}%")
+        print(f"📉 평균 오차: {avg_magnitude_error*100:.2f}%")
+        print(f"{'='*60}\n")
+        
+        return summary, None
+
+    def predict_with_historical_data(self, historical_data, forecast_days):
+        """과거 데이터만으로 예측 (백테스팅용)"""
+        try:
+            # 기존 predict_stock의 핵심 로직만 사용
+            self.fix_all_random_seeds(42)
+            
+            # 특성 생성
+            features = self.create_advanced_features_deterministic(historical_data)
+            
+            # 미래 수익률 계산
+            future_returns = historical_data['Close'].pct_change(forecast_days).shift(-forecast_days)
+            
+            # 시퀀스 준비
+            X, y = self.prepare_sequences_deterministic(
+                features, future_returns, 
+                sequence_length=15, 
+                forecast_horizon=forecast_days
+            )
+            
+            if len(X) == 0:
+                return None
+            
+            # 전체 데이터로 학습
+            X_train = X
+            y_train = y
+            latest_X = X[-1].reshape(1, -1)
+            
+            # 모델 예측
+            predictions = []
+            for model_name, model in self.models.items():
+                try:
+                    model.fit(X_train, y_train)
+                    pred = model.predict(latest_X)[0]
+                    predictions.append(pred)
+                except:
+                    continue
+            
+            if not predictions:
+                return None
+            
+            return float(np.mean(predictions))
+            
+        except Exception as e:
+            print(f"      예측 오류: {e}")
+            return None
+
 class EnhancedStockScreenerMethods:
     """기존 StockScreener 클래스에 추가할 AI 예측 메서드들"""
     
