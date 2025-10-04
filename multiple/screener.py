@@ -829,12 +829,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         # 레이아웃을 메인에 추가
         layout.addLayout(search_conditions_layout)
 
-        # 3. 종목 현황 패널 (기존) - 고정 높이
-        status_panel = self.create_status_panel()
-        status_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        layout.addWidget(status_panel)
-
-        # 4. 결과 테이블들 (기존) - 확장 가능, 최대 공간 차지
+        # 3. 결과 테이블들 - 확장 가능, 최대 공간 차지
         tables_widget = self.create_tables()
         tables_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(tables_widget, stretch=1)  # stretch 추가로 최대 공간 할당
@@ -981,12 +976,33 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         group = QGroupBox("검색 조건 설정")
         layout = QGridLayout()
         
-        # 첫 번째 행: 시장 선택
+        # 첫 번째 행: 시장 선택 + 종목 현황
         layout.addWidget(QLabel("시장 선택:"), 0, 0)
         self.market_combo = QComboBox()
         self.market_combo.addItems(["전체", "한국 (KOSPI/KOSDAQ)", "미국 (NASDAQ/NYSE)", "스웨덴 (OMX)"])
         self.market_combo.currentTextChanged.connect(self.update_stock_count)
         layout.addWidget(self.market_combo, 0, 1)
+
+        # 종목 현황을 시장 선택 우측에 배치 (HBoxLayout으로 밀집 배치)
+        status_container = QWidget()
+        status_layout = QHBoxLayout(status_container)
+        status_layout.setContentsMargins(10, 0, 0, 0)
+        status_layout.setSpacing(15)
+
+        status_layout.addWidget(QLabel("📊 종목 현황:"))
+
+        self.korea_count_label = QLabel("🇰🇷 한국: 0개")
+        self.usa_count_label = QLabel("🇺🇸 미국: 0개")
+        self.sweden_count_label = QLabel("🇸🇪 스웨덴: 0개")
+        self.total_count_label = QLabel("🌍 전체: 0개")
+
+        status_layout.addWidget(self.korea_count_label)
+        status_layout.addWidget(self.usa_count_label)
+        status_layout.addWidget(self.sweden_count_label)
+        status_layout.addWidget(self.total_count_label)
+        status_layout.addStretch()
+
+        layout.addWidget(status_container, 0, 2, 1, 4)  # 2~5 컬럼 차지
         
         # 두 번째 행: 시가총액 필터링 옵션들
         mcap_group = QGroupBox("🏆 시가총액 필터링")
@@ -1112,41 +1128,43 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         csv_group.setLayout(csv_layout)
         layout.addWidget(csv_group, 2, 0, 1, 6)  # 행 2에 배치
         
-        # 네 번째 행: 기본 매수 조건
+        # 네 번째 행: 기본 매수 조건 - 2열 레이아웃
         buy_group = QGroupBox("💰 기본 매수 조건")
-        buy_layout = QVBoxLayout()
-        
+        buy_layout = QGridLayout()
+        buy_layout.setSpacing(3)
+
         self.ma_condition = QCheckBox("최근 60일선이 120일선 돌파 + 우상향 + 이평선 터치")
-        buy_layout.addWidget(self.ma_condition)
-        
+        buy_layout.addWidget(self.ma_condition, 0, 0)
+
         self.bb_condition = QCheckBox("볼린저밴드 하단 터치 + RSI < 35")
-        buy_layout.addWidget(self.bb_condition)
-        
+        buy_layout.addWidget(self.bb_condition, 0, 1)
+
         self.support_condition = QCheckBox("MACD 골든 크로스 + 거래량 증가")
-        buy_layout.addWidget(self.support_condition)
-        
+        buy_layout.addWidget(self.support_condition, 1, 0)
+
         self.momentum_condition = QCheckBox("20일 상대강도 상승 + 펀더멘털 양호")
-        buy_layout.addWidget(self.momentum_condition)
-        
+        buy_layout.addWidget(self.momentum_condition, 1, 1)
+
         buy_group.setLayout(buy_layout)
         layout.addWidget(buy_group, 3, 0, 1, 3)  # 행 3, 컬럼 0-2
-        
-        # 다섯 번째 행: 기본 매도 조건
+
+        # 다섯 번째 행: 기본 매도 조건 - 2열 레이아웃
         sell_group = QGroupBox("📉 기본 매도 조건")
-        sell_layout = QVBoxLayout()
-        
+        sell_layout = QGridLayout()
+        sell_layout.setSpacing(3)
+
         self.tech_sell = QCheckBox("데드크로스 + 60일선 3% 하향이탈")
-        sell_layout.addWidget(self.tech_sell)
-        
+        sell_layout.addWidget(self.tech_sell, 0, 0)
+
         self.profit_sell = QCheckBox("20% 수익달성 또는 -7% 손절")
-        sell_layout.addWidget(self.profit_sell)
-        
+        sell_layout.addWidget(self.profit_sell, 0, 1)
+
         self.bb_sell = QCheckBox("볼린저 상단 + RSI > 70")
-        sell_layout.addWidget(self.bb_sell)
-        
+        sell_layout.addWidget(self.bb_sell, 1, 0)
+
         self.volume_sell = QCheckBox("거래량 급감 + 모멘텀 약화")
-        sell_layout.addWidget(self.volume_sell)
-        
+        sell_layout.addWidget(self.volume_sell, 1, 1)
+
         sell_group.setLayout(sell_layout)
         layout.addWidget(sell_group, 3, 3, 1, 3)  # 행 3, 컬럼 3-5
 
@@ -1189,31 +1207,6 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
 
         # 그룹박스 자체도 세로 확장 금지
         group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        return group
-    
-    def create_status_panel(self):
-        """종목 현황 패널"""
-        group = QGroupBox("📊 종목 현황")
-        layout = QHBoxLayout()
-        
-        self.korea_count_label = QLabel("🇰🇷 한국: 0개")
-        self.usa_count_label = QLabel("🇺🇸 미국: 0개")
-        self.sweden_count_label = QLabel("🇸🇪 스웨덴: 0개")
-        self.total_count_label = QLabel("🌍 전체: 0개")
-        
-        layout.addWidget(self.korea_count_label)
-        layout.addWidget(self.usa_count_label)
-        layout.addWidget(self.sweden_count_label)
-        layout.addWidget(self.total_count_label)
-        layout.addStretch()
-        
-        group.setLayout(layout)
-
-        # 종목 현황 패널 크기 고정 - 핵심!
-        group.setMaximumHeight(80)  # 최대 높이 제한
-        group.setMinimumHeight(80)  # 최소 높이도 고정
-        group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-
         return group
     
     def create_master_csv(self):
