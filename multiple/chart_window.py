@@ -92,6 +92,18 @@ class StockChartWindow(QMainWindow):
         # 차트 메모리 관리자
         self.chart_manager = ChartManager()
 
+        # 십자선 관련 변수 (여러 subplot 지원)
+        self.crosshair_hline = None  # 가로선 (클릭한 subplot에만)
+        self.crosshair_vlines = []   # 세로선 (모든 subplot에)
+        self.crosshair_text = None
+        self.crosshair_visible = False
+
+        # 매매 신호 관련 변수
+        self.show_signals = False
+        self.buy_signals = []  # (날짜, 강도) 튜플 리스트
+        self.sell_signals = []  # (날짜, 강도) 튜플 리스트
+        self.signal_annotations = []
+
         # 한글 이름을 영문으로 변경 (폰트 문제 해결)
         display_name = name if not has_hangul(name) else symbol
 
@@ -117,6 +129,11 @@ class StockChartWindow(QMainWindow):
         # 차트 영역 (확장 가능)
         self.figure = Figure(figsize=(16, 12))
         self.canvas = FigureCanvas(self.figure)
+
+        # 마우스 이벤트 연결
+        self.canvas.mpl_connect('button_press_event', self.on_mouse_press)
+        self.canvas.mpl_connect('button_release_event', self.on_mouse_release)
+
         layout.addWidget(self.canvas, stretch=3)  # 차트가 더 많은 공간 차지
         
         # 하단 정보 패널 (높이 증가 + 스크롤)
@@ -141,7 +158,7 @@ class StockChartWindow(QMainWindow):
         layout.addWidget(QLabel("Layout:"))
         self.layout_combo = QComboBox()
         self.layout_combo.addItems(["Standard (5 Charts)", "Compact (3 Charts)", "Price Focus (2 Charts)"])
-        self.layout_combo.setCurrentText("Standard (5 Charts)")
+        self.layout_combo.setCurrentText("Price Focus (2 Charts)")
         self.layout_combo.currentTextChanged.connect(self.load_chart_data)
         layout.addWidget(self.layout_combo)
         
@@ -154,7 +171,13 @@ class StockChartWindow(QMainWindow):
         fullscreen_btn = QPushButton("🖥️ Fullscreen")
         fullscreen_btn.clicked.connect(self.toggle_fullscreen)
         layout.addWidget(fullscreen_btn)
-        
+
+        # 스크리닝 신호 표시 버튼 추가
+        self.show_signals_btn = QPushButton("🎯 Show Buy/Sell Signals")
+        self.show_signals_btn.clicked.connect(self.toggle_trading_signals)
+        self.show_signals_btn.setCheckable(True)
+        layout.addWidget(self.show_signals_btn)
+
         layout.addStretch()
         group.setLayout(layout)
         return group
@@ -289,6 +312,9 @@ class StockChartWindow(QMainWindow):
                 display_rows = min(display_days, len(data))
                 display_data = data.tail(display_rows)
                 logger.warning(f"날짜 필터링 실패, 최근 {display_rows}개 데이터 사용")
+
+            # 데이터 저장 (신호 감지용)
+            self.data = data  # 전체 데이터 (기술적 지표 포함)
 
             self.plot_chart(display_data)
             self.update_info_panel(display_data)
@@ -620,6 +646,47 @@ class StockChartWindow(QMainWindow):
         ax.bar(dates_np[down], (c - o)[down], bottom=o[down], width=bar_width,
                color='blue', edgecolor='blue', linewidth=0.5, align='center')
 
+        # 매매 신호 화살표 표시
+        if self.show_signals:
+            self._plot_trading_signals(ax, data)
+
+    def _plot_trading_signals(self, ax, data):
+        """매매 신호 화살표 그리기 - 강도별 크기 차별화"""
+        logger.info(f"화살표 그리기: 매수 {len(self.buy_signals)}개, 매도 {len(self.sell_signals)}개")
+
+        # 강도별 폰트 크기 매핑 (0:없음, 25:10, 50:15, 75:20, 100:25)
+        def get_fontsize(strength):
+            size_map = {0: 0, 25: 12, 50: 16, 75: 20, 100: 24}
+            return size_map.get(strength, 15)
+
+        # 매수 신호 - 빨간색 위쪽 화살표 (강도별 크기)
+        buy_count = 0
+        for buy_signal in self.buy_signals:
+            buy_date, strength = buy_signal
+            if buy_date in data.index:
+                price = data.loc[buy_date, 'Low'] * 0.98  # 최저가보다 약간 아래
+                fontsize = get_fontsize(strength)
+                ax.annotate('▲', xy=(buy_date, price),
+                           xytext=(0, -15), textcoords='offset points',
+                           fontsize=fontsize, color='red', ha='center',
+                           weight='bold', alpha=0.8)
+                buy_count += 1
+
+        # 매도 신호 - 파란색 아래쪽 화살표 (강도별 크기)
+        sell_count = 0
+        for sell_signal in self.sell_signals:
+            sell_date, strength = sell_signal
+            if sell_date in data.index:
+                price = data.loc[sell_date, 'High'] * 1.02  # 최고가보다 약간 위
+                fontsize = get_fontsize(strength)
+                ax.annotate('▼', xy=(sell_date, price),
+                           xytext=(0, 15), textcoords='offset points',
+                           fontsize=fontsize, color='blue', ha='center',
+                           weight='bold', alpha=0.8)
+                sell_count += 1
+
+        logger.info(f"화살표 표시 완료: 매수 {buy_count}개, 매도 {sell_count}개 (표시 영역 내)")
+
     def _format_dates(self, axes, data):
         """날짜 포맷 설정 - 기간별 최적화"""
         data_length = len(data)
@@ -889,6 +956,211 @@ class StockChartWindow(QMainWindow):
         font = self.info_label.font()
         font.setPointSize(self.current_font_size)
         self.info_label.setFont(font)
+
+    def on_mouse_press(self, event):
+        """마우스 누를 때 십자선 표시"""
+        if event.inaxes is None:
+            return
+        self.draw_crosshair(event)
+
+    def on_mouse_release(self, event):
+        """마우스 뗄 때 십자선 제거"""
+        self.remove_crosshair()
+
+    def draw_crosshair(self, event):
+        """십자선 그리기 - 모든 subplot에 세로선 표시"""
+        if event.inaxes is None:
+            return
+
+        ax = event.inaxes
+        x, y = event.xdata, event.ydata
+
+        # 기존 십자선 제거
+        self.remove_crosshair()
+
+        # 가로선은 클릭한 subplot에만 그리기
+        self.crosshair_hline = ax.axhline(y, color='black', linewidth=0.5, linestyle='-', alpha=0.8)
+
+        # 세로선은 모든 subplot에 그리기
+        for subplot_ax in self.figure.get_axes():
+            vline = subplot_ax.axvline(x, color='black', linewidth=0.5, linestyle='-', alpha=0.8)
+            self.crosshair_vlines.append(vline)
+
+        # 값 표시 텍스트
+        try:
+            # x축이 날짜인 경우 변환
+            if hasattr(ax, 'get_xlim'):
+                xlim = ax.get_xlim()
+                if x >= xlim[0] and x <= xlim[1]:
+                    date_str = mdates.num2date(x).strftime('%Y-%m-%d')
+                else:
+                    date_str = f"X: {x:.2f}"
+            else:
+                date_str = f"X: {x:.2f}"
+        except:
+            date_str = f"X: {x:.2f}"
+
+        text = f"{date_str}\nY: {y:.2f}"
+        self.crosshair_text = ax.text(0.02, 0.98, text, transform=ax.transAxes,
+                                      fontsize=10, verticalalignment='top',
+                                      bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+
+        self.crosshair_visible = True
+        self.canvas.draw()
+
+    def remove_crosshair(self):
+        """십자선 제거"""
+        # 가로선 제거
+        if self.crosshair_hline:
+            self.crosshair_hline.remove()
+            self.crosshair_hline = None
+
+        # 모든 세로선 제거
+        for vline in self.crosshair_vlines:
+            vline.remove()
+        self.crosshair_vlines = []
+
+        # 텍스트 제거
+        if self.crosshair_text:
+            self.crosshair_text.remove()
+            self.crosshair_text = None
+
+        self.crosshair_visible = False
+        self.canvas.draw()
+
+    def toggle_trading_signals(self):
+        """매매 신호 표시 토글"""
+        self.show_signals = self.show_signals_btn.isChecked()
+
+        if self.show_signals:
+            # 신호 계산 및 표시
+            self.detect_trading_signals()
+            self.load_chart_data()  # 차트 다시 그리기
+        else:
+            # 신호 제거
+            self.buy_signals = []
+            self.sell_signals = []
+            self.load_chart_data()  # 차트 다시 그리기
+
+    def detect_trading_signals(self):
+        """매매 신호 감지 - 스크리닝 조건 활용"""
+        if not hasattr(self, 'data') or self.data is None:
+            logger.warning("데이터가 없어 신호 감지 불가")
+            return
+
+        if len(self.data) < 120:
+            logger.warning(f"데이터 부족: {len(self.data)}개 (최소 120개 필요)")
+            return
+
+        self.buy_signals = []
+        self.sell_signals = []
+
+        logger.info(f"신호 감지 시작: {len(self.data)}개 데이터")
+
+        # 매일 조건 체크
+        for i in range(120, len(self.data)):
+            data_slice = self.data.iloc[:i+1].copy()
+            date = self.data.index[i]
+
+            # 매수 조건 체크 (4가지 조건)
+            buy_strength = self.check_buy_signal_strength(data_slice)
+            if buy_strength > 0:
+                self.buy_signals.append((date, buy_strength))
+                logger.info(f"매수 신호: {date.strftime('%Y-%m-%d')} (강도: {buy_strength})")
+
+            # 매도 조건 체크 (4가지 조건)
+            sell_strength = self.check_sell_signal_strength(data_slice)
+            if sell_strength > 0:
+                self.sell_signals.append((date, sell_strength))
+                logger.info(f"매도 신호: {date.strftime('%Y-%m-%d')} (강도: {sell_strength})")
+
+        logger.info(f"✅ 매수 신호: {len(self.buy_signals)}개, 매도 신호: {len(self.sell_signals)}개")
+
+    def check_buy_signal_strength(self, data):
+        """매수 신호 강도 체크 - 4가지 조건 (0/25/50/75/100)"""
+        try:
+            current = data.iloc[-1]
+            strength = 0
+
+            # 조건 1: 60일선이 120일선 상향돌파 + 현재가 > 60일선 (25점)
+            if current['MA60'] > current['MA120'] and current['Close'] > current['MA60']:
+                for i in range(max(0, len(data)-10), len(data)):
+                    if i > 0:
+                        prev = data.iloc[i-1]
+                        curr = data.iloc[i]
+                        if prev['MA60'] <= prev['MA120'] and curr['MA60'] > curr['MA120']:
+                            strength += 25
+                            break
+
+            # 조건 2: 볼린저밴드 하단 터치 + RSI < 35 (25점)
+            if 'BB_lower' in current and 'RSI' in current:
+                if current['Close'] <= current['BB_lower'] * 1.02 and current['RSI'] < 35:
+                    strength += 25
+
+            # 조건 3: MACD 골든 크로스 + 거래량 증가 (25점)
+            if 'MACD' in current and 'MACD_Signal' in current:
+                for i in range(max(0, len(data)-5), len(data)):
+                    if i > 0:
+                        prev = data.iloc[i-1]
+                        curr = data.iloc[i]
+                        if prev['MACD'] <= prev['MACD_Signal'] and curr['MACD'] > curr['MACD_Signal']:
+                            avg_volume = data['Volume'].rolling(20).mean().iloc[-1]
+                            if current['Volume'] > avg_volume * 1.2:
+                                strength += 25
+                            break
+
+            # 조건 4: 20일 상대강도 상승 (25점)
+            if len(data) >= 20:
+                ma20_slope = (current['MA20'] - data['MA20'].iloc[-20]) / data['MA20'].iloc[-20]
+                if ma20_slope > 0.02:
+                    strength += 25
+
+            return strength
+        except Exception as e:
+            logger.debug(f"매수 신호 체크 오류: {e}")
+            return 0
+
+    def check_sell_signal_strength(self, data):
+        """매도 신호 강도 체크 - 4가지 조건 (0/25/50/75/100)"""
+        try:
+            current = data.iloc[-1]
+            strength = 0
+
+            # 조건 1: 데드크로스 + 60일선 3% 하향이탈 (25점)
+            if current['MA60'] < current['MA120']:
+                for i in range(max(0, len(data)-10), len(data)):
+                    if i > 0:
+                        prev = data.iloc[i-1]
+                        curr = data.iloc[i]
+                        if prev['MA60'] >= prev['MA120'] and curr['MA60'] < curr['MA120']:
+                            if current['Close'] < current['MA60'] * 0.97:
+                                strength += 25
+                            break
+
+            # 조건 2: 20% 수익달성 또는 -7% 손절 (25점)
+            if len(data) >= 20:
+                recent_low = data['Low'].rolling(20).min().iloc[-1]
+                gain = (current['Close'] - recent_low) / recent_low
+                if gain > 0.20 or gain < -0.07:
+                    strength += 25
+
+            # 조건 3: 볼린저 상단 + RSI > 70 (25점)
+            if 'BB_upper' in current and 'RSI' in current:
+                if current['Close'] >= current['BB_upper'] * 0.98 and current['RSI'] > 70:
+                    strength += 25
+
+            # 조건 4: 거래량 급감 + 모멘텀 약화 (25점)
+            if len(data) >= 20:
+                avg_volume = data['Volume'].rolling(20).mean().iloc[-1]
+                if current['Volume'] < avg_volume * 0.6:
+                    ma20_slope = (current['MA20'] - data['MA20'].iloc[-5]) / data['MA20'].iloc[-5]
+                    if ma20_slope < -0.01:
+                        strength += 25
+
+            return strength
+        except Exception as e:
+            logger.debug(f"매도 신호 체크 오류: {e}")
+            return 0
 
     def closeEvent(self, event):
         """윈도우 닫을 때 메모리 정리"""
