@@ -18,6 +18,9 @@ import matplotlib.pyplot as plt
 import warnings
 warnings.filterwarnings('ignore')
 
+# 최적화 모듈
+from cache_manager import get_stock_data
+
 # 필요한 라이브러리들
 try:
     from sklearn.linear_model import LinearRegression
@@ -463,10 +466,9 @@ class StockPredictor:
         self.ensemble = EnsemblePredictor()
     
     def get_stock_data(self, symbol, period="1y"):
-        """주식 데이터 가져오기"""
+        """주식 데이터 가져오기 - 캐싱 사용"""
         try:
-            stock = yf.Ticker(symbol)
-            data = stock.history(period=period)
+            data = get_stock_data(symbol, period=period)
             return data
         except Exception as e:
             print(f"❌ 데이터 가져오기 실패: {e}")

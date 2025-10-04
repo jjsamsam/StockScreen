@@ -541,14 +541,6 @@ class EnhancedCPUPredictor:
             
             print(f"  ✅ 데이터 준비 완료: {len(X)}개 학습 샘플")
             
-            # 학습/테스트 분할 (시계열 특성 고려)
-            # split_idx = int(len(X) * 0.9)
-            # X_train, X_test = X[:split_idx], X[split_idx:]
-            # y_train, y_test = y[:split_idx], y[split_idx:]
-            # print(f"  🔍 데이터 분할:")
-            # print(f"     학습: {len(X_train)}개 ({len(X_train)/len(X)*100:.1f}%)")
-            # print(f"     테스트: {len(X_test)}개 ({len(X_test)/len(X)*100:.1f}%)")
-
             # ✅ 전체 데이터 학습으로 변경
             X_train = X
             y_train = y
@@ -692,59 +684,6 @@ class EnhancedCPUPredictor:
             print(f"  📍 상세 에러:")
             traceback.print_exc()  # ✅ 전체 스택 트레이스 출력
             return None, error_msg
-
-    # ✅ 기존 predict_stock_consistent 함수는 제거됨 (위의 predict_stock으로 통합)
-    # 
-    # 변경 사항:
-    # 1. predict_stock_consistent() 함수의 로직을 predict_stock()으로 이동
-    # 2. 기존 predict_stock() 함수는 완전히 제거
-    # 3. 함수 호출 코드는 변경 없이 그대로 사용 가능
-    # 4. 더 나은 일관성과 정확도를 제공하는 알고리즘 사용
-
-    # def safe_predict_with_model(self, model, X_train, y_train, X_test, model_name):
-    #     """개별 모델 예측 - 타입 및 오류 안전"""
-    #     try:
-    #         print(f"  🔧 {model_name} 훈련 중...")
-            
-    #         # 입력 데이터 검증
-    #         if X_train.size == 0 or y_train.size == 0:
-    #             print(f"    ❌ {model_name} 오류: 빈 훈련 데이터")
-    #             return None
-            
-    #         # NaN/Inf 체크 (타입 안전)
-    #         try:
-    #             if np.any(pd.isnull(X_train)) or np.any(pd.isnull(y_train)):
-    #                 print(f"    ❌ {model_name} 오류: 훈련 데이터에 NaN 존재")
-    #                 return None
-                
-    #             if np.any(np.isinf(X_train)) or np.any(np.isinf(y_train)):
-    #                 print(f"    ❌ {model_name} 오류: 훈련 데이터에 Inf 존재")
-    #                 return None
-    #         except (TypeError, ValueError) as e:
-    #             print(f"    ❌ {model_name} 오류: 데이터 타입 문제 - {e}")
-    #             return None
-            
-    #         # 모델 훈련
-    #         model.fit(X_train, y_train)
-            
-    #         # 예측
-    #         if X_test.size == 0:
-    #             print(f"    ❌ {model_name} 오류: 빈 테스트 데이터")
-    #             return None
-            
-    #         prediction = model.predict(X_test.reshape(1, -1))[0]
-            
-    #         # 예측 결과 검증
-    #         if pd.isnull(prediction) or np.isinf(prediction):
-    #             print(f"    ❌ {model_name} 오류: 잘못된 예측값")
-    #             return None
-            
-    #         print(f"    ✅ {model_name} 완료: {prediction:.4f}")
-    #         return float(prediction)
-            
-    #     except Exception as e:
-    #         print(f"    ❌ {model_name} 오류: {str(e)}")
-    #         return None
 
     def safe_predict_with_model(self, model, X_train, y_train, X_test, y_test, X_predict, model_name):
         """개별 모델 예측 - 성능 평가 포함"""

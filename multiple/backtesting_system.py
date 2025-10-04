@@ -14,6 +14,10 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
+# 최적화 모듈
+from cache_manager import get_stock_data
+from matplotlib_optimizer import ChartManager
+
 
 class RecommendationBacktestingEngine:
     """추천도 기반 백테스팅 엔진 - 특정 시점에서 최고 추천도 종목 선택"""
@@ -53,12 +57,15 @@ class RecommendationBacktestingEngine:
             try:
                 print(f"분석 중 ({i+1}/{len(symbols)}): {symbol}")
                 
-                # 과거 데이터 가져오기 (분석일 기준 충분한 과거 데이터 필요)
+                # 과거 데이터 가져오기 (분석일 기준 충분한 과거 데이터 필요) - 캐싱 사용
                 data_start = target_date - timedelta(days=200)  # 지표 계산용 여유
                 data_end = target_date + timedelta(days=30)     # 분석일 이후 여유
-                
-                stock = yf.Ticker(symbol)
-                data = stock.history(start=data_start, end=data_end)
+
+                # 기간 계산 후 캐싱 사용
+                days_diff = (data_end - data_start).days + 10
+                period_str = f"{days_diff}d"
+
+                data = get_stock_data(symbol, period=period_str)
                 
                 if len(data) < 120:
                     print(f"   ⚠️ 데이터 부족: {len(data)}일")
@@ -235,9 +242,8 @@ class RecommendationBacktestingEngine:
             entry_price = candidate['entry_price']
             entry_date = candidate['entry_date']
             
-            # 현재가 조회
-            stock = yf.Ticker(symbol)
-            current_data = stock.history(period="2d")  # 최근 2일 데이터
+            # 현재가 조회 - 캐싱 사용
+            current_data = get_stock_data(symbol, period="2d")
             
             if len(current_data) == 0:
                 return None
@@ -312,11 +318,14 @@ class BacktestingEngine:
             try:
                 print(f"\n📊 {symbol} 분석 중...")
                 
-                # 과거 데이터 다운로드 (백테스팅 기간 + 여유분)
+                # 과거 데이터 다운로드 (백테스팅 기간 + 여유분) - 캐싱 사용
                 data_start = start_date - timedelta(days=180)  # 지표 계산용 여유
-                
-                stock = yf.Ticker(symbol)
-                data = stock.history(start=data_start, end=end_date)
+
+                # 기간 계산
+                days_diff = (end_date - data_start).days + 10
+                period_str = f"{days_diff}d"
+
+                data = get_stock_data(symbol, period=period_str)
                 
                 if len(data) < 120:
                     print(f"⚠️ {symbol}: 데이터 부족")

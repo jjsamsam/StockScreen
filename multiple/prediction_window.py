@@ -29,6 +29,7 @@ import json
 from cache_manager import get_stock_data, get_ticker_info
 from unified_search import search_stocks
 from matplotlib_optimizer import safe_figure, ChartManager
+from utils import format_market_cap_value
 
 # Enhanced Screener의 예측기 import
 try:
@@ -718,19 +719,6 @@ pip install scikit-learn xgboost lightgbm statsmodels
     def convert_enhanced_result(self, enhanced_result, days):
         """Enhanced Screener 결과를 기존 UI 형식으로 변환"""
         try:
-            # Enhanced Screener 결과 구조:
-            # {
-            #     'ticker': ticker,
-            #     'current_price': actual_current_price,
-            #     'predicted_price': predicted_price_actual,
-            #     'expected_return': predicted_return,
-            #     'confidence': confidence,
-            #     'successful_models': successful_models,
-            #     'model_results': model_results,
-            #     'individual_predictions': predictions,
-            #     ...
-            # }
-            
             # 기존 UI가 기대하는 형식으로 변환
             converted = {
                 'ticker': enhanced_result.get('ticker', ''),
@@ -1670,35 +1658,6 @@ class EnhancedStockSearchDialog(QDialog):
         results.sort(key=lambda x: (-x.get('match_score', 0), -x.get('raw_market_cap', 0)))
         return results
     
-    # def display_results(self, results):
-    #     """검색 결과 표시"""
-    #     self.results_table.setRowCount(len(results))
-        
-    #     for i, stock in enumerate(results):
-    #         self.results_table.setItem(i, 0, QTableWidgetItem(stock.get('ticker', '')))
-    #         self.results_table.setItem(i, 1, QTableWidgetItem(stock.get('name', '')))
-    #         self.results_table.setItem(i, 2, QTableWidgetItem(stock.get('market', '')))
-    #         self.results_table.setItem(i, 3, QTableWidgetItem(stock.get('sector', '')))
-    #         self.results_table.setItem(i, 4, QTableWidgetItem(stock.get('market_cap', 'N/A')))
-            
-    #         # 매치점수 표시
-    #         match_score = stock.get('match_score', 0)
-    #         score_item = QTableWidgetItem(str(match_score))
-            
-    #         # 매치점수에 따른 색상 구분
-    #         if match_score >= 90:
-    #             score_item.setBackground(QColor(76, 175, 80, 100))  # 초록
-    #         elif match_score >= 70:
-    #             score_item.setBackground(QColor(255, 193, 7, 100))  # 노랑
-    #         elif match_score >= 50:
-    #             score_item.setBackground(QColor(255, 87, 34, 100))  # 주황
-                
-    #         self.results_table.setItem(i, 5, score_item)
-        
-    #     # 첫 번째 행 선택
-    #     if len(results) > 0:
-    #         self.results_table.selectRow(0)
-    
     def display_results(self, results):
         """검색 결과 표시 - source 컬럼 추가"""
         self.results_table.setRowCount(len(results))
@@ -1715,7 +1674,15 @@ class EnhancedStockSearchDialog(QDialog):
             self.results_table.setItem(i, 0, QTableWidgetItem(stock.get('ticker', '')))
             self.results_table.setItem(i, 1, QTableWidgetItem(stock.get('name', '')))
             self.results_table.setItem(i, 2, QTableWidgetItem(stock.get('sector', '')))
-            self.results_table.setItem(i, 3, QTableWidgetItem(stock.get('market_cap', '')))
+
+            # market_cap을 포맷팅 (OverflowError 방지)
+            market_cap_raw = stock.get('market_cap', '')
+            if isinstance(market_cap_raw, (int, float)):
+                market_cap_str = format_market_cap_value(market_cap_raw)
+            else:
+                market_cap_str = str(market_cap_raw) if market_cap_raw else 'N/A'
+
+            self.results_table.setItem(i, 3, QTableWidgetItem(market_cap_str))
             self.results_table.setItem(i, 4, QTableWidgetItem(stock.get('market', '')))
             
             # 새로운 출처 컬럼
