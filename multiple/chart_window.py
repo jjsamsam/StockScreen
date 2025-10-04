@@ -178,6 +178,11 @@ class StockChartWindow(QMainWindow):
         self.show_signals_btn.setCheckable(True)
         layout.addWidget(self.show_signals_btn)
 
+        # 종목 검색 버튼 추가
+        search_btn = QPushButton("🔍 Search Stock")
+        search_btn.clicked.connect(self.show_stock_search_dialog)
+        layout.addWidget(search_btn)
+
         layout.addStretch()
         group.setLayout(layout)
         return group
@@ -1162,6 +1167,18 @@ class StockChartWindow(QMainWindow):
             logger.debug(f"매도 신호 체크 오류: {e}")
             return 0
 
+    def show_stock_search_dialog(self):
+        """종목 검색 다이얼로그 표시"""
+        dialog = StockSearchDialog(self)
+        if dialog.exec_() == QDialog.Accepted:
+            selected = dialog.get_selected_stock()
+            if selected:
+                # 새로운 종목으로 차트 변경
+                self.symbol = selected['ticker']
+                self.name = selected['name']
+                self.setWindowTitle(f'📊 {self.symbol} ({self.name}) - Technical Analysis Chart')
+                self.load_chart_data()
+
     def closeEvent(self, event):
         """윈도우 닫을 때 메모리 정리"""
         try:
@@ -1172,3 +1189,196 @@ class StockChartWindow(QMainWindow):
             logger.warning(f"메모리 정리 오류: {e}")
         finally:
             event.accept()
+
+
+class StockSearchDialog(QDialog):
+    """종목 검색 다이얼로그"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.selected_stock = None
+        self.initUI()
+
+    def initUI(self):
+        self.setWindowTitle('🔍 종목 검색')
+        self.setGeometry(300, 300, 600, 500)
+
+        layout = QVBoxLayout()
+
+        # 검색 입력
+        search_layout = QHBoxLayout()
+        search_layout.addWidget(QLabel("검색어:"))
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("종목코드 또는 이름 입력 (예: AAPL, 삼성전자, 005930)")
+        self.search_input.returnPressed.connect(self.search_stocks)
+        search_layout.addWidget(self.search_input)
+
+        search_btn = QPushButton("검색")
+        search_btn.clicked.connect(self.search_stocks)
+        search_layout.addWidget(search_btn)
+
+        layout.addLayout(search_layout)
+
+        # 결과 레이블
+        self.result_label = QLabel("검색어를 입력하세요")
+        layout.addWidget(self.result_label)
+
+        # 결과 테이블
+        self.result_table = QTableWidget()
+        self.result_table.setColumnCount(3)
+        self.result_table.setHorizontalHeaderLabels(["종목코드", "종목명", "시장"])
+        self.result_table.horizontalHeader().setStretchLastSection(True)
+        self.result_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.result_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.result_table.doubleClicked.connect(self.on_stock_selected)
+        layout.addWidget(self.result_table)
+
+        # 버튼
+        button_layout = QHBoxLayout()
+        select_btn = QPushButton("선택")
+        select_btn.clicked.connect(self.on_stock_selected)
+        button_layout.addWidget(select_btn)
+
+        cancel_btn = QPushButton("취소")
+        cancel_btn.clicked.connect(self.reject)
+        button_layout.addWidget(cancel_btn)
+
+        layout.addLayout(button_layout)
+        self.setLayout(layout)
+
+        # 포커스
+        self.search_input.setFocus()
+
+    def search_stocks(self):
+        """종목 검색 실행 - CSV + 온라인"""
+        search_term = self.search_input.text().strip()
+        logger.info(f"검색 시작: '{search_term}'")
+
+        if not search_term:
+            self.result_label.setText("검색어를 입력하세요")
+            return
+
+        try:
+            # 1. CSV에서 검색 (unified_search 모듈 사용)
+            logger.info("CSV 검색 시도...")
+            from unified_search import search_stocks
+            results = search_stocks(search_term)
+            logger.info(f"CSV 검색 결과: {len(results) if results else 0}개")
+
+            self.result_table.setRowCount(0)
+
+            if not results:
+                # 2. CSV에서 없으면 온라인 검색 시도
+                logger.info("온라인 검색 시도...")
+                self.result_label.setText("CSV에서 검색 결과 없음. 온라인 검색 중...")
+                QApplication.processEvents()
+
+                online_results = self.try_online_search(search_term)
+                if online_results:
+                    logger.info(f"온라인 검색 성공: {len(online_results)}개 발견")
+                    # 온라인에서 찾은 결과들을 모두 테이블에 추가
+                    for row_idx, stock in enumerate(online_results[:20]):  # 최대 20개
+                        self.result_table.insertRow(row_idx)
+                        self.result_table.setItem(row_idx, 0, QTableWidgetItem(stock['ticker']))
+                        self.result_table.setItem(row_idx, 1, QTableWidgetItem(stock['name']))
+                        self.result_table.setItem(row_idx, 2, QTableWidgetItem(stock['market']))
+                    self.result_table.selectRow(0)
+                    self.result_label.setText(f"🌐 온라인에서 {len(online_results)}개 종목 발견")
+                else:
+                    logger.warning(f"'{search_term}' 검색 결과 없음")
+                    self.result_label.setText(f"'{search_term}'에 대한 검색 결과가 없습니다")
+                return
+
+            self.result_label.setText(f"📁 CSV에서 {len(results)}개 종목 발견")
+
+            # 테이블에 결과 표시
+            for row_idx, stock in enumerate(results[:20]):  # 최대 20개만 표시
+                self.result_table.insertRow(row_idx)
+                self.result_table.setItem(row_idx, 0, QTableWidgetItem(stock['ticker']))
+                self.result_table.setItem(row_idx, 1, QTableWidgetItem(stock['name']))
+                self.result_table.setItem(row_idx, 2, QTableWidgetItem(stock['market']))
+
+            # 첫 번째 행 선택
+            if self.result_table.rowCount() > 0:
+                self.result_table.selectRow(0)
+            logger.info("검색 완료")
+
+        except Exception as e:
+            logger.error(f"검색 오류: {e}", exc_info=True)
+            self.result_label.setText(f"검색 오류: {str(e)}")
+
+    def try_online_search(self, search_term):
+        """온라인에서 Yahoo Finance API로 종목 검색"""
+        try:
+            import urllib.parse
+            import requests
+
+            logger.info(f"Yahoo Finance API로 '{search_term}' 검색...")
+            query = urllib.parse.quote(search_term)
+            url = f"https://query1.finance.yahoo.com/v1/finance/search?q={query}"
+
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+
+            res = requests.get(url, headers=headers, timeout=10)
+            logger.info(f"API 응답 코드: {res.status_code}")
+
+            if res.ok:
+                data = res.json()
+                quotes = data.get('quotes', [])
+                logger.info(f"API에서 {len(quotes)}개 종목 발견")
+
+                # 모든 결과를 리스트로 반환
+                if quotes:
+                    results = []
+                    for quote in quotes[:20]:  # 최대 20개
+                        ticker = quote.get('symbol', '')
+                        name = quote.get('longname') or quote.get('shortname') or ticker
+                        exchange = quote.get('exchange', 'Online')
+
+                        # 시장 분류
+                        market = "Online"
+                        if '.KS' in ticker:
+                            market = "KOSPI (Online)"
+                        elif '.KQ' in ticker:
+                            market = "KOSDAQ (Online)"
+                        elif '.ST' in ticker:
+                            market = "OMX (Online)"
+                        elif exchange:
+                            market = f"{exchange} (Online)"
+
+                        result = {
+                            'ticker': ticker,
+                            'name': name,
+                            'market': market
+                        }
+                        results.append(result)
+
+                    logger.info(f"온라인 검색 결과: {len(results)}개 반환")
+                    return results
+
+            logger.warning("API 응답 없음")
+            return []
+
+        except Exception as e:
+            logger.error(f"온라인 검색 오류: {e}", exc_info=True)
+            return []
+
+    def on_stock_selected(self):
+        """종목 선택"""
+        current_row = self.result_table.currentRow()
+        if current_row >= 0:
+            ticker = self.result_table.item(current_row, 0).text()
+            name = self.result_table.item(current_row, 1).text()
+            market = self.result_table.item(current_row, 2).text()
+
+            self.selected_stock = {
+                'ticker': ticker,
+                'name': name,
+                'market': market
+            }
+            self.accept()
+
+    def get_selected_stock(self):
+        """선택된 종목 반환"""
+        return self.selected_stock
