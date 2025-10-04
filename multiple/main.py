@@ -13,6 +13,9 @@ Advanced Global Stock Screener
 import sys
 import os
 from PyQt5.QtWidgets import QApplication, QMessageBox
+from logger_config import get_logger
+
+logger = get_logger(__name__)
 
 # 현재 디렉토리를 Python 경로에 추가
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -20,13 +23,13 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 try:
     from screener import StockScreener
 except ImportError as e:
-    print(f"모듈 import 오류: {e}")
-    print("필요한 파일들이 같은 폴더에 있는지 확인해주세요:")
-    print("- main.py")
-    print("- screener.py") 
-    print("- chart_window.py")
-    print("- dialogs.py")
-    print("- utils.py")
+    logger.error(f"모듈 import 오류: {e}")
+    logger.error("필요한 파일들이 같은 폴더에 있는지 확인해주세요:")
+    logger.error("- main.py")
+    logger.error("- screener.py")
+    logger.error("- chart_window.py")
+    logger.error("- dialogs.py")
+    logger.error("- utils.py")
     sys.exit(1)
 
 def check_dependencies():
@@ -48,14 +51,14 @@ def check_dependencies():
             missing_packages.append(package_name)
     
     if missing_packages:
-        print("❌ 다음 패키지들이 설치되지 않았습니다:")
+        logger.error("다음 패키지들이 설치되지 않았습니다:")
         for package in missing_packages:
-            print(f"   - {package}")
-        print("\n설치 명령어:")
-        print(f"pip install {' '.join(missing_packages)}")
+            logger.error(f"   - {package}")
+        logger.error("\n설치 명령어:")
+        logger.error(f"pip install {' '.join(missing_packages)}")
         return False
-    
-    print("✅ 모든 필요한 패키지가 설치되어 있습니다.")
+
+    logger.info("모든 필요한 패키지가 설치되어 있습니다.")
     return True
 
 def apply_application_style(app):
@@ -131,10 +134,10 @@ def apply_application_style(app):
 
 def main():
     """메인 함수 - 프로그램 시작점"""
-    print("=" * 50)
-    print("🚀 Advanced Global Stock Screener")
-    print("고급 글로벌 주식 스크리너를 시작합니다...")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("Advanced Global Stock Screener")
+    logger.info("고급 글로벌 주식 스크리너를 시작합니다...")
+    logger.info("=" * 50)
     
     # 의존성 체크
     if not check_dependencies():
@@ -150,35 +153,35 @@ def main():
     apply_application_style(app)
     
     try:
-        print("📊 GUI 초기화 중...")
-        
+        logger.info("GUI 초기화 중...")
+
         # 메인 스크리너 윈도우 생성
         screener = StockScreener()
         screener.show()
-        
-        print("✅ 프로그램이 성공적으로 시작되었습니다!")
-        print("\n사용 방법:")
-        print("1. '샘플 생성' 버튼으로 기본 종목 리스트 생성")
-        print("2. '온라인 종목 업데이트'로 최신 종목 리스트 확보")
-        print("3. 매수/매도 조건 선택 후 '스크리닝 시작'")
-        print("4. 결과 테이블에서 종목 더블클릭으로 차트 확인")
+
+        logger.info("프로그램이 성공적으로 시작되었습니다!")
+        logger.info("\n사용 방법:")
+        logger.info("1. '샘플 생성' 버튼으로 기본 종목 리스트 생성")
+        logger.info("2. '온라인 종목 업데이트'로 최신 종목 리스트 확보")
+        logger.info("3. 매수/매도 조건 선택 후 '스크리닝 시작'")
+        logger.info("4. 결과 테이블에서 종목 더블클릭으로 차트 확인")
         
         # 이벤트 루프 시작
         sys.exit(app.exec_())
         
     except Exception as e:
-        print(f"❌ 프로그램 실행 중 오류: {e}")
+        logger.error(f"프로그램 실행 중 오류: {e}")
         import traceback
         traceback.print_exc()
-        
+
         # GUI로 오류 메시지 표시
         try:
-            QMessageBox.critical(None, "오류", 
+            QMessageBox.critical(None, "오류",
                                f"프로그램 실행 중 오류가 발생했습니다:\n{str(e)}\n\n"
                                f"콘솔 창에서 자세한 오류 정보를 확인하세요.")
         except:
             pass
-        
+
         input("\n엔터를 눌러 종료...")
 
 if __name__ == '__main__':

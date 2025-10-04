@@ -8,6 +8,9 @@ import os
 from typing import Dict, Optional, List
 from pathlib import Path
 from datetime import datetime, timedelta
+from logger_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class CSVDataManager:
@@ -68,7 +71,7 @@ class CSVDataManager:
             self._cache[abs_path] = (df.copy(), datetime.now())
             return df
         except Exception as e:
-            print(f"CSV 읽기 오류 ({abs_path}): {e}")
+            logger.error(f"CSV 읽기 오류 ({abs_path}): {e}")
             return None
 
     def write_csv(self, file_path: str, dataframe: pd.DataFrame,
@@ -100,7 +103,7 @@ class CSVDataManager:
 
             return True
         except Exception as e:
-            print(f"CSV 쓰기 오류 ({abs_path}): {e}")
+            logger.error(f"CSV 쓰기 오류 ({abs_path}): {e}")
             return False
 
     def get_master_csv_files(self) -> List[str]:
@@ -172,10 +175,10 @@ class CSVDataManager:
                     df = self.read_csv(file_path, force_reload=force_reload)
                     if df is not None and not df.empty:
                         result[market] = df
-                        print(f"✅ {market}: {file_path} 로드됨 ({len(df)}개 종목)")
+                        logger.info(f"{market}: {file_path} 로드됨 ({len(df)}개 종목)")
                         break
             else:
-                print(f"⚠️ {market}: CSV 파일을 찾을 수 없음")
+                logger.warning(f"{market}: CSV 파일을 찾을 수 없음")
 
         return result
 

@@ -30,14 +30,17 @@ from cache_manager import get_stock_data, get_ticker_info
 from unified_search import search_stocks
 from matplotlib_optimizer import safe_figure, ChartManager
 from utils import format_market_cap_value
+from logger_config import get_logger
+
+logger = get_logger(__name__)
 
 # Enhanced Screener의 예측기 import
 try:
     from enhanced_screener import EnhancedCPUPredictor
     ML_AVAILABLE = True
-    print("✅ Enhanced Screener 예측기 사용")
+    logger.info("Enhanced Screener 예측기 사용")
 except ImportError as e:
-    print(f"⚠️ Enhanced Screener 없음: {e}")
+    logger.warning(f"Enhanced Screener 없음: {e}")
     ML_AVAILABLE = False
 
 # 기본 라이브러리 확인
@@ -50,13 +53,11 @@ try:
 except ImportError:
     SKLEARN_AVAILABLE = False
 
-print("""
-🔧 Prediction Window 업데이트:
+logger.info("""Prediction Window 업데이트:
 • Enhanced Screener 통합 완료
 • 중복 예측 함수 제거
 • 일관성 있는 예측 결과
-• 더 나은 성능과 정확도
-""")
+• 더 나은 성능과 정확도""")
 
 
 class StockPredictionDialog(QDialog):
@@ -70,7 +71,7 @@ class StockPredictionDialog(QDialog):
         # ✨ 진행률 추적 변수들 추가
         self.prediction_steps = [
             "데이터 수집 중",
-            "기술적 지표 계산 중", 
+            "기술적 지표 계산 중",
             "특성 생성 중",
             "모델 학습 중",
             "예측 실행 중",
@@ -78,6 +79,9 @@ class StockPredictionDialog(QDialog):
         ]
         self.current_step = 0
         self.total_steps = len(self.prediction_steps)
+
+        # 백테스팅 중지 플래그
+        self.backtest_cancelled = False
 
         self.load_current_settings()
         
@@ -135,6 +139,7 @@ pip install scikit-learn xgboost lightgbm statsmodels
             'batch_delay': 1.0,
             'min_data_days': 300,
             'use_arima_validation': True,
+            'backtest_periods': 30,  # 백테스팅 횟수 기본값
             'models_enabled': {
                 'xgboost': True,
                 'lightgbm': True,
@@ -149,9 +154,9 @@ pip install scikit-learn xgboost lightgbm statsmodels
                 with open('prediction_settings.json', 'r', encoding='utf-8') as f:
                     saved_settings = json.load(f)
                 self.current_settings.update(saved_settings)
-                print(f"✅ Prediction Window 설정 로드: {saved_settings.get('forecast_days', 7)}일 예측")
+                logger.info(f"Prediction Window 설정 로드: {saved_settings.get('forecast_days', 7)}일 예측")
         except Exception as e:
-            print(f"⚠️ Prediction Window 설정 로드 실패: {e}")
+            logger.warning(f"Prediction Window 설정 로드 실패: {e}")
 
     def create_enhanced_button_layout(self):
         """향상된 버튼 레이아웃 - 예측 차트 버튼 추가"""
@@ -242,9 +247,33 @@ pip install scikit-learn xgboost lightgbm statsmodels
         days_widget = QWidget()
         days_widget.setLayout(days_layout)
         layout.addWidget(days_widget, 1, 1)
-        
+
+        # 백테스팅 횟수 (새로 추가)
+        layout.addWidget(QLabel("백테스팅 횟수:"), 2, 0)
+        backtest_layout = QHBoxLayout()
+        self.backtest_periods_input = QSpinBox()
+        self.backtest_periods_input.setRange(5, 100)
+        self.backtest_periods_input.setValue(self.current_settings.get('backtest_periods', 30))
+        self.backtest_periods_input.setSuffix(" 회")
+        self.backtest_periods_input.setToolTip("백테스팅 시 테스트할 기간 수 (많을수록 정확하지만 느림)")
+        backtest_layout.addWidget(self.backtest_periods_input)
+
+        # 병렬 처리 체크박스
+        self.parallel_backtest_checkbox = QCheckBox("🚀 병렬 처리")
+        self.parallel_backtest_checkbox.setChecked(True)  # 기본값: 활성화
+        self.parallel_backtest_checkbox.setToolTip("여러 테스트를 동시에 실행하여 속도 향상 (CPU 코어 수만큼 빨라짐)")
+        backtest_layout.addWidget(self.parallel_backtest_checkbox)
+
+        backtest_info_label = QLabel(f"(설정: {self.current_settings.get('backtest_periods', 30)}회)")
+        backtest_info_label.setStyleSheet("color: #666; font-size: 10px;")
+        backtest_layout.addWidget(backtest_info_label)
+
+        backtest_widget = QWidget()
+        backtest_widget.setLayout(backtest_layout)
+        layout.addWidget(backtest_widget, 2, 1)
+
         # 모델 선택 (Enhanced Screener 정보 표시)
-        layout.addWidget(QLabel("사용 모델:"), 2, 0)
+        layout.addWidget(QLabel("사용 모델:"), 3, 0)
         
         model_layout = QVBoxLayout()
         
@@ -278,20 +307,20 @@ pip install scikit-learn xgboost lightgbm statsmodels
         
         model_layout.addWidget(self.model_combo)
         model_layout.addWidget(self.models_info_label)
-        
+
         model_widget = QWidget()
         model_widget.setLayout(model_layout)
-        layout.addWidget(model_widget, 2, 1)
-        
+        layout.addWidget(model_widget, 3, 1)
+
         # ✅ 새로 추가: 추가 설정 정보
-        layout.addWidget(QLabel("기타 설정:"), 3, 0)
+        layout.addWidget(QLabel("기타 설정:"), 4, 0)
         
         settings_info = f"최소데이터: {self.current_settings.get('min_data_days', 300)}일 | "
         settings_info += f"신뢰도임계값: {self.current_settings.get('confidence_threshold', 0.6)*100:.0f}%"
         
         self.settings_summary_label = QLabel(settings_info)
         self.settings_summary_label.setStyleSheet("color: #444; font-size: 10px;")
-        layout.addWidget(self.settings_summary_label, 3, 1)
+        layout.addWidget(self.settings_summary_label, 4, 1)
         
         panel.setLayout(layout)
         return panel
@@ -753,9 +782,9 @@ pip install scikit-learn xgboost lightgbm statsmodels
                 converted['individual_predictions'][model_name] = prediction
             
             return converted
-            
+
         except Exception as e:
-            print(f"결과 변환 오류: {e}")
+            logger.error(f"결과 변환 오류: {e}")
             # 최소한의 결과 반환
             return {
                 'ticker': enhanced_result.get('ticker', ''),
@@ -878,9 +907,9 @@ pip install scikit-learn xgboost lightgbm statsmodels
             ticker = result['ticker']
 
             historical_data = get_stock_data(ticker, period="45d")
-            
+
             if len(historical_data) == 0:
-                print("⚠️ 과거 데이터 없음 - 단순 차트로 대체")
+                logger.warning("과거 데이터 없음 - 단순 차트로 대체")
                 self.plot_prediction_simple(result)
                 return
             
@@ -980,7 +1009,7 @@ pip install scikit-learn xgboost lightgbm statsmodels
                 ax.xaxis.set_major_locator(mdates.DayLocator(interval=max(1, len(historical_dates)//8)))
                 plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
             except Exception as e:
-                print(f"⚠️ 날짜 포맷팅 오류 (무시됨): {e}")
+                logger.warning(f"날짜 포맷팅 오류 (무시됨): {e}")
             
             # 📈 8. 추가 정보 텍스트 박스 (오류 방지)
             try:
@@ -988,28 +1017,28 @@ pip install scikit-learn xgboost lightgbm statsmodels
                 info_text += f"예측 모델: {result.get('method', 'Enhanced AI')}\n"
                 info_text += f"데이터: {len(historical_dates)}일"
                 
-                ax.text(0.02, 0.75, info_text, transform=ax.transAxes, 
-                        verticalalignment='top', 
-                        bbox=dict(boxstyle='round,pad=0.4', facecolor='lightblue', alpha=0.8), 
+                ax.text(0.02, 0.75, info_text, transform=ax.transAxes,
+                        verticalalignment='top',
+                        bbox=dict(boxstyle='round,pad=0.4', facecolor='lightblue', alpha=0.8),
                         fontsize=9)
             except Exception as e:
-                print(f"⚠️ 정보 텍스트 박스 오류 (무시됨): {e}")
+                logger.warning(f"정보 텍스트 박스 오류 (무시됨): {e}")
             
             # 레이아웃 조정
             plt.tight_layout()
-            
+
         except Exception as e:
-            print(f"⚠️ 고급 시계열 차트 생성 실패: {e}")
-            print("📊 단순 차트로 대체합니다...")
+            logger.warning(f"고급 시계열 차트 생성 실패: {e}")
+            logger.info("단순 차트로 대체합니다...")
             # 모든 오류에 대해 백업 차트 사용
             self.plot_prediction_simple(result)
             return
-        
+
         # 캔버스 업데이트
         try:
             self.canvas.draw()
         except Exception as e:
-            print(f"⚠️ 캔버스 그리기 오류: {e}")
+            logger.warning(f"캔버스 그리기 오류: {e}")
             # 캔버스 오류시에도 백업 차트 시도
             self.plot_prediction_simple(result)
 
@@ -1052,15 +1081,15 @@ pip install scikit-learn xgboost lightgbm statsmodels
             # 레이아웃 조정
             plt.tight_layout()
             self.canvas.draw()
-            
+
         except Exception as e:
-            print(f"❌ 단순 차트도 실패: {e}")
+            logger.error(f"단순 차트도 실패: {e}")
             # 최후의 수단: 텍스트만 표시
             ax = self.figure.add_subplot(111)
             ax.text(0.5, 0.5, f"차트 생성 오류\n\n{result['ticker']}\n"
                     f"현재: ${result['current_price']:.2f}\n"
-                    f"예측: ${result['predicted_price']:.2f}", 
-                    ha='center', va='center', fontsize=14, 
+                    f"예측: ${result['predicted_price']:.2f}",
+                    ha='center', va='center', fontsize=14,
                     transform=ax.transAxes)
             self.canvas.draw()
 
@@ -1078,9 +1107,9 @@ pip install scikit-learn xgboost lightgbm statsmodels
             try:
                 ax.scatter([i], [i], marker=marker, s=100)
                 compatible_markers.append(marker)
-                print(f"✅ 마커 '{marker}' 호환됨")
+                logger.info(f"마커 '{marker}' 호환됨")
             except Exception as e:
-                print(f"❌ 마커 '{marker}' 호환되지 않음: {e}")
+                logger.error(f"마커 '{marker}' 호환되지 않음: {e}")
         
         plt.close(fig)
         return compatible_markers
@@ -1110,43 +1139,118 @@ pip install scikit-learn xgboost lightgbm statsmodels
         """백테스팅 실행"""
         ticker = self.ticker_input.text().strip().upper()
         days = self.days_input.value()
-        
+        # GUI에서 백테스팅 횟수 가져오기
+        test_periods = self.backtest_periods_input.value()
+
         if not ticker:
             QMessageBox.warning(self, "오류", "종목 코드를 입력해주세요.")
             return
-        
+
+        # 병렬 처리 여부 확인
+        use_parallel = self.parallel_backtest_checkbox.isChecked()
+
         reply = QMessageBox.question(
             self, "백테스팅",
             f"{ticker} 예측 알고리즘을 과거 데이터로 검증합니다.\n\n"
             f"• 예측 기간: {days}일\n"
-            f"• 테스트 횟수: 30회\n\n"
+            f"• 테스트 횟수: {test_periods}회\n"
+            f"• 처리 방식: {'🚀 병렬 처리 (빠름)' if use_parallel else '⏳ 순차 처리'}\n\n"
             f"시간이 다소 걸릴 수 있습니다. 계속하시겠습니까?",
             QMessageBox.Yes | QMessageBox.No
         )
-        
+
         if reply == QMessageBox.No:
             return
-        
+
+        # 중지 플래그 초기화
+        self.backtest_cancelled = False
+
+        # Progress bar 생성
+        if not hasattr(self, 'backtest_progress_bar'):
+            self.backtest_progress_bar = QProgressBar()
+            self.backtest_progress_label = QLabel("")
+            self.backtest_cancel_btn = QPushButton("⏹ 중지")
+            self.backtest_cancel_btn.setStyleSheet("QPushButton { background-color: #f44336; color: white; font-weight: bold; padding: 8px; }")
+            self.backtest_cancel_btn.clicked.connect(self.cancel_backtest)
+
+            # 버튼 레이아웃 위에 progress bar 추가
+            layout = self.layout()
+            layout.insertWidget(layout.count() - 1, self.backtest_progress_bar)
+
+            # Progress label과 중지 버튼을 가로로 배치
+            progress_control_layout = QHBoxLayout()
+            progress_control_layout.addWidget(self.backtest_progress_label)
+            progress_control_layout.addWidget(self.backtest_cancel_btn)
+            progress_control_widget = QWidget()
+            progress_control_widget.setLayout(progress_control_layout)
+            layout.insertWidget(layout.count() - 1, progress_control_widget)
+
+        # Progress bar 표시
+        self.backtest_progress_bar.setVisible(True)
+        self.backtest_progress_label.setVisible(True)
+        self.backtest_cancel_btn.setVisible(True)
+        self.backtest_cancel_btn.setEnabled(True)
+        self.backtest_progress_bar.setMaximum(test_periods)
+        self.backtest_progress_bar.setValue(0)
+        self.backtest_progress_label.setText("백테스팅 준비 중...")
+
         # UI 비활성화
         self.backtest_btn.setEnabled(False)
         self.result_area.setText("백테스팅 진행 중...\n")
         QApplication.processEvents()
-        
+
         # 백테스팅 실행
         try:
-            summary, error = self.predictor.backtest_predictions(ticker, test_periods=30, forecast_days=days)
-            
+            # 병렬 처리 옵션 가져오기
+            use_parallel = self.parallel_backtest_checkbox.isChecked()
+
+            summary, error = self.predictor.backtest_predictions(
+                ticker,
+                test_periods=test_periods,
+                forecast_days=days,
+                progress_callback=self.update_backtest_progress,
+                use_parallel=use_parallel,
+                cancel_callback=self.is_backtest_cancelled  # 중지 콜백 추가
+            )
+
+            # 중지되었는지 확인
+            if self.backtest_cancelled:
+                self.result_area.setText("⏹ 백테스팅이 사용자에 의해 중지되었습니다.")
+                QMessageBox.information(self, "중지됨", "백테스팅이 중지되었습니다.")
+                return
+
             if error:
                 QMessageBox.critical(self, "오류", f"백테스팅 실패:\n{error}")
                 return
-            
+
             # 결과 표시
             self.display_backtest_results(summary)
-            
+
         except Exception as e:
-            QMessageBox.critical(self, "오류", f"백테스팅 중 오류:\n{str(e)}")
+            if not self.backtest_cancelled:
+                QMessageBox.critical(self, "오류", f"백테스팅 중 오류:\n{str(e)}")
         finally:
             self.backtest_btn.setEnabled(True)
+            self.backtest_progress_bar.setVisible(False)
+            self.backtest_progress_label.setVisible(False)
+            self.backtest_cancel_btn.setVisible(False)
+
+    def cancel_backtest(self):
+        """백테스팅 중지"""
+        self.backtest_cancelled = True
+        self.backtest_cancel_btn.setEnabled(False)
+        self.backtest_progress_label.setText("중지 중... 현재 작업 완료 대기")
+        logger.info("백테스팅 중지 요청됨")
+
+    def is_backtest_cancelled(self):
+        """백테스팅 중지 여부 확인 (콜백용)"""
+        return self.backtest_cancelled
+
+    def update_backtest_progress(self, current, total, message):
+        """백테스팅 진행률 업데이트"""
+        self.backtest_progress_bar.setValue(current)
+        self.backtest_progress_label.setText(f"{message} - {current}/{total}")
+        QApplication.processEvents()
 
     def display_backtest_results(self, summary):
         """백테스팅 결과 표시"""
@@ -1365,14 +1469,14 @@ class EnhancedStockSearchDialog(QDialog):
                 
         except Exception as e:
             self.status_label.setText(f"⚠️ 인기 종목 로드 오류: {str(e)}")
-            print(f"인기 종목 로드 오류: {e}")
+            logger.error(f"인기 종목 로드 오류: {e}")
     
     def perform_search(self):
         """마스터 CSV에서 검색 수행"""
         query = self.search_input.text().strip()
-        
+
         if query in self.search_cache:
-            print(f"💾 캐시 사용: {query}")
+            logger.debug(f"캐시 사용: {query}")
             self.display_results(self.search_cache[query])
             self.status_label.setText(f"✅ {len(self.search_cache[query])}개 종목 (캐시)")
             return
@@ -1400,12 +1504,12 @@ class EnhancedStockSearchDialog(QDialog):
 
         except Exception as e:
             self.status_label.setText(f"❌ 검색 오류: {str(e)}")
-            print(f"검색 오류: {e}")
+            logger.error(f"검색 오류: {e}")
 
     def search_stocks_with_api(self, search_term):
         """API를 사용한 실시간 주식 검색 + 기존 CSV 백업"""
-        
-        print(f"🔍 API로 '{search_term}' 검색 시작...")
+
+        logger.info(f"API로 '{search_term}' 검색 시작...")
         api_results = []
         
         # 1. 먼저 API로 검색 시도
@@ -1418,29 +1522,29 @@ class EnhancedStockSearchDialog(QDialog):
             }
 
             res = requests.get(url, headers=headers, timeout=10)
-            print("Status code:", res.status_code)
+            logger.debug(f"Status code: {res.status_code}")
 
             if res.ok:
                 data = res.json()
                 quotes = data.get('quotes', [])
-                print(f"📊 API에서 {len(quotes)}개 종목 발견")
-                
+                logger.info(f"API에서 {len(quotes)}개 종목 발견")
+
                 # Make csv from json.
                 api_results = self.convert_api_to_csv_format(quotes, search_term)
 
             else:
-                print("Request failed:", res.text[:200])  # 에러일 경우 앞부분 출력           
+                logger.warning(f"Request failed: {res.text[:200]}")  # 에러일 경우 앞부분 출력
 
         except Exception as e:
-            print(f"API 검색 실패: {e}")
+            logger.error(f"API 검색 실패: {e}")
         
         # 2. CSV에서도 검색 (백업용)
         csv_results = self.search_master_csv(search_term)
         
         # 3. 결과 병합
         combined_results = self.merge_search_results(api_results, csv_results)
-        
-        print(f"✅ 총 {len(combined_results)}개 종목 반환")
+
+        logger.info(f"총 {len(combined_results)}개 종목 반환")
         return combined_results
 
     def convert_api_to_csv_format(self, quotes, search_term):
@@ -1480,9 +1584,9 @@ class EnhancedStockSearchDialog(QDialog):
                 }
                 
                 csv_format_results.append(stock_info)
-                
+
             except Exception as e:
-                print(f"⚠️ API 데이터 변환 오류: {e}")
+                logger.warning(f"API 데이터 변환 오류: {e}")
                 continue
         
         return csv_format_results
@@ -1586,22 +1690,22 @@ class EnhancedStockSearchDialog(QDialog):
                 self.status_label.setText("❌ 검색 결과가 없습니다")
                 if hasattr(self, 'csv_export_btn'):
                     self.csv_export_btn.setEnabled(False)
-                
+
         except Exception as e:
             self.status_label.setText(f"❌ 검색 오류: {str(e)}")
-            print(f"검색 오류: {e}")
+            logger.error(f"검색 오류: {e}")
             if hasattr(self, 'csv_export_btn'):
                 self.csv_export_btn.setEnabled(False)
 
     def print_results_as_csv(self, results):
         """검색 결과를 CSV 포맷으로 콘솔에 출력"""
-        print("\n" + "="*80)
-        print(f"검색 결과 (상위 {len(results)}개) - CSV 포맷:")
-        print("="*80)
-        
+        logger.info("\n" + "="*80)
+        logger.info(f"검색 결과 (상위 {len(results)}개) - CSV 포맷:")
+        logger.info("="*80)
+
         # CSV 헤더
-        print("ticker,name,sector,market_cap,market,source,match_score")
-        
+        logger.info("ticker,name,sector,market_cap,market,source,match_score")
+
         # 데이터 행들
         for stock in results:
             ticker = stock.get('ticker', '')
@@ -1611,10 +1715,10 @@ class EnhancedStockSearchDialog(QDialog):
             market = stock.get('market', '')
             source = stock.get('source', 'CSV')
             match_score = stock.get('match_score', 0)
-            
-            print(f"{ticker},{name},{sector},{market_cap},{market},{source},{match_score}")
-        
-        print("="*80)
+
+            logger.info(f"{ticker},{name},{sector},{market_cap},{market},{source},{match_score}")
+
+        logger.info("="*80)
 
     def search_master_csv(self, search_term):
         """마스터 CSV 파일들에서 검색 - 통합 검색 모듈 사용"""

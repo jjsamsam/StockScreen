@@ -18,6 +18,10 @@ import matplotlib.pyplot as plt
 import warnings
 warnings.filterwarnings('ignore')
 
+# 로깅 설정
+from logger_config import get_logger
+logger = get_logger(__name__)
+
 # 최적화 모듈
 from cache_manager import get_stock_data
 
@@ -29,34 +33,34 @@ try:
     from sklearn.metrics import mean_squared_error, mean_absolute_error
     from sklearn.model_selection import train_test_split
     SKLEARN_AVAILABLE = True
-    print("✅ scikit-learn 사용 가능")
+    logger.info("scikit-learn 사용 가능")
 except ImportError:
-    print("❌ scikit-learn이 설치되지 않았습니다: pip install scikit-learn")
+    logger.error("scikit-learn이 설치되지 않았습니다: pip install scikit-learn")
     SKLEARN_AVAILABLE = False
 
 try:
     import xgboost as xgb
     XGBOOST_AVAILABLE = True
-    print(f"✅ XGBoost 사용 가능 (v{xgb.__version__})")
+    logger.info(f"XGBoost 사용 가능 (v{xgb.__version__})")
 except ImportError:
-    print("❌ XGBoost가 설치되지 않았습니다: pip install xgboost")
+    logger.error("XGBoost가 설치되지 않았습니다: pip install xgboost")
     XGBOOST_AVAILABLE = False
 
 try:
     import lightgbm as lgb
     LIGHTGBM_AVAILABLE = True
-    print(f"✅ LightGBM 사용 가능 (v{lgb.__version__})")
+    logger.info(f"LightGBM 사용 가능 (v{lgb.__version__})")
 except ImportError:
-    print("❌ LightGBM이 설치되지 않았습니다: pip install lightgbm")
+    logger.error("LightGBM이 설치되지 않았습니다: pip install lightgbm")
     LIGHTGBM_AVAILABLE = False
 
 try:
     from statsmodels.tsa.arima.model import ARIMA
     import statsmodels.api as sm
     STATSMODELS_AVAILABLE = True
-    print("✅ statsmodels 사용 가능")
+    logger.info("statsmodels 사용 가능")
 except ImportError:
-    print("❌ statsmodels가 설치되지 않았습니다: pip install statsmodels")
+    logger.error("statsmodels가 설치되지 않았습니다: pip install statsmodels")
     STATSMODELS_AVAILABLE = False
 
 class KalmanFilterPredictor:
@@ -238,10 +242,10 @@ class AdvancedMLPredictor:
             )
             rf_model.fit(X_train, y_train)
             self.models['random_forest'] = rf_model
-            
+
             rf_pred = rf_model.predict(X_val)
             rf_score = np.sqrt(mean_squared_error(y_val, rf_pred))
-            print(f"Random Forest RMSE: {rf_score:.2f}")
+            logger.info(f"Random Forest RMSE: {rf_score:.2f}")
         
         # 2. XGBoost
         if XGBOOST_AVAILABLE:
@@ -254,10 +258,10 @@ class AdvancedMLPredictor:
             )
             xgb_model.fit(X_train, y_train)
             self.models['xgboost'] = xgb_model
-            
+
             xgb_pred = xgb_model.predict(X_val)
             xgb_score = np.sqrt(mean_squared_error(y_val, xgb_pred))
-            print(f"XGBoost RMSE: {xgb_score:.2f}")
+            logger.info(f"XGBoost RMSE: {xgb_score:.2f}")
         
         # 3. LightGBM
         if LIGHTGBM_AVAILABLE:
@@ -270,10 +274,10 @@ class AdvancedMLPredictor:
             )
             lgb_model.fit(X_train, y_train)
             self.models['lightgbm'] = lgb_model
-            
+
             lgb_pred = lgb_model.predict(X_val)
             lgb_score = np.sqrt(mean_squared_error(y_val, lgb_pred))
-            print(f"LightGBM RMSE: {lgb_score:.2f}")
+            logger.info(f"LightGBM RMSE: {lgb_score:.2f}")
     
     def fit_predict(self, prices, forecast_days=5):
         """ML 모델 훈련 및 예측"""
@@ -368,7 +372,7 @@ class ARIMAPredictor:
             }
         
         except Exception as e:
-            print(f"ARIMA 모델 오류: {e}")
+            logger.error(f"ARIMA 모델 오류: {e}")
             # ARIMA 실패시 단순 추세 외삽
             trend = np.mean(np.diff(prices[-20:]))
             last_price = prices[-1]
@@ -399,30 +403,30 @@ class EnsemblePredictor:
         """앙상블 예측 실행"""
         results = {}
         predictions = []
-        
-        print("🔄 앙상블 예측 시작...")
-        
+
+        logger.info("앙상블 예측 시작...")
+
         # 1. Kalman Filter 예측
-        print("📊 Kalman Filter 실행 중...")
+        logger.debug("Kalman Filter 실행 중...")
         kalman_result = self.kalman.fit_predict(prices, forecast_days)
         results['kalman'] = kalman_result
         predictions.append(kalman_result['future_predictions'])
         
         # 2. ML 모델 예측 (XGBoost, LightGBM, Random Forest)
         if self.ml_predictor and len(prices) >= 50:
-            print("🤖 ML 모델들 훈련 중...")
+            logger.debug("ML 모델들 훈련 중...")
             try:
                 ml_result = self.ml_predictor.fit_predict(prices, forecast_days)
                 results['ml_models'] = ml_result
                 predictions.append(ml_result['future_predictions'])
             except Exception as e:
-                print(f"⚠️ ML 모델 실패: {e}")
+                logger.warning(f"ML 모델 실패: {e}")
                 self.weights['ml_models'] = 0
                 self.weights['kalman'] += 0.2
                 self.weights['arima'] += 0.2
         
         # 3. ARIMA 예측
-        print("📈 ARIMA 모델 피팅 중...")
+        logger.debug("ARIMA 모델 피팅 중...")
         arima_result = self.arima.fit_predict(prices, forecast_days)
         results['arima'] = arima_result
         predictions.append(arima_result['future_predictions'])
@@ -471,23 +475,23 @@ class StockPredictor:
             data = get_stock_data(symbol, period=period)
             return data
         except Exception as e:
-            print(f"❌ 데이터 가져오기 실패: {e}")
+            logger.error(f"데이터 가져오기 실패: {e}")
             return None
     
     def predict_stock_price(self, symbol, forecast_days=5, show_plot=True):
         """종목의 미래 주가 예측"""
-        print(f"🎯 {symbol} 주가 예측 시작...")
-        
+        logger.info(f"{symbol} 주가 예측 시작...")
+
         # 1. 데이터 수집
         data = self.get_stock_data(symbol)
         if data is None or len(data) < 50:
             return {"error": "충분한 데이터가 없습니다"}
-        
+
         prices = data['Close'].values
         dates = data.index
-        
-        print(f"📅 분석 기간: {dates[0].strftime('%Y-%m-%d')} ~ {dates[-1].strftime('%Y-%m-%d')}")
-        print(f"📊 데이터 포인트: {len(prices)}개")
+
+        logger.info(f"분석 기간: {dates[0].strftime('%Y-%m-%d')} ~ {dates[-1].strftime('%Y-%m-%d')}")
+        logger.info(f"데이터 포인트: {len(prices)}개")
         
         # 2. 앙상블 예측 실행
         result = self.ensemble.fit_predict(prices, forecast_days)
@@ -588,27 +592,27 @@ class StockPredictor:
 def example_usage():
     """사용 예제"""
     predictor = StockPredictor()
-    
-    print("사용 가능한 라이브러리:")
-    print(f"- scikit-learn: {'✅' if SKLEARN_AVAILABLE else '❌'}")
-    print(f"- XGBoost: {'✅' if XGBOOST_AVAILABLE else '❌'}")
-    print(f"- LightGBM: {'✅' if LIGHTGBM_AVAILABLE else '❌'}")
-    print(f"- statsmodels: {'✅' if STATSMODELS_AVAILABLE else '❌'}")
-    
+
+    logger.info("사용 가능한 라이브러리:")
+    logger.info(f"- scikit-learn: {'사용 가능' if SKLEARN_AVAILABLE else '사용 불가'}")
+    logger.info(f"- XGBoost: {'사용 가능' if XGBOOST_AVAILABLE else '사용 불가'}")
+    logger.info(f"- LightGBM: {'사용 가능' if LIGHTGBM_AVAILABLE else '사용 불가'}")
+    logger.info(f"- statsmodels: {'사용 가능' if STATSMODELS_AVAILABLE else '사용 불가'}")
+
     # 예제 1: 애플 주식 예측
-    print("=" * 50)
-    print("📈 APPLE (AAPL) 주가 예측")
-    print("=" * 50)
-    
+    logger.info("=" * 50)
+    logger.info("APPLE (AAPL) 주가 예측")
+    logger.info("=" * 50)
+
     result = predictor.predict_stock_price('AAPL', forecast_days=7, show_plot=False)
-    
+
     if 'error' not in result:
-        print(f"현재가: ${result['current_price']:.2f}")
-        print(f"예측 가격: {[f'${p:.2f}' for p in result['predicted_prices']]}")
-        print(f"예상 수익률: {[f'{r:.1f}%' for r in result['expected_returns']]}")
-        print(f"신뢰도: {result['confidence_score']:.1%}")
-        print(f"추천: {result['recommendation']}")
-        print(f"사용 모델: {', '.join(result['models_used'])}")
+        logger.info(f"현재가: ${result['current_price']:.2f}")
+        logger.info(f"예측 가격: {[f'${p:.2f}' for p in result['predicted_prices']]}")
+        logger.info(f"예상 수익률: {[f'{r:.1f}%' for r in result['expected_returns']]}")
+        logger.info(f"신뢰도: {result['confidence_score']:.1%}")
+        logger.info(f"추천: {result['recommendation']}")
+        logger.info(f"사용 모델: {', '.join(result['models_used'])}")
 
 if __name__ == "__main__":
     example_usage()

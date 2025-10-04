@@ -11,6 +11,9 @@ from matplotlib.figure import Figure
 import gc
 from typing import Optional
 from contextlib import contextmanager
+from logger_config import get_logger
+
+logger = get_logger(__name__)
 
 
 # ============================================================================
@@ -278,12 +281,12 @@ def get_matplotlib_memory_usage():
 def print_matplotlib_stats():
     """matplotlib 메모리 통계 출력"""
     stats = get_matplotlib_memory_usage()
-    print("=" * 60)
-    print("Matplotlib Memory Stats")
-    print("=" * 60)
-    print(f"Active Figures: {stats['num_figures']}")
-    print(f"Total Memory: {stats['total_memory_mb']:.2f} MB")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("Matplotlib Memory Stats")
+    logger.info("=" * 60)
+    logger.info(f"Active Figures: {stats['num_figures']}")
+    logger.info(f"Total Memory: {stats['total_memory_mb']:.2f} MB")
+    logger.info("=" * 60)
 
 
 # ============================================================================
@@ -304,7 +307,7 @@ def periodic_cleanup():
     """주기적으로 호출할 정리 함수"""
     # 10개 이상의 figure가 열려있으면 모두 닫기
     if len(plt.get_fignums()) > 10:
-        print("⚠️ Too many figures open. Cleaning up...")
+        logger.warning("Too many figures open. Cleaning up...")
         cleanup_all_matplotlib()
 
 
@@ -344,28 +347,28 @@ if __name__ == "__main__":
         'RSI': np.random.uniform(20, 80, 100)
     }, index=dates)
 
-    print("\n✅ Safe chart creation with context manager:")
+    logger.info("\nSafe chart creation with context manager:")
     with safe_figure(figsize=(10, 6)) as (fig, ax):
         ax.plot(data.index, data['Close'])
         ax.set_title('Stock Price - Safe')
         fig.savefig('safe_chart.png', dpi=100, bbox_inches='tight')
-        print("Chart saved: safe_chart.png")
+        logger.info("Chart saved: safe_chart.png")
 
-    print("\n✅ Using ChartManager:")
+    logger.info("\nUsing ChartManager:")
     chart_mgr = ChartManager()
     fig, ax = chart_mgr.create_figure(figsize=(10, 6))
     ax.plot(data.index, data['Volume'])
     ax.set_title('Volume')
     fig.savefig('volume_chart.png', dpi=100, bbox_inches='tight')
     chart_mgr.close_all()
-    print("Chart saved: volume_chart.png")
+    logger.info("Chart saved: volume_chart.png")
 
-    print("\n✅ Optimized stock chart:")
+    logger.info("\nOptimized stock chart:")
     stock_chart = StockChartOptimized()
     stock_chart.create_price_chart_safe(data, "Test Stock")
     stock_chart.create_multiple_indicators(data)
     stock_chart.cleanup()
-    print("Charts created and cleaned up")
+    logger.info("Charts created and cleaned up")
 
     # 메모리 통계
     print_matplotlib_stats()

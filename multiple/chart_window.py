@@ -22,6 +22,10 @@ import unicodedata
 from cache_manager import get_stock_data
 from matplotlib_optimizer import ChartManager
 
+# 로거 설정
+from logger_config import get_logger
+logger = get_logger(__name__)
+
 def has_hangul(s):
     for ch in s:
         try:
@@ -62,15 +66,15 @@ def setup_korean_font():
         if korean_font:
             plt.rcParams['font.family'] = korean_font
             plt.rcParams['axes.unicode_minus'] = False
-            print(f"✅ 한글 폰트 설정: {korean_font}")
+            logger.info(f"한글 폰트 설정: {korean_font}")
         else:
             # 한글 폰트가 없으면 기본 설정
             plt.rcParams['font.family'] = 'DejaVu Sans'
             plt.rcParams['axes.unicode_minus'] = False
-            print("⚠️ 한글 폰트를 찾을 수 없어 기본 폰트를 사용합니다.")
-            
+            logger.warning("한글 폰트를 찾을 수 없어 기본 폰트를 사용합니다.")
+
     except Exception as e:
-        print(f"⚠️ 폰트 설정 중 오류: {e}")
+        logger.warning(f"폰트 설정 중 오류: {e}")
         plt.rcParams['font.family'] = 'DejaVu Sans'
         plt.rcParams['axes.unicode_minus'] = False
 
@@ -284,8 +288,8 @@ class StockChartWindow(QMainWindow):
             if display_data.empty:
                 display_rows = min(display_days, len(data))
                 display_data = data.tail(display_rows)
-                print(f"⚠️ 날짜 필터링 실패, 최근 {display_rows}개 데이터 사용")
-            
+                logger.warning(f"날짜 필터링 실패, 최근 {display_rows}개 데이터 사용")
+
             self.plot_chart(display_data)
             self.update_info_panel(display_data)
 
@@ -294,14 +298,14 @@ class StockChartWindow(QMainWindow):
             error_msg += f"종목: {self.symbol}\n"
             error_msg += "다른 종목을 시도해보세요."
             self.info_label.setText(error_msg)
-            print(f"Chart loading error for {self.symbol}: {e}")
+            logger.error(f"Chart loading error for {self.symbol}: {e}")
 
     def fetch_stock_data_with_retry(self, symbol, start_date, end_date):
         """여러 방법으로 주식 데이터 시도 (캐싱 사용)"""
 
         # 1차 시도: 원래 심볼 그대로 (캐싱 사용)
         try:
-            print(f"📊 데이터 로딩 시도 1: {symbol}")
+            logger.info(f"데이터 로딩 시도 1: {symbol}")
             # 기간 계산
             days_diff = (end_date - start_date).days + 10
             period_str = f"{days_diff}d"
@@ -309,65 +313,65 @@ class StockChartWindow(QMainWindow):
             data = get_stock_data(symbol, period=period_str)
 
             if data is not None and not data.empty:
-                print(f"✅ 성공: {symbol} - {len(data)}개 데이터")
+                logger.info(f"성공: {symbol} - {len(data)}개 데이터")
                 return data
         except Exception as e:
-            print(f"❌ 1차 시도 실패: {e}")
+            logger.error(f"1차 시도 실패: {e}")
 
         # 2차 시도: 심볼 변형 (한국 주식의 경우)
         if '.KQ' in symbol:
             try:
                 alt_symbol = symbol.replace('.KQ', '.KS')
-                print(f"📊 데이터 로딩 시도 2: {alt_symbol} (.KQ → .KS)")
+                logger.info(f"데이터 로딩 시도 2: {alt_symbol} (.KQ → .KS)")
                 days_diff = (end_date - start_date).days + 10
                 period_str = f"{days_diff}d"
 
                 data = get_stock_data(alt_symbol, period=period_str)
 
                 if data is not None and not data.empty:
-                    print(f"✅ 성공: {alt_symbol} - {len(data)}개 데이터")
+                    logger.info(f"성공: {alt_symbol} - {len(data)}개 데이터")
                     return data
             except Exception as e:
-                print(f"❌ 2차 시도 실패: {e}")
-        
+                logger.error(f"2차 시도 실패: {e}")
+
         elif '.KS' in symbol:
             try:
                 alt_symbol = symbol.replace('.KS', '.KQ')
-                print(f"📊 데이터 로딩 시도 2: {alt_symbol} (.KS → .KQ)")
+                logger.info(f"데이터 로딩 시도 2: {alt_symbol} (.KS → .KQ)")
                 days_diff = (end_date - start_date).days + 10
                 period_str = f"{days_diff}d"
 
                 data = get_stock_data(alt_symbol, period=period_str)
 
                 if data is not None and not data.empty:
-                    print(f"✅ 성공: {alt_symbol} - {len(data)}개 데이터")
+                    logger.info(f"성공: {alt_symbol} - {len(data)}개 데이터")
                     return data
             except Exception as e:
-                print(f"❌ 2차 시도 실패: {e}")
+                logger.error(f"2차 시도 실패: {e}")
 
         # 3차 시도: 더 긴 기간으로 시도
         try:
-            print(f"📊 데이터 로딩 시도 3: {symbol} (기간 확장)")
+            logger.info(f"데이터 로딩 시도 3: {symbol} (기간 확장)")
             data = get_stock_data(symbol, period="1y")
 
             if data is not None and not data.empty:
-                print(f"✅ 성공 (확장): {symbol} - {len(data)}개 데이터")
+                logger.info(f"성공 (확장): {symbol} - {len(data)}개 데이터")
                 return data
         except Exception as e:
-            print(f"❌ 3차 시도 실패: {e}")
+            logger.error(f"3차 시도 실패: {e}")
 
         # 4차 시도: 단기 데이터
         try:
-            print(f"📊 데이터 로딩 시도 4: {symbol} (단기)")
+            logger.info(f"데이터 로딩 시도 4: {symbol} (단기)")
             data = get_stock_data(symbol, period="1mo")
 
             if data is not None and not data.empty:
-                print(f"✅ 성공 (단기): {symbol} - {len(data)}개 데이터")
+                logger.info(f"성공 (단기): {symbol} - {len(data)}개 데이터")
                 return data
         except Exception as e:
-            print(f"❌ 4차 시도 실패: {e}")
-        
-        print(f"❌ 모든 시도 실패: {symbol}")
+            logger.error(f"4차 시도 실패: {e}")
+
+        logger.error(f"모든 시도 실패: {symbol}")
         return None
 
     def plot_chart(self, data):
@@ -891,8 +895,8 @@ class StockChartWindow(QMainWindow):
         try:
             # 차트 메모리 정리
             self.chart_manager.close_all()
-            print("✅ 차트 메모리 정리 완료")
+            logger.info("차트 메모리 정리 완료")
         except Exception as e:
-            print(f"⚠️ 메모리 정리 오류: {e}")
+            logger.warning(f"메모리 정리 오류: {e}")
         finally:
             event.accept()

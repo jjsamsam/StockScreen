@@ -20,6 +20,9 @@ from PyQt5.QtCore import QThread, pyqtSignal
 
 from bs4 import BeautifulSoup
 from typing import Optional
+from logger_config import get_logger
+
+logger = get_logger(__name__)
 
 # ---- 외부 라이브러리 로그/워닝 소음 억제 ----
 warnings.filterwarnings("ignore", category=UserWarning, module="yfinance")
@@ -47,16 +50,16 @@ class SmartUpdateThread(QThread):
             markets = self.config['markets']
             use_mcap_filter = self.config['use_mcap_filter']
             
-            print(f"🌐 스마트 업데이트 시작: {', '.join(markets)}")
+            logger.info(f"스마트 업데이트 시작: {', '.join(markets)}")
             
             if use_mcap_filter:
-                print(f"📊 시가총액 필터링: 상위 {self.config['top_count']}개")
+                logger.info(f"시가총액 필터링: 상위 {self.config['top_count']}개")
                 if self.config['enrich_all']:
-                    print("🔄 전체 보강 모드")
+                    logger.info("전체 보강 모드")
                 else:
-                    print(f"🔄 선택적 보강: {self.config['enrich_count']}개")
+                    logger.info(f"선택적 보강: {self.config['enrich_count']}개")
             else:
-                print("⚡ 고속 모드 (보강 없음)")
+                logger.info("고속 모드 (보강 없음)")
             
             total_counts = {}
             
@@ -65,19 +68,19 @@ class SmartUpdateThread(QThread):
                 self.progress.emit("한국 시장 업데이트 중...")
                 korea_count = self.update_korea_smart()
                 total_counts['korea'] = korea_count or 0
-                print(f"✅ 한국 주식 업데이트 완료: {total_counts['korea']}개")
+                logger.info(f"한국 주식 업데이트 완료: {total_counts['korea']}개")
             
             if "미국" in markets:
                 self.progress.emit("미국 시장 업데이트 중...")
                 usa_count = self.update_usa_smart()
                 total_counts['usa'] = usa_count or 0
-                print(f"✅ 미국 주식 업데이트 완료: {total_counts['usa']}개")
+                logger.info(f"미국 주식 업데이트 완료: {total_counts['usa']}개")
             
             if "스웨덴" in markets:
                 self.progress.emit("스웨덴 시장 업데이트 중...")
                 sweden_count = self.update_sweden_smart()
                 total_counts['sweden'] = sweden_count or 0
-                print(f"✅ 스웨덴 주식 업데이트 완료: {total_counts['sweden']}개")
+                logger.info(f"스웨덴 주식 업데이트 완료: {total_counts['sweden']}개")
             
             # 결과 메시지 생성
             total_count = sum(total_counts.values())
@@ -103,7 +106,7 @@ class SmartUpdateThread(QThread):
             self.finished.emit(message)
             
         except Exception as e:
-            print(f"❌ 스마트 업데이트 오류: {e}")
+            logger.error(f"스마트 업데이트 오류: {e}")
             self.error.emit(f'업데이트 중 오류가 발생했습니다: {str(e)}')
     
     def update_korea_smart(self):
@@ -117,7 +120,7 @@ class SmartUpdateThread(QThread):
             kosdaq = fetch_krx_list('KSQ')
             all_df = pd.concat([kospi, kosdaq], ignore_index=True).drop_duplicates('ticker')
             
-            print(f"한국 기본 리스트 수집 완료: {len(all_df)}개")
+            logger.info(f"한국 기본 리스트 수집 완료: {len(all_df)}개")
             
             # 2단계: 조건부 보강
             if self.config['use_mcap_filter']:
@@ -160,7 +163,7 @@ class SmartUpdateThread(QThread):
             return len(final_df)
             
         except Exception as e:
-            print(f"한국 시장 업데이트 실패: {e}")
+            logger.error(f"한국 시장 업데이트 실패: {e}")
             return self.create_korea_fallback()
     
     def update_usa_smart(self):
@@ -173,7 +176,7 @@ class SmartUpdateThread(QThread):
             if all_df.empty:
                 return self.create_usa_fallback()
             
-            print(f"미국 기본 리스트 수집 완료: {len(all_df)}개")
+            logger.info(f"미국 기본 리스트 수집 완료: {len(all_df)}개")
             
             # 2단계: 조건부 보강
             if self.config['use_mcap_filter']:
@@ -214,7 +217,7 @@ class SmartUpdateThread(QThread):
             return len(final_df)
             
         except Exception as e:
-            print(f"미국 시장 업데이트 실패: {e}")
+            logger.error(f"미국 시장 업데이트 실패: {e}")
             return self.create_usa_fallback()
     
     def update_sweden_smart(self):
@@ -227,7 +230,7 @@ class SmartUpdateThread(QThread):
             if all_df.empty:
                 raise RuntimeError("Nordic API returned empty")
             
-            print(f"스웨덴 기본 리스트 수집 완료: {len(all_df)}개")
+            logger.info(f"스웨덴 기본 리스트 수집 완료: {len(all_df)}개")
             
             # 2단계: 조건부 보강
             if self.config['use_mcap_filter']:
@@ -268,7 +271,7 @@ class SmartUpdateThread(QThread):
             return len(final_df)
             
         except Exception as e:
-            print(f"스웨덴 시장 업데이트 실패: {e}")
+            logger.error(f"스웨덴 시장 업데이트 실패: {e}")
             return self.create_sweden_fallback()
     
     def filter_by_market_cap(self, df, top_count, market_name):
@@ -284,18 +287,18 @@ class SmartUpdateThread(QThread):
             df_copy['market_cap_numeric'] = pd.to_numeric(df_copy['market_cap'], errors='coerce')
             
             # 변환 결과 확인 및 디버그 정보
-            print(f"🔍 {market_name} 시가총액 데이터 타입 체크:")
-            print(f"   - 원본 타입: {df['market_cap'].dtype}")
-            print(f"   - 변환 후 타입: {df_copy['market_cap_numeric'].dtype}")
-            print(f"   - 유효한 값 개수: {df_copy['market_cap_numeric'].notna().sum()}/{len(df_copy)}")
+            logger.debug(f"{market_name} 시가총액 데이터 타입 체크:")
+            logger.debug(f"   - 원본 타입: {df['market_cap'].dtype}")
+            logger.debug(f"   - 변환 후 타입: {df_copy['market_cap_numeric'].dtype}")
+            logger.debug(f"   - 유효한 값 개수: {df_copy['market_cap_numeric'].notna().sum()}/{len(df_copy)}")
             
             # 샘플 데이터 출력 (디버깅용)
             if len(df_copy) > 0:
                 sample_data = df_copy[['ticker', 'market_cap', 'market_cap_numeric']].head(3)
-                print(f"   - 샘플 데이터:")
+                logger.debug(f"   - 샘플 데이터:")
                 # ✅ 벡터화: iterrows() 제거
                 for ticker, mcap, mcap_num in zip(sample_data['ticker'], sample_data['market_cap'], sample_data['market_cap_numeric']):
-                    print(f"     {ticker}: '{mcap}' → {mcap_num}")
+                    logger.debug(f"     {ticker}: '{mcap}' → {mcap_num}")
             
             # 유효한 시가총액이 있는 종목만 선택
             valid_mcap_df = df_copy[
@@ -304,7 +307,7 @@ class SmartUpdateThread(QThread):
             ].copy()
             
             if valid_mcap_df.empty:
-                print(f"⚠️ {market_name}: 유효한 시가총액 데이터가 없어 원본 상위 {top_count}개 종목 사용")
+                logger.warning(f"{market_name}: 유효한 시가총액 데이터가 없어 원본 상위 {top_count}개 종목 사용")
                 return df.head(top_count)
             
             # 시가총액 기준 내림차순 정렬
@@ -313,31 +316,31 @@ class SmartUpdateThread(QThread):
             # 상위 N개 선택
             top_stocks = sorted_df.head(top_count)
             
-            print(f"📊 {market_name}: 시가총액 기준 상위 {len(top_stocks)}개 종목 선별 완료")
+            logger.info(f"{market_name}: 시가총액 기준 상위 {len(top_stocks)}개 종목 선별 완료")
             
             # 시가총액 정보 출력 (상위 5개)
             if len(top_stocks) > 0:
-                print(f"   상위 종목 예시:")
+                logger.info(f"   상위 종목 예시:")
                 # ✅ 벡터화: iterrows() 제거
                 top_5 = top_stocks.head(5)
                 for i, (ticker, name, mcap_num) in enumerate(zip(top_5['ticker'], top_5['name'], top_5['market_cap_numeric'])):
                     mcap_display = self.format_market_cap(mcap_num)
-                    print(f"   {i+1}. {ticker} ({name[:20]}): {mcap_display}")
+                    logger.info(f"   {i+1}. {ticker} ({name[:20]}): {mcap_display}")
             
             # 원본 컬럼명 유지하여 반환 (numeric 컬럼 제거)
             result = top_stocks.drop(columns=['market_cap_numeric'])
             return result
             
         except Exception as e:
-            print(f"⚠️ {market_name} 시가총액 필터링 오류: {e}")
+            logger.warning(f"{market_name} 시가총액 필터링 오류: {e}")
             
             # 추가 디버그 정보
             if hasattr(df, 'market_cap'):
-                print(f"   디버그 정보:")
-                print(f"   - market_cap 컬럼 존재: {True}")
-                print(f"   - 데이터 타입: {df['market_cap'].dtype}")
-                print(f"   - 첫 5개 값: {df['market_cap'].head().tolist()}")
-                print(f"   - NaN 개수: {df['market_cap'].isna().sum()}")
+                logger.debug(f"   디버그 정보:")
+                logger.debug(f"   - market_cap 컬럼 존재: {True}")
+                logger.debug(f"   - 데이터 타입: {df['market_cap'].dtype}")
+                logger.debug(f"   - 첫 5개 값: {df['market_cap'].head().tolist()}")
+                logger.debug(f"   - NaN 개수: {df['market_cap'].isna().sum()}")
             
             return df.head(top_count)
     
@@ -365,7 +368,7 @@ class SmartUpdateThread(QThread):
                 return f"{market_cap:,.0f}"
                 
         except (ValueError, TypeError) as e:
-            print(f"⚠️ 시가총액 포맷팅 오류: {e} (입력값: {market_cap})")
+            logger.warning(f"시가총액 포맷팅 오류: {e} (입력값: {market_cap})")
             return str(market_cap) if market_cap is not None else "N/A"
     
     # 추가: 데이터 로드 시 시가총액 타입 체크 함수
@@ -373,35 +376,35 @@ class SmartUpdateThread(QThread):
         """시가총액 데이터 유효성 검사"""
         try:
             if 'market_cap' not in df.columns:
-                print(f"⚠️ {market_name}: market_cap 컬럼이 없습니다.")
+                logger.warning(f"{market_name}: market_cap 컬럼이 없습니다.")
                 return False
             
-            print(f"🔍 {market_name} 시가총액 데이터 검사:")
-            print(f"   - 총 종목 수: {len(df)}")
-            print(f"   - market_cap 타입: {df['market_cap'].dtype}")
-            print(f"   - NaN 값: {df['market_cap'].isna().sum()}개")
-            print(f"   - 고유값 예시: {df['market_cap'].dropna().head(3).tolist()}")
+            logger.debug(f"{market_name} 시가총액 데이터 검사:")
+            logger.debug(f"   - 총 종목 수: {len(df)}")
+            logger.debug(f"   - market_cap 타입: {df['market_cap'].dtype}")
+            logger.debug(f"   - NaN 값: {df['market_cap'].isna().sum()}개")
+            logger.debug(f"   - 고유값 예시: {df['market_cap'].dropna().head(3).tolist()}")
             
             # 문자열 타입이면 경고
             if df['market_cap'].dtype == 'object':
-                print(f"   ⚠️ 문자열 타입 감지 - 숫자 변환 필요")
+                logger.warning(f"   문자열 타입 감지 - 숫자 변환 필요")
                 
                 # 변환 테스트
                 test_conversion = pd.to_numeric(df['market_cap'].head(10), errors='coerce')
                 valid_conversions = test_conversion.notna().sum()
-                print(f"   - 변환 테스트 (첫 10개): {valid_conversions}/10개 성공")
+                logger.debug(f"   - 변환 테스트 (첫 10개): {valid_conversions}/10개 성공")
             
             return True
             
         except Exception as e:
-            print(f"⚠️ {market_name} 데이터 검사 오류: {e}")
+            logger.warning(f"{market_name} 데이터 검사 오류: {e}")
             return False
         
     # ========== Fallback 메서드들 ==========
     
     def create_korea_fallback(self):
         """한국 종목 백업 데이터 생성"""
-        print("🔄 한국 백업 데이터 생성 중...")
+        logger.info("한국 백업 데이터 생성 중...")
         
         major_stocks = [
             # 시총 상위 100개 (2024년 기준, 단위: 원)
@@ -541,7 +544,7 @@ class SmartUpdateThread(QThread):
     
     def create_usa_fallback(self):
         """미국 종목 백업 데이터 생성"""
-        print("🔄 미국 백업 데이터 생성 중...")
+        logger.info("미국 백업 데이터 생성 중...")
         
         major_stocks = [
                     # 시총 상위 100개 (2024년 기준, 단위: USD)
@@ -679,7 +682,7 @@ class SmartUpdateThread(QThread):
     
     def create_sweden_fallback(self):
         """스웨덴 종목 백업 데이터 생성"""
-        print("🔄 스웨덴 백업 데이터 생성 중...")
+        logger.info("스웨덴 백업 데이터 생성 중...")
         
         major_stocks = [
             # 시총 상위 100개 (2024년 기준, 단위: SEK)
@@ -1109,7 +1112,7 @@ def fetch_sweden_list_from_stockanalysis() -> pd.DataFrame:
 #        return result_df
         
     except Exception as e:
-        print(f"StockAnalysis.com에서 데이터 수집 실패: {e}")
+        logger.error(f"StockAnalysis.com에서 데이터 수집 실패: {e}")
         # 백업 방법 시도
         return fetch_sweden_list_backup()
 
@@ -1237,7 +1240,7 @@ def fetch_sweden_list_backup() -> pd.DataFrame:
             return pd.DataFrame()
         
     except Exception as e:
-        print(f"백업 방법도 실패: {e}")
+        logger.error(f"백업 방법도 실패: {e}")
         # 최종 백업: 하드코딩된 주요 종목들
         return get_hardcoded_swedish_stocks()
 
@@ -1285,7 +1288,7 @@ def fetch_sweden_list_from_nordic() -> pd.DataFrame:
         # 먼저 StockAnalysis.com 방법 시도
         return fetch_sweden_list_from_stockanalysis()
     except Exception as e:
-        print(f"주요 방법 실패, 원래 방법 시도 중: {e}")
+        logger.warning(f"주요 방법 실패, 원래 방법 시도 중: {e}")
         
         # 원래 방법 시도 (개선된 버전)
         url = "https://www.nasdaqomxnordic.com/webproxy/DataFeedProxy.aspx"
@@ -1356,7 +1359,7 @@ def fetch_sweden_list_from_nordic() -> pd.DataFrame:
             return out
             
         except Exception as nordic_error:
-            print(f"Nordic 방법도 실패: {nordic_error}")
+            logger.error(f"Nordic 방법도 실패: {nordic_error}")
             return get_hardcoded_swedish_stocks()
 
 def fix_sweden_ticker_format(raw_ticker):
@@ -1403,7 +1406,7 @@ def enrich_with_yfinance(df: pd.DataFrame,
     
     예시 사용법:
     def progress_callback(message):
-        print(message)
+        logger.info(message)
     
     enriched_df = enrich_with_yfinance(
         df, 
@@ -1871,7 +1874,7 @@ def export_search_results(found_stocks, search_term, filename=None):
         df.to_excel(filename, index=False, engine='openpyxl')
         return filename
     except Exception as e:
-        print(f"Excel 내보내기 실패: {e}")
+        logger.error(f"Excel 내보내기 실패: {e}")
         return None
 
 # 검색 성능 측정을 위한 함수
@@ -1943,7 +1946,7 @@ def create_sample_data():
     pd.DataFrame(korea_stocks).to_csv('stock_data/korea_stocks.csv', index=False, encoding='utf-8-sig')
     pd.DataFrame(usa_stocks).to_csv('stock_data/usa_stocks.csv', index=False, encoding='utf-8-sig')
     pd.DataFrame(sweden_stocks).to_csv('stock_data/sweden_stocks.csv', index=False, encoding='utf-8-sig')
-    print("✅ 샘플 CSV 파일들이 생성되었습니다!")
+    logger.info("샘플 CSV 파일들이 생성되었습니다!")
 
 
 def validate_stock_data(df: pd.DataFrame, market_name: str) -> pd.DataFrame:
@@ -1955,13 +1958,13 @@ def validate_stock_data(df: pd.DataFrame, market_name: str) -> pd.DataFrame:
         raise ValueError(f"{market_name} 데이터에 필수 컬럼이 없습니다: {missing_columns}")
 
     if df.isnull().any().any():
-        print(f"⚠️ {market_name} 데이터에 빈 값이 있습니다. 자동으로 처리됩니다.")
+        logger.warning(f"{market_name} 데이터에 빈 값이 있습니다. 자동으로 처리됩니다.")
         df = df.fillna('Unknown')
 
     duplicates = df[df.duplicated('ticker', keep=False)]
     if not duplicates.empty:
-        print(f"⚠️ {market_name} 데이터에 중복된 티커가 있습니다:")
-        print(duplicates[['ticker', 'name']])
+        logger.warning(f"{market_name} 데이터에 중복된 티커가 있습니다:")
+        logger.warning(f"{duplicates[['ticker', 'name']]}")
 
     return df
 
@@ -2055,11 +2058,11 @@ def export_screening_results(buy_candidates, sell_candidates, filename=None):
             }
             pd.DataFrame(summary_data).to_excel(writer, sheet_name='요약', index=False)
 
-        print(f"✅ 스크리닝 결과가 {filename}에 저장되었습니다.")
+        logger.info(f"스크리닝 결과가 {filename}에 저장되었습니다.")
         return filename
 
     except Exception as e:
-        print(f"⌐ 파일 내보내기 실패: {e}")
+        logger.error(f"파일 내보내기 실패: {e}")
         return None
 
 
@@ -2077,7 +2080,7 @@ class MasterCSVThread(QThread):
     def run(self):
         try:
             markets = self.config['markets']
-            print(f"🏆 마스터 CSV 생성 시작: {', '.join(markets)}")
+            logger.info(f"마스터 CSV 생성 시작: {', '.join(markets)}")
             
             total_counts = {}
             
@@ -2112,7 +2115,7 @@ class MasterCSVThread(QThread):
             self.finished.emit(message)
             
         except Exception as e:
-            print(f"❌ 마스터 CSV 생성 오류: {e}")
+            logger.error(f"마스터 CSV 생성 오류: {e}")
             self.error.emit(f'마스터 CSV 생성 중 오류: {str(e)}')
     
     def create_korea_master(self):
@@ -2126,7 +2129,7 @@ class MasterCSVThread(QThread):
             kosdaq = fetch_krx_list('KSQ')
             all_df = pd.concat([kospi, kosdaq], ignore_index=True).drop_duplicates('ticker')
             
-            print(f"한국 기본 리스트 수집: {len(all_df)}개")
+            logger.info(f"한국 기본 리스트 수집: {len(all_df)}개")
             
             # 2단계: 전체 보강
             self.progress.emit(f"한국 전체 {len(all_df)}개 종목 시가총액 정보 수집 중...")
@@ -2147,11 +2150,11 @@ class MasterCSVThread(QThread):
             master_file = 'stock_data/korea_stocks_master.csv'
             enriched_df.to_csv(master_file, index=False, encoding='utf-8-sig')
             
-            print(f"✅ 한국 마스터 CSV 저장: {master_file} ({len(enriched_df)}개 종목)")
+            logger.info(f"한국 마스터 CSV 저장: {master_file} ({len(enriched_df)}개 종목)")
             return len(enriched_df)
             
         except Exception as e:
-            print(f"한국 마스터 생성 실패: {e}")
+            logger.error(f"한국 마스터 생성 실패: {e}")
             return self.create_korea_master_fallback()
     
     def create_usa_master(self):
@@ -2163,7 +2166,7 @@ class MasterCSVThread(QThread):
             if all_df.empty:
                 raise RuntimeError("미국 종목 리스트를 가져올 수 없습니다")
             
-            print(f"미국 기본 리스트 수집: {len(all_df)}개")
+            logger.info(f"미국 기본 리스트 수집: {len(all_df)}개")
             
             self.progress.emit(f"미국 전체 {len(all_df)}개 종목 정보 수집 중...")
             enriched_df = enrich_with_yfinance(
@@ -2179,11 +2182,11 @@ class MasterCSVThread(QThread):
             master_file = 'stock_data/usa_stocks_master.csv'
             enriched_df.to_csv(master_file, index=False, encoding='utf-8-sig')
             
-            print(f"✅ 미국 마스터 CSV 저장: {master_file} ({len(enriched_df)}개 종목)")
+            logger.info(f"미국 마스터 CSV 저장: {master_file} ({len(enriched_df)}개 종목)")
             return len(enriched_df)
             
         except Exception as e:
-            print(f"미국 마스터 생성 실패: {e}")
+            logger.error(f"미국 마스터 생성 실패: {e}")
             return self.create_usa_master_fallback()
     
     def create_sweden_master(self):
@@ -2195,7 +2198,7 @@ class MasterCSVThread(QThread):
             if all_df.empty:
                 raise RuntimeError("스웨덴 종목 리스트를 가져올 수 없습니다")
             
-            print(f"스웨덴 기본 리스트 수집: {len(all_df)}개")
+            logger.info(f"스웨덴 기본 리스트 수집: {len(all_df)}개")
             
             self.progress.emit(f"스웨덴 전체 {len(all_df)}개 종목 정보 수집 중...")
             enriched_df = enrich_with_yfinance(
@@ -2211,11 +2214,11 @@ class MasterCSVThread(QThread):
             master_file = 'stock_data/sweden_stocks_master.csv'
             enriched_df.to_csv(master_file, index=False, encoding='utf-8-sig')
             
-            print(f"✅ 스웨덴 마스터 CSV 저장: {master_file} ({len(enriched_df)}개 종목)")
+            logger.info(f"스웨덴 마스터 CSV 저장: {master_file} ({len(enriched_df)}개 종목)")
             return len(enriched_df)
             
         except Exception as e:
-            print(f"스웨덴 마스터 생성 실패: {e}")
+            logger.error(f"스웨덴 마스터 생성 실패: {e}")
             return self.create_sweden_master_fallback()
     
     def sort_by_market_cap(self, df, market_name):
@@ -2225,7 +2228,7 @@ class MasterCSVThread(QThread):
             valid_df = df[df['market_cap'].notna() & (df['market_cap'] > 0)].copy()
             
             if valid_df.empty:
-                print(f"⚠️ {market_name}: 유효한 시가총액 데이터가 없어 원본 순서 유지")
+                logger.warning(f"{market_name}: 유효한 시가총액 데이터가 없어 원본 순서 유지")
                 return df
             
             # 시가총액 내림차순 정렬
@@ -2233,16 +2236,16 @@ class MasterCSVThread(QThread):
             
             # 상위 5개 로그 출력
             # ✅ 벡터화: iterrows() 제거
-            print(f"📊 {market_name} 시가총액 상위 5개:")
+            logger.info(f"{market_name} 시가총액 상위 5개:")
             top_5 = sorted_df.head(5)
             for i, (ticker, name, mcap) in enumerate(zip(top_5['ticker'], top_5['name'], top_5['market_cap'])):
                 mcap_str = self.format_market_cap(mcap)
-                print(f"   {i+1}. {ticker} ({name[:20]}): {mcap_str}")
+                logger.info(f"   {i+1}. {ticker} ({name[:20]}): {mcap_str}")
             
             return sorted_df
             
         except Exception as e:
-            print(f"시가총액 정렬 오류 ({market_name}): {e}")
+            logger.error(f"시가총액 정렬 오류 ({market_name}): {e}")
             return df
     
     def format_market_cap(self, market_cap):
@@ -2380,7 +2383,7 @@ class MasterCSVThread(QThread):
         master_file = 'stock_data/korea_stocks_master.csv'
         os.makedirs('stock_data', exist_ok=True)
         df.to_csv(master_file, index=False, encoding='utf-8-sig')
-        print(f"✅ 한국 마스터 백업 데이터 생성: {len(df)}개 종목")
+        logger.info(f"한국 마스터 백업 데이터 생성: {len(df)}개 종목")
         return len(df)
     
     def create_usa_master_fallback(self):
@@ -2502,7 +2505,7 @@ class MasterCSVThread(QThread):
         master_file = 'stock_data/usa_stocks_master.csv'
         os.makedirs('stock_data', exist_ok=True)
         df.to_csv(master_file, index=False, encoding='utf-8-sig')
-        print(f"✅ 미국 마스터 백업 데이터 생성: {len(df)}개 종목")
+        logger.info(f"미국 마스터 백업 데이터 생성: {len(df)}개 종목")
         return len(df)
     
     def create_sweden_master_fallback(self):
@@ -2624,7 +2627,7 @@ class MasterCSVThread(QThread):
         master_file = 'stock_data/sweden_stocks_master.csv'
         os.makedirs('stock_data', exist_ok=True)
         df.to_csv(master_file, index=False, encoding='utf-8-sig')
-        print(f"✅ 스웨덴 마스터 백업 데이터 생성: {len(df)}개 종목")
+        logger.info(f"스웨덴 마스터 백업 데이터 생성: {len(df)}개 종목")
         return len(df)
     
     def create_fallback_df(self, stocks_data, market):
@@ -2658,7 +2661,7 @@ class MasterFilterThread(QThread):
             top_count = self.config['top_count']
             master_files = self.config['master_files']
             
-            print(f"📊 마스터에서 필터링 시작: 상위 {top_count}개")
+            logger.info(f"마스터에서 필터링 시작: 상위 {top_count}개")
             
             results = {}
             
@@ -2685,7 +2688,7 @@ class MasterFilterThread(QThread):
             self.finished.emit(message)
             
         except Exception as e:
-            print(f"❌ 마스터 필터링 오류: {e}")
+            logger.error(f"마스터 필터링 오류: {e}")
             self.error.emit(f'마스터 필터링 중 오류: {str(e)}')
     
     def filter_from_master(self, market, master_file, top_count):
@@ -2695,7 +2698,7 @@ class MasterFilterThread(QThread):
             
             # 1단계: 마스터 CSV 로드
             master_df = pd.read_csv(master_file)
-            print(f"{market} 마스터 파일 로드: {len(master_df)}개 종목")
+            logger.info(f"{market} 마스터 파일 로드: {len(master_df)}개 종목")
             
             # 2단계: 여유있게 상위 N*2개 선택 (최신 정보 업데이트용)
             buffer_count = min(top_count * 2, len(master_df))
@@ -2720,11 +2723,11 @@ class MasterFilterThread(QThread):
             work_file = f'stock_data/{market}_stocks.csv'
             final_df.to_csv(work_file, index=False, encoding='utf-8-sig')
             
-            print(f"✅ {market} 필터링 완료: {work_file} ({len(final_df)}개 종목)")
+            logger.info(f"{market} 필터링 완료: {work_file} ({len(final_df)}개 종목)")
             return len(final_df)
             
         except Exception as e:
-            print(f"{market} 필터링 실패: {e}")
+            logger.error(f"{market} 필터링 실패: {e}")
             return 0
     
     def sort_and_filter(self, df, top_count, market_name):
@@ -2734,7 +2737,7 @@ class MasterFilterThread(QThread):
             valid_df = df[df['market_cap'].notna() & (df['market_cap'] > 0)].copy()
             
             if valid_df.empty:
-                print(f"⚠️ {market_name}: 유효한 시가총액 없음, 원본 상위 {top_count}개 사용")
+                logger.warning(f"{market_name}: 유효한 시가총액 없음, 원본 상위 {top_count}개 사용")
                 return df.head(top_count)
             
             # 최신 시가총액 기준 재정렬
@@ -2745,16 +2748,16 @@ class MasterFilterThread(QThread):
             
             # 결과 로그
             # ✅ 벡터화: iterrows() 제거
-            print(f"📊 {market_name} 최종 상위 3개:")
+            logger.info(f"{market_name} 최종 상위 3개:")
             top_3 = final_df.head(3)
             for i, (ticker, name, mcap) in enumerate(zip(top_3['ticker'], top_3['name'], top_3['market_cap'])):
                 mcap_str = self.format_market_cap(mcap)
-                print(f"   {i+1}. {ticker} ({name[:20]}): {mcap_str}")
+                logger.info(f"   {i+1}. {ticker} ({name[:20]}): {mcap_str}")
             
             return final_df
             
         except Exception as e:
-            print(f"정렬/필터 오류 ({market_name}): {e}")
+            logger.error(f"정렬/필터 오류 ({market_name}): {e}")
             return df.head(top_count)
     
     def format_market_cap(self, market_cap):

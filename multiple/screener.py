@@ -29,14 +29,18 @@ from cache_manager import get_stock_data, get_ticker_info
 from unified_search import search_stocks
 from csv_manager import load_all_master_csvs
 
+# 로깅 설정
+from logger_config import get_logger
+logger = get_logger(__name__)
+
 # AI 예측 기능 통합 import
 try:
     from prediction_window import StockPredictionDialog
     from enhanced_screener import EnhancedStockScreenerMethods, BatchPredictionDialog, PredictionSettingsDialog
     PREDICTION_AVAILABLE = True
-    print("✅ Enhanced AI Prediction 기능 활성화")
+    logger.info("✅ Enhanced AI Prediction 기능 활성화")
 except ImportError as e:
-    print(f"⚠️ AI Prediction 기능 없음: {e}")
+    logger.warning(f"⚠️ AI Prediction 기능 없음: {e}")
     # 기본 클래스들 더미 정의 (오류 방지)
     class EnhancedStockScreenerMethods:
         def __init__(self):
@@ -100,7 +104,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         # 🚀 AI 예측 기능 초기화 (가능한 경우에만)
         if PREDICTION_AVAILABLE:
             try:
-                print("🤖 AI 예측 기능 초기화 중...")
+                logger.info("🤖 AI 예측 기능 초기화 중...")
                 
                 # 예측 설정 로드
                 self.load_prediction_settings()
@@ -111,27 +115,27 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                 # 테이블 컨텍스트 메뉴에 AI 기능 추가
                 self.enhance_table_context_menus()
                 
-                print("✅ AI 예측 기능 초기화 완료")
+                logger.info("✅ AI 예측 기능 초기화 완료")
                 
             except Exception as e:
-                print(f"⚠️ AI 기능 초기화 오류: {e}")
+                logger.warning(f"⚠️ AI 기능 초기화 오류: {e}")
                 # 오류가 있어도 기본 기능은 동작하도록
         else:
-            print("ℹ️ 기본 모드로 실행 중 (AI 기능 비활성화)")
+            logger.info("ℹ️ 기본 모드로 실행 중 (AI 기능 비활성화)")
             
         try:
             # enhanced_screener의 기능이 사용 가능한지 확인
             if hasattr(self, 'enhance_table_context_menus'):
-                print("✅ Enhanced screener 기능 활성화됨")
+                logger.info("✅ Enhanced screener 기능 활성화됨")
             else:
-                print("ℹ️ 기본 screener 모드로 실행 중")
+                logger.info("ℹ️ 기본 screener 모드로 실행 중")
         except Exception as e:
-            print(f"⚠️ Enhanced screener 초기화 오류: {e}")
+            logger.warning(f"⚠️ Enhanced screener 초기화 오류: {e}")
 
     def search_stocks_with_api(self, search_term):
         """API를 사용한 실시간 주식 검색 + 기존 CSV 백업 (screener용)"""
         
-        print(f"🔍 Screener API로 '{search_term}' 검색 시작...")
+        logger.info(f"🔍 Screener API로 '{search_term}' 검색 시작...")
         api_results = []
         
         # 1. 먼저 API로 검색 시도
@@ -144,21 +148,21 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             }
 
             res = requests.get(url, headers=headers, timeout=10)
-            print("Screener API Status code:", res.status_code)
+            logger.debug("Screener API Status code:", res.status_code)
 
             if res.ok:
                 data = res.json()
                 quotes = data.get('quotes', [])
-                print(f"📊 Screener API에서 {len(quotes)}개 종목 발견")
+                logger.info(f"📊 Screener API에서 {len(quotes)}개 종목 발견")
                 
                 # Make csv from json.
                 api_results = self.convert_api_to_screener_format(quotes, search_term)
 
             else:
-                print("Screener API Request failed:", res.text[:200])
+                logger.error("Screener API Request failed:", res.text[:200])
 
         except Exception as e:
-            print(f"Screener API 검색 실패: {e}")
+            logger.error(f"Screener API 검색 실패: {e}")
         
         # 2. CSV에서도 검색 (백업용) - 기존 함수 활용
         csv_results = self.enhanced_search_stocks(search_term)
@@ -166,7 +170,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         # 3. 결과 병합
         combined_results = self.merge_screener_search_results(api_results, csv_results)
         
-        print(f"✅ Screener 총 {len(combined_results)}개 종목 반환")
+        logger.info(f"✅ Screener 총 {len(combined_results)}개 종목 반환")
         return combined_results
 
     def convert_api_to_screener_format(self, quotes, search_term):
@@ -208,7 +212,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                 screener_format_results.append(stock_info)
                 
             except Exception as e:
-                print(f"⚠️ Screener API 데이터 변환 오류: {e}")
+                logger.warning(f"⚠️ Screener API 데이터 변환 오류: {e}")
                 continue
         
         return screener_format_results
@@ -283,7 +287,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
 
         # 검색 중복 실행 방지
         if hasattr(self, '_is_searching') and self._is_searching:
-            print("⚠️ 이미 검색 중입니다. 중복 실행 방지")
+            logger.warning("⚠️ 이미 검색 중입니다. 중복 실행 방지")
             return
 
         try:
@@ -315,7 +319,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         except Exception as e:
             self.search_result_label.setText(f"❌ 오류")
             QMessageBox.critical(self, "검색 오류", f"검색 중 오류가 발생했습니다:\n{str(e)}")
-            print(f"Screener 검색 오류: {e}")
+            logger.error(f"Screener 검색 오류: {e}")
             import traceback
             traceback.print_exc()
         
@@ -654,7 +658,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                 self.show_stock_detail(selected_ticker)
                 
         except Exception as e:
-            print(f"랜덤 종목 향상된 검색 오류: {e}")
+            logger.error(f"랜덤 종목 향상된 검색 오류: {e}")
             # 백업: 기존 랜덤 기능 사용
             if hasattr(self, 'show_random_stock_chart'):
                 self.show_random_stock_chart()
@@ -761,7 +765,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             # 이미 __init__에서 처리되므로 빈 메서드로 유지
             pass
         else:
-            print("💡 AI 예측 기능을 사용하려면 enhanced_screener.py가 필요합니다")
+            logger.info("💡 AI 예측 기능을 사용하려면 enhanced_screener.py가 필요합니다")
             
     def enhance_table_context_menus(self):
         """테이블 컨텍스트 메뉴 강화"""
@@ -774,47 +778,73 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         
     def initUI(self):
         self.setWindowTitle('Advanced Global Stock Screener - 고급 분석 시스템 2025')
-        self.setGeometry(100, 100, 1600, 1000)
+
+        # 화면 해상도 확인 및 자동 크기 조정
+        screen = QApplication.primaryScreen().geometry()
+        screen_width = screen.width()
+        screen_height = screen.height()
+
+        # 최소 윈도우 크기 설정
+        self.setMinimumSize(1400, 900)
+
+        # 1080p 이하이거나 창이 충분히 크지 않으면 최대화
+        if screen_width <= 1920 or screen_height <= 1080:
+            self.showMaximized()
+        else:
+            # 화면의 90% 크기로 시작
+            window_width = int(screen_width * 0.9)
+            window_height = int(screen_height * 0.9)
+            x = (screen_width - window_width) // 2
+            y = (screen_height - window_height) // 2
+            self.setGeometry(x, y, window_width, window_height)
         
         # 메인 위젯
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         layout = QVBoxLayout(main_widget)
-        
-        # 1. 상단 컨트롤 패널 (기존)
+
+        # 레이아웃 여백 최소화
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(5)
+
+        # 1. 상단 컨트롤 패널 (기존) - 고정 높이
         control_panel = self.create_control_panel()
+        control_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         layout.addWidget(control_panel)
-        
-        # 2. 🔍 검색 + 🛠️ 조건을 같은 라인에 배치
+
+        # 2. 🔍 검색 + 🛠️ 조건을 같은 라인에 배치 - 고정 높이
         search_conditions_layout = QHBoxLayout()
-        
+        search_conditions_layout.setSpacing(5)
+
         # 2-1. 검색 패널 (기존 메서드 활용, 크기만 조정)
         search_panel = self.create_stock_search_panel()
         search_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         search_conditions_layout.addWidget(search_panel)
-        
+
         # 2-2. 사용자 정의 조건 패널 (화면 절반 너비로 확장)
         conditions_panel = self.create_custom_conditions_panel()
         conditions_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         search_conditions_layout.addWidget(conditions_panel)
-        
+
         # 레이아웃을 메인에 추가
         layout.addLayout(search_conditions_layout)
-        
-        # 3. 종목 현황 패널 (기존)
+
+        # 3. 종목 현황 패널 (기존) - 고정 높이
         status_panel = self.create_status_panel()
+        status_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         layout.addWidget(status_panel)
-        
-        # 4. 결과 테이블들 (기존)
+
+        # 4. 결과 테이블들 (기존) - 확장 가능, 최대 공간 차지
         tables_widget = self.create_tables()
-        layout.addWidget(tables_widget)
+        tables_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        layout.addWidget(tables_widget, stretch=1)  # stretch 추가로 최대 공간 할당
         
         try:
             self.update_existing_search_buttons()
             self.add_enhanced_search_menu()  # 메뉴가 있는 경우
-            print("✅ Screener 향상된 검색 기능 초기화 완료")
+            logger.info("✅ Screener 향상된 검색 기능 초기화 완료")
         except Exception as e:
-            print(f"⚠️ Screener 향상된 검색 기능 초기화 중 오류: {e}")
+            logger.warning(f"⚠️ Screener 향상된 검색 기능 초기화 중 오류: {e}")
 
         # 상태바
         self.statusbar = self.statusBar()
@@ -822,7 +852,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
 
     def test_enhanced_screener_search():
         """향상된 screener 검색 기능 테스트"""
-        print("🧪 Enhanced Screener Search 테스트")
+        logger.debug("🧪 Enhanced Screener Search 테스트")
         
         # 예시 사용법
         example_usage = '''
@@ -833,18 +863,18 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
 
     # 2. 프로그래밍 방식 검색
     results = screener.search_stocks_with_api("삼성")
-    print(f"검색 결과: {len(results)}개")
+    logger.info(f"검색 결과: {len(results)}개")
 
     # 3. CSV 형태로 결과 보기
     csv_content = screener.generate_screener_csv_content(results)
-    print(csv_content)
+    logger.debug(csv_content)
 
     # 4. 랜덤 종목 (향상된 버전)
     screener.show_random_stock_chart_enhanced()
         '''
         
-        print(example_usage)
-        print("✅ 테스트 코드 준비 완료")
+        logger.debug(example_usage)
+        logger.info("✅ 테스트 코드 준비 완료")
 
     # 실제 통합 시 기존 함수들과 충돌하지 않도록 주의사항
     """
@@ -1458,7 +1488,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
     def show_chart_from_context(self, ticker, name=""):
         """컨텍스트 메뉴에서 차트 보기 - 직접 ticker 전달"""
         try:
-            print(f"컨텍스트 메뉴에서 차트 요청: {ticker} ({name})")
+            logger.debug(f"컨텍스트 메뉴에서 차트 요청: {ticker} ({name})")
             self.show_stock_detail(ticker, name)  # 문자열로 직접 전달
                 
         except Exception as e:
@@ -1844,7 +1874,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                     self.statusbar.showMessage(f'💰 시가총액 상위 {len(stocks)}개 종목으로 필터링됨')
                 
             except Exception as e:
-                print(f"시가총액 필터링 중 오류: {e}")
+                logger.error(f"시가총액 필터링 중 오류: {e}")
         
         return stocks
     
@@ -1895,7 +1925,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                         elif result['action'] == 'SELL':
                             sell_candidates.append(result)
                 except Exception as e:
-                    print(f"Error analyzing {stock_info['ticker']}: {e}")
+                    logger.error(f"Error analyzing {stock_info['ticker']}: {e}")
                     continue
             
             # 결과를 클래스 변수에 저장
@@ -2010,14 +2040,14 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                 # 가장 최근 돌파 반환
                 latest_breakout = recent_breakouts[-1]
                 days_ago = (today - latest_breakout).days
-                print(f"📈 {fast_ma}→{slow_ma} 돌파 발견: {latest_breakout.strftime('%Y-%m-%d')} ({days_ago}일 전)")
+                logger.info(f"📈 {fast_ma}→{slow_ma} 돌파 발견: {latest_breakout.strftime('%Y-%m-%d')} ({days_ago}일 전)")
                 return latest_breakout
             else:
-                print(f"📉 최근 {days_limit}일 내 {fast_ma}→{slow_ma} 돌파 없음")
+                logger.info(f"📉 최근 {days_limit}일 내 {fast_ma}→{slow_ma} 돌파 없음")
                 return None
-            
+
         except Exception as e:
-            print(f"Error finding MA breakout: {e}")
+            logger.error(f"Error finding MA breakout: {e}")
             return None
 
     def check_long_term_below_condition(self, data, breakout_date, days_check):
@@ -2043,33 +2073,33 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                                     (data.index <= check_end_date)]
             
             if len(check_period_data) < days_check * 0.5:  # 최소 50%의 데이터가 있어야 함
-                print(f"⚠️ 체크 기간 데이터 부족: {len(check_period_data)}/{days_check}")
+                logger.warning(f"⚠️ 체크 기간 데이터 부족: {len(check_period_data)}/{days_check}")
                 return False
             
             # MA60과 MA120 데이터가 모두 있는 날들만 체크
             valid_data = check_period_data.dropna(subset=['MA60', 'MA120'])
             
             if len(valid_data) < len(check_period_data) * 0.7:  # 70% 이상이 유효해야 함
-                print(f"⚠️ MA 데이터 부족: {len(valid_data)}/{len(check_period_data)}")
+                logger.warning(f"⚠️ MA 데이터 부족: {len(valid_data)}/{len(check_period_data)}")
                 return False
             
             # 60일선이 120일선 아래 있던 날의 비율 계산
             below_condition = valid_data['MA60'] < valid_data['MA120']
             below_ratio = below_condition.sum() / len(valid_data)
             
-            print(f"📊 장기 하락 조건 체크:")
-            print(f"   - 체크 기간: {check_start_date.strftime('%Y-%m-%d')} ~ {check_end_date.strftime('%Y-%m-%d')}")
-            print(f"   - 유효 데이터: {len(valid_data)}일")
-            print(f"   - MA60 < MA120 비율: {below_ratio:.1%}")
-            
+            logger.debug(f"📊 장기 하락 조건 체크:")
+            logger.debug(f"   - 체크 기간: {check_start_date.strftime('%Y-%m-%d')} ~ {check_end_date.strftime('%Y-%m-%d')}")
+            logger.debug(f"   - 유효 데이터: {len(valid_data)}일")
+            logger.debug(f"   - MA60 < MA120 비율: {below_ratio:.1%}")
+
             # 90% 이상의 기간에서 60일선이 120일선 아래 있었으면 조건 만족
             result = below_ratio >= 0.9
-            print(f"   - 조건 만족 (90% 이상): {'✅' if result else '❌'}")
+            logger.debug(f"   - 조건 만족 (90% 이상): {'✅' if result else '❌'}")
             
             return result
-            
+
         except Exception as e:
-            print(f"Error checking long term below condition: {e}")
+            logger.error(f"Error checking long term below condition: {e}")
             return False
 
     def find_ma_breakdown_date(self, data, fast_ma, slow_ma, days_limit):
@@ -2104,7 +2134,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                     breakdown_dates.append(data.index[i])
             
             if not breakdown_dates:
-                print(f"📈 최근 전체 기간에 {fast_ma}→{slow_ma} 하향돌파 없음")
+                logger.info(f"📈 최근 전체 기간에 {fast_ma}→{slow_ma} 하향돌파 없음")
                 return None
             
             # 현재 시점을 기준으로 days_limit 일 이내의 하향돌파 찾기
@@ -2120,14 +2150,14 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                 # 가장 최근 하향돌파 반환
                 latest_breakdown = recent_breakdowns[-1]
                 days_ago = (today - latest_breakdown).days
-                print(f"📉 {fast_ma}→{slow_ma} 하향돌파 발견: {latest_breakdown.strftime('%Y-%m-%d')} ({days_ago}일 전)")
+                logger.info(f"📉 {fast_ma}→{slow_ma} 하향돌파 발견: {latest_breakdown.strftime('%Y-%m-%d')} ({days_ago}일 전)")
                 return latest_breakdown
             else:
-                print(f"📊 최근 {days_limit}일 내 {fast_ma}→{slow_ma} 하향돌파 없음")
+                logger.info(f"📊 최근 {days_limit}일 내 {fast_ma}→{slow_ma} 하향돌파 없음")
                 return None
-            
+
         except Exception as e:
-            print(f"Error finding MA breakdown: {e}")
+            logger.error(f"Error finding MA breakdown: {e}")
             return None
         
 
@@ -2135,7 +2165,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         """개별 종목 분석 - 기존 조건 + 추세 분석 통합 (체크박스 이름 수정)"""
         try:
             symbol = stock_info['ticker']
-            print(f"🔍 분석 중: {symbol}")
+            logger.debug(f"🔍 분석 중: {symbol}")
             
             # 데이터 다운로드 (6개월)
             end_date = datetime.now()
@@ -2145,11 +2175,11 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             data = self.safe_get_stock_data(symbol, start_date, end_date)
             
             if data is None:
-                print(f"⚠️ {symbol} - 데이터 없음 (스킵)")
+                logger.warning(f"⚠️ {symbol} - 데이터 없음 (스킵)")
                 return None
             
             if len(data) < 120:  # 충분한 데이터가 없으면 스킵
-                print(f"⚠️ {symbol} - 데이터 부족 ({len(data)}개, 최소 120개 필요)")
+                logger.warning(f"⚠️ {symbol} - 데이터 부족 ({len(data)}개, 최소 120개 필요)")
                 return None
             
             # 기술적 지표 계산
@@ -2159,7 +2189,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             try:
                 trend_analysis = self.trend_analyzer.analyze_trend_and_timing(data)
             except Exception as trend_error:
-                print(f"⚠️ {symbol} - 추세 분석 실패: {trend_error}")
+                logger.warning(f"⚠️ {symbol} - 추세 분석 실패: {trend_error}")
                 trend_analysis = None
            
             current = data.iloc[-1]
@@ -2196,7 +2226,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                                 reasons.append(f"주가가 60일선에서 너무 멀음({distance_pct:.1f}%)")
                             
                             if reasons:
-                                print(f"❌ {symbol} - 기본 조건 불만족: {', '.join(reasons)}")
+                                logger.debug(f"❌ {symbol} - 기본 조건 불만족: {', '.join(reasons)}")
                             else:
                                 # 강화 조건 메서드가 없으면 기본 신호
                                 buy_signals.append("이동평균 매수")
@@ -2254,20 +2284,20 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                         
                         if ma60_below_ma120_breakdown_date is not None:
                             sell_signals.append("강화된 기술적매도")
-                            print(f"🎯 {symbol} - 강화된 매도 조건 만족!")
-                            print(f"   - 60일선→120일선 하향돌파: {ma60_below_ma120_breakdown_date.strftime('%Y-%m-%d')}")
-                            print(f"   - 현재 60일선: {current['MA60']:.2f}")
-                            print(f"   - 현재 120일선: {current['MA120']:.2f}")
-                            print(f"   - 현재가: {current['Close']:.2f}")
+                            logger.info(f"🎯 {symbol} - 강화된 매도 조건 만족!")
+                            logger.info(f"   - 60일선→120일선 하향돌파: {ma60_below_ma120_breakdown_date.strftime('%Y-%m-%d')}")
+                            logger.info(f"   - 현재 60일선: {current['MA60']:.2f}")
+                            logger.info(f"   - 현재 120일선: {current['MA120']:.2f}")
+                            logger.info(f"   - 현재가: {current['Close']:.2f}")
                         else:
                             # 강화 조건은 불만족하지만 기존 조건은 만족하는 경우
-                            print(f"⚠️ {symbol} - 기본 매도 조건만 만족 (최근 하향돌파 없음)")
+                            logger.warning(f"⚠️ {symbol} - 기본 매도 조건만 만족 (최근 하향돌파 없음)")
                             sell_signals.append("기술적 매도 고려")
                     except AttributeError:
                         # find_ma_breakdown_date 메서드가 없으면 기본 조건만
                         sell_signals.append("기술적매도")
                 else:
-                    print(f"✅ {symbol} - 매도 조건 불만족 (안전)")
+                    logger.info(f"✅ {symbol} - 매도 조건 불만족 (안전)")
             
             # 2. 수익률 매도 조건 (있는 경우)
             if hasattr(self, 'profit_sell') and self.profit_sell.isChecked():
@@ -2373,7 +2403,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             return None
             
         except Exception as e:
-            print(f"❌ {stock_info['ticker']} 분석 오류: {e}")
+            logger.error(f"❌ {stock_info['ticker']} 분석 오류: {e}")
             return None
 
     def safe_get_stock_data(self, symbol, start_date, end_date):
@@ -2389,18 +2419,18 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             if data is not None and not data.empty:
                 return data
 
-            print(f"⚠️ {symbol} - 빈 데이터")
+            logger.warning(f"⚠️ {symbol} - 빈 데이터")
             return None
 
         except Exception as e:
             error_msg = str(e).lower()
 
             if "delisted" in error_msg or "no timezone found" in error_msg:
-                print(f"⚠️ {symbol} - 상장폐지 또는 데이터 없음")
+                logger.warning(f"⚠️ {symbol} - 상장폐지 또는 데이터 없음")
             elif "timeout" in error_msg:
-                print(f"⚠️ {symbol} - 타임아웃")
+                logger.warning(f"⚠️ {symbol} - 타임아웃")
             else:
-                print(f"⚠️ {symbol} - 기타 오류: {e}")
+                logger.warning(f"⚠️ {symbol} - 기타 오류: {e}")
 
             return None
 
@@ -2409,7 +2439,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         valid_stocks = []
         invalid_stocks = []
         
-        print("📋 종목 유효성 체크 중...")
+        logger.info("📋 종목 유효성 체크 중...")
         
         for stock_info in stock_list:
             symbol = stock_info['ticker']
@@ -2421,21 +2451,21 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                 # 기본 정보가 있고 유효한 심볼이면
                 if info and info.get('symbol'):
                     valid_stocks.append(stock_info)
-                    print(f"✅ {symbol} - 유효")
+                    logger.debug(f"✅ {symbol} - 유효")
                 else:
                     invalid_stocks.append(stock_info)
-                    print(f"❌ {symbol} - 무효 (정보 없음)")
+                    logger.warning(f"❌ {symbol} - 무효 (정보 없음)")
                     
             except Exception as e:
                 invalid_stocks.append(stock_info)
-                print(f"❌ {symbol} - 무효 ({str(e)[:50]})")
+                logger.warning(f"❌ {symbol} - 무효 ({str(e)[:50]})")
         
-        print(f"📊 유효성 체크 완료: 유효 {len(valid_stocks)}개, 무효 {len(invalid_stocks)}개")
-        
+        logger.info(f"📊 유효성 체크 완료: 유효 {len(valid_stocks)}개, 무효 {len(invalid_stocks)}개")
+
         if invalid_stocks:
-            print("❌ 무효한 종목들:")
+            logger.warning("❌ 무효한 종목들:")
             for stock in invalid_stocks:
-                print(f"   - {stock['ticker']}: {stock.get('name', 'Unknown')}")
+                logger.warning(f"   - {stock['ticker']}: {stock.get('name', 'Unknown')}")
         
         return valid_stocks
 
@@ -2471,7 +2501,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                             sell_candidates.append(result)
                             
                 except Exception as e:
-                    print(f"스크리닝 오류: {stock_info['ticker']} - {e}")
+                    logger.error(f"스크리닝 오류: {stock_info['ticker']} - {e}")
                     continue
             
             # 결과 업데이트
@@ -2506,16 +2536,16 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             if not self.check_long_term_below_condition(data, ma60_above_ma120_breakout_date, days_check=66):
                 return False
             
-            print(f"✅ {symbol} - 모든 강화 조건 만족!")
-            print(f"   - 60일선→120일선 상향돌파: {ma60_above_ma120_breakout_date.strftime('%Y-%m-%d')}")
-            print(f"   - 현재 60일선: {current['MA60']:.2f}")
-            print(f"   - 현재 120일선: {current['MA120']:.2f}")
-            print(f"   - 현재가: {current['Close']:.2f}")
+            logger.info(f"✅ {symbol} - 모든 강화 조건 만족!")
+            logger.info(f"   - 60일선→120일선 상향돌파: {ma60_above_ma120_breakout_date.strftime('%Y-%m-%d')}")
+            logger.info(f"   - 현재 60일선: {current['MA60']:.2f}")
+            logger.info(f"   - 현재 120일선: {current['MA120']:.2f}")
+            logger.info(f"   - 현재가: {current['Close']:.2f}")
             
             return True
             
         except Exception as e:
-            print(f"Error in enhanced buy condition check: {e}")
+            logger.error(f"Error in enhanced buy condition check: {e}")
             return False
 
     def find_ma_breakout_date(self, data, fast_ma, slow_ma, days_limit):
@@ -2554,9 +2584,9 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                 return recent_breakouts[-1]
             else:
                 return None
-                
+
         except Exception as e:
-            print(f"Error finding MA breakout: {e}")
+            logger.error(f"Error finding MA breakout: {e}")
             return None
 
     def find_ma_breakdown_date(self, data, fast_ma, slow_ma, days_limit):
@@ -2595,9 +2625,9 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                 return recent_breakdowns[-1]
             else:
                 return None
-                
+
         except Exception as e:
-            print(f"Error finding MA breakdown: {e}")
+            logger.error(f"Error finding MA breakdown: {e}")
             return None
 
     def check_long_term_below_condition(self, data, breakout_date, days_check=66):
@@ -2628,11 +2658,11 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             
             # 90% 이상의 기간에서 60일선이 120일선 아래 있었으면 조건 만족
             return below_ratio >= 0.9
-            
+
         except Exception as e:
-            print(f"Error checking long term below condition: {e}")
+            logger.error(f"Error checking long term below condition: {e}")
             return False
-        
+
     def check_custom_conditions(self, data, action_type):
         """사용자 정의 조건 체크"""
         signals = []
@@ -2648,7 +2678,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                         if self.evaluate_condition(condition, current, prev, data):
                             signals.append(condition['name'])
                     except Exception as e:
-                        print(f"Error evaluating custom condition {condition['name']}: {e}")
+                        logger.error(f"Error evaluating custom condition {condition['name']}: {e}")
         
         return signals
     
@@ -2919,17 +2949,17 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                 # 문자열이 직접 전달된 경우 (ticker)
                 ticker = index_or_ticker
                 stock_name = name if name else ticker
-                print(f"직접 ticker 전달: {ticker}")
+                logger.debug(f"직접 ticker 전달: {ticker}")
                 
             elif hasattr(index_or_ticker, 'row'):
                 # QModelIndex 객체인 경우 (테이블에서 더블클릭)
                 table = self.sender()
                 if not table:
-                    print("Error: sender()가 None입니다")
+                    logger.error("Error: sender()가 None입니다")
                     return
                     
                 row = index_or_ticker.row()
-                print(f"테이블 더블클릭: row {row}")
+                logger.debug(f"테이블 더블클릭: row {row}")
                 
                 # 종목 코드와 이름 가져오기
                 ticker_item = table.item(row, 0)  # 종목코드
@@ -2954,17 +2984,17 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                         if name_item:
                             stock_name = name_item.text()
                     else:
-                        print(f"Error: 유효하지 않은 테이블 참조")
+                        logger.error(f"Error: 유효하지 않은 테이블 참조")
                         return
                 except (ValueError, TypeError):
-                    print(f"Error: 알 수 없는 매개변수 타입: {type(index_or_ticker)}")
+                    logger.error(f"Error: 알 수 없는 매개변수 타입: {type(index_or_ticker)}")
                     return
             
             if not ticker:
                 QMessageBox.warning(self, "경고", "종목 정보를 가져올 수 없습니다.")
                 return
             
-            print(f"차트 표시 시도: {ticker} ({stock_name})")
+            logger.debug(f"차트 표시 시도: {ticker} ({stock_name})")
             
             # 차트 창 생성 및 표시
             try:
@@ -2981,23 +3011,23 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                 chart_window.show()
                 
                 self.statusbar.showMessage(f"📊 {ticker} ({stock_name}) 차트를 열었습니다.")
-                print(f"✅ 차트 창 열림: {ticker} ({stock_name})")
+                logger.info(f"✅ 차트 창 열림: {ticker} ({stock_name})")
                 
             except ImportError as e:
                 # StockChartWindow를 찾을 수 없는 경우 간단한 메시지 표시
-                print(f"차트 모듈 import 실패: {e}")
+                logger.error(f"차트 모듈 import 실패: {e}")
                 QMessageBox.information(self, "차트", 
                                     f"종목: {ticker} ({stock_name})\n"
                                     f"차트 기능을 사용하려면 chart_window.py 파일이 필요합니다.")
                                     
             except Exception as chart_error:
                 # 차트 생성 중 오류 발생시
-                print(f"차트 생성 오류: {chart_error}")
+                logger.error(f"차트 생성 오류: {chart_error}")
                 QMessageBox.warning(self, "차트 오류", 
                                 f"차트를 불러오는 중 오류가 발생했습니다:\n{str(chart_error)}")
                 
         except Exception as e:
-            print(f"Error in show_stock_detail: {e}")
+            logger.error(f"Error in show_stock_detail: {e}")
             import traceback
             traceback.print_exc()
             QMessageBox.critical(self, "오류", f"종목 상세 정보를 표시하는 중 오류가 발생했습니다:\n{str(e)}")
@@ -3217,7 +3247,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                 self.search_input.setToolTip("")
                 
         except Exception as e:
-            print(f"⚠️ 검색어 변경 처리 오류: {e}")
+            logger.warning(f"⚠️ 검색어 변경 처리 오류: {e}")
             self.search_input.setToolTip("")
 
     def get_search_suggestions(self, search_term, limit=5):
@@ -3293,7 +3323,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             return suggestions
             
         except Exception as e:
-            print(f"⚠️ 검색 제안 오류: {e}")
+            logger.warning(f"⚠️ 검색 제안 오류: {e}")
             return []
 
     def search_and_show_chart(self):
@@ -3350,7 +3380,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                 self.show_search_results_dialog(found_stocks, search_term)
                 
         except Exception as e:
-            print(f"⚠️ 검색 및 차트 표시 오류: {e}")
+            logger.warning(f"⚠️ 검색 및 차트 표시 오류: {e}")
             self.update_search_result_label("검색 오류 발생")
             QMessageBox.critical(self, "검색 오류", f"검색 중 오류가 발생했습니다: {str(e)}")
 
@@ -3360,9 +3390,9 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             if hasattr(self, 'search_result_label'):
                 self.search_result_label.setText(text)
             else:
-                print(f"검색 결과: {text}")
+                logger.info(f"검색 결과: {text}")
         except Exception as e:
-            print(f"⚠️ 검색 결과 레이블 업데이트 오류: {e}")
+            logger.warning(f"⚠️ 검색 결과 레이블 업데이트 오류: {e}")
 
     def enhanced_search_stocks(self, search_term):
         """향상된 종목 검색 - unified_search 사용 (최적화됨)"""
@@ -3370,7 +3400,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             return []
 
         try:
-            print(f"🔍 '{search_term}' 검색 중...")
+            logger.info(f"🔍 '{search_term}' 검색 중...")
 
             # ✅ 통합 검색 모듈 사용 (벡터화 + 캐싱)
             results = search_stocks(search_term.strip())
@@ -3405,11 +3435,11 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             # 정렬 (매치 스코어 -> 시가총액 -> 이름순)
             results.sort(key=lambda x: (-x.get('match_score', 0), -x.get('raw_market_cap', 0), x.get('name', '')))
 
-            print(f"🎯 검색 완료: '{search_term}' → {len(results)}개 결과")
+            logger.info(f"🎯 검색 완료: '{search_term}' → {len(results)}개 결과")
             return results
 
         except Exception as e:
-            print(f"⚠️ 검색 중 오류: {e}")
+            logger.warning(f"⚠️ 검색 중 오류: {e}")
             # 폴백: 현재 로딩된 CSV에서 검색
             return self.search_from_loaded_csv(search_term)
 
@@ -3452,7 +3482,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             return found_stocks
             
         except Exception as e:
-            print(f"⚠️ 로딩된 CSV 검색 오류: {e}")
+            logger.warning(f"⚠️ 로딩된 CSV 검색 오류: {e}")
             return []
 
     # 추가로 필요한 함수: 마스터 CSV 파일 존재 여부 확인
@@ -3486,10 +3516,10 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             
             info_text = f"마스터 CSV 사용 가능: 총 {total_stocks:,}개 종목\n" + " | ".join(market_info)
             self.statusbar.showMessage(info_text)
-            print(f"✅ {info_text}")
+            logger.info(f"✅ {info_text}")
         else:
             self.statusbar.showMessage("마스터 CSV 없음 - '마스터 CSV 생성' 버튼을 클릭하세요")
-            print("⚠️ 마스터 CSV 파일이 없습니다")
+            logger.warning("⚠️ 마스터 CSV 파일이 없습니다")
         
         return available
 
@@ -3659,7 +3689,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             return False
             
         except Exception as e:
-            print(f"온라인 검색 오류: {e}")
+            logger.error(f"온라인 검색 오류: {e}")
             return False
 
     def show_random_stock_chart(self):
@@ -3712,7 +3742,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                                     })
                     
                 except Exception as e:
-                    print(f"⚠️ {market} 시장 데이터 처리 오류: {e}")
+                    logger.warning(f"⚠️ {market} 시장 데이터 처리 오류: {e}")
                     continue
             
             if not all_stocks:
@@ -3758,10 +3788,10 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             # 차트 표시
             self.show_stock_chart(random_stock['ticker'], random_stock['name'])
             
-            print(f"🎲 랜덤 선택: {random_stock['ticker']} - {random_stock['name']}")
+            logger.info(f"🎲 랜덤 선택: {random_stock['ticker']} - {random_stock['name']}")
             
         except Exception as e:
-            print(f"⚠️ 랜덤 종목 선택 오류: {e}")
+            logger.warning(f"⚠️ 랜덤 종목 선택 오류: {e}")
             QMessageBox.critical(self, "오류", f"랜덤 종목 선택 중 오류가 발생했습니다: {str(e)}")
 
     def add_to_recent_searches(self, search_term):
@@ -3780,10 +3810,10 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             if hasattr(self, 'recent_searches_label'):
                 self.update_recent_searches_display()
             
-            print(f"📝 최근 검색어 추가: {search_term}")
+            logger.debug(f"📝 최근 검색어 추가: {search_term}")
             
         except Exception as e:
-            print(f"⚠️ 최근 검색어 추가 오류: {e}")
+            logger.warning(f"⚠️ 최근 검색어 추가 오류: {e}")
 
     def update_recent_searches_display(self):
         """최근 검색어 표시 업데이트 - 안전한 버전"""
@@ -3802,7 +3832,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                 self.recent_searches_label.setText("💡 팁: Enter 키 또는 🔍 버튼으로 검색하세요")
                 
         except Exception as e:
-            print(f"⚠️ 최근 검색어 표시 오류: {e}")
+            logger.warning(f"⚠️ 최근 검색어 표시 오류: {e}")
 
     def on_recent_search_click(self, event):
         """최근 검색어 클릭 처리"""
@@ -3908,10 +3938,10 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                         if isinstance(stock, dict):
                             self._index_stock_data(stock, market)
             
-            print(f"✅ 검색 인덱스 구성 완료: {len(self.search_index)}개 항목")
+            logger.info(f"✅ 검색 인덱스 구성 완료: {len(self.search_index)}개 항목")
             
         except Exception as e:
-            print(f"⚠️ 검색 인덱스 구성 오류: {e}")
+            logger.warning(f"⚠️ 검색 인덱스 구성 오류: {e}")
             self.search_index = {}
 
     def _index_stock_data(self, stock, market):
@@ -3944,19 +3974,19 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                         })
                         
         except Exception as e:
-            print(f"⚠️ 데이터 인덱싱 오류: {e}")
+            logger.warning(f"⚠️ 데이터 인덱싱 오류: {e}")
 
     # 추가: 데이터 형태 확인 유틸리티
     def check_data_format(self):
         """현재 데이터 형태 확인 (디버깅용)"""
-        print("📊 현재 데이터 형태 확인:")
+        logger.debug("📊 현재 데이터 형태 확인:")
         for market, data in self.stock_lists.items():
             if hasattr(data, 'empty'):
-                print(f"  {market}: DataFrame ({len(data)}개)")
+                logger.debug(f"  {market}: DataFrame ({len(data)}개)")
             elif isinstance(data, list):
-                print(f"  {market}: List ({len(data)}개)")
+                logger.debug(f"  {market}: List ({len(data)}개)")
             else:
-                print(f"  {market}: Unknown type ({type(data)})")
+                logger.debug(f"  {market}: Unknown type ({type(data)})")
 
     # 안전한 검색 초기화
     def init_search_safely(self):
@@ -3974,10 +4004,10 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             # 검색 인덱스 구성 시도
             self.rebuild_search_index()
             
-            print("✅ 검색 기능 초기화 완료")
+            logger.info("✅ 검색 기능 초기화 완료")
             
         except Exception as e:
-            print(f"⚠️ 검색 초기화 오류: {e}")
+            logger.warning(f"⚠️ 검색 초기화 오류: {e}")
             self.search_index = {}
             self.recent_searches = []
 
@@ -3998,7 +4028,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             # 검색어 입력창 비우기 
             self.search_input.clear()
             
-            print(f"✅ 차트 창 열림: {ticker} ({name})")
+            logger.info(f"✅ 차트 창 열림: {ticker} ({name})")
             
         except Exception as e:
             QMessageBox.critical(
@@ -4012,7 +4042,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                 f"• 잘못된 종목 코드\n" 
                 f"• 차트 모듈 오류"
             )
-            print(f"차트 표시 오류: {e}")
+            logger.error(f"차트 표시 오류: {e}")
             import traceback
             traceback.print_exc()
 
@@ -4055,7 +4085,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                 break
                 
         except Exception as e:
-            print(f"정렬 오류: {e}")
+            logger.error(f"정렬 오류: {e}")
 
     # def load_stock_lists(self):
     #     """기존 CSV 로드 함수 오버라이드 - 검색 인덱스 재구성 포함"""
@@ -4078,7 +4108,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         try:
             # ✅ csv_manager 사용 - 캐싱으로 80-90% I/O 감소
             master_data = load_all_master_csvs()
-            print(f"📊 load_all_master_csvs() 결과: {list(master_data.keys()) if master_data else 'None'}")
+            logger.debug(f"📊 load_all_master_csvs() 결과: {list(master_data.keys()) if master_data else 'None'}")
 
             # DataFrame을 dict records로 변환 + DataFrame도 별도 저장 (검색용)
             self._stock_dataframes = getattr(self, '_stock_dataframes', {})
@@ -4086,15 +4116,15 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             for market in ['korea', 'usa', 'sweden']:
                 if market in master_data and master_data[market] is not None:
                     df = master_data[market]
-                    print(f"  {market}: {len(df)}개 종목 로드")
+                    logger.debug(f"  {market}: {len(df)}개 종목 로드")
                     self.stock_lists[market] = df.to_dict('records')
                     self._stock_dataframes[market] = df
                 else:
-                    print(f"  {market}: 데이터 없음")
+                    logger.warning(f"  {market}: 데이터 없음")
                     self.stock_lists[market] = []
 
             total_stocks = sum(len(v) for v in self.stock_lists.values())
-            print(f"✅ 총 {total_stocks}개 종목 로드됨")
+            logger.info(f"✅ 총 {total_stocks}개 종목 로드됨")
 
             # 검색 인덱스 재구성 (DataFrame 사용)
             if hasattr(self, 'rebuild_search_index'):
@@ -4107,7 +4137,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                 self.statusbar.showMessage('📁 CSV 파일 로드 완료')
 
         except Exception as e:
-            print(f"❌ CSV 로드 오류: {e}")
+            logger.error(f"❌ CSV 로드 오류: {e}")
             import traceback
             traceback.print_exc()
             QMessageBox.warning(self, "오류", f"CSV 파일 로드 중 오류: {str(e)}")
@@ -4121,12 +4151,12 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             test_terms = ['삼성', 'AAPL', '005930', 'TESLA', '반도체', 'TECH', 'Healthcare']
             results = benchmark_search_performance(self.stock_lists, test_terms)
             
-            print("\n📊 검색 성능 벤치마크:")
+            logger.debug("\n📊 검색 성능 벤치마크:")
             for term, metrics in results.items():
-                print(f"   {term}: {metrics['search_time']:.3f}초, {metrics['results_count']}개 결과, 최고점수: {metrics['first_match_score']}")
+                logger.debug(f"   {term}: {metrics['search_time']:.3f}초, {metrics['results_count']}개 결과, 최고점수: {metrics['first_match_score']}")
             
         except Exception as e:
-            print(f"성능 모니터링 오류: {e}")
+            logger.error(f"성능 모니터링 오류: {e}")
 
     # 사용 예시 및 테스트 함수
     def test_search_functionality(self):
@@ -4141,16 +4171,16 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             "존재하지않는종목"  # 검색 실패 케이스
         ]
         
-        print("\n🧪 검색 기능 테스트:")
+        logger.debug("\n🧪 검색 기능 테스트:")
         for term in test_cases:
             try:
                 results = self.enhanced_search_stocks(term)
-                print(f"   '{term}': {len(results)}개 결과")
+                logger.debug(f"   '{term}': {len(results)}개 결과")
                 if results:
                     top_result = results[0]
-                    print(f"      → 최상위: {top_result['name']} ({top_result['ticker']}) - 점수: {top_result['match_score']}")
+                    logger.debug(f"      → 최상위: {top_result['name']} ({top_result['ticker']}) - 점수: {top_result['match_score']}")
             except Exception as e:
-                print(f"   '{term}': 오류 - {e}")
+                logger.error(f"   '{term}': 오류 - {e}")
 
     # 키보드 단축키 설정
     def setup_search_shortcuts(self):

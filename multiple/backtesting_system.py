@@ -18,45 +18,57 @@ from matplotlib.figure import Figure
 from cache_manager import get_stock_data
 from matplotlib_optimizer import ChartManager
 
+# 로깅
+from logger_config import get_logger
+logger = get_logger(__name__)
+
 
 class RecommendationBacktestingEngine:
     """추천도 기반 백테스팅 엔진 - 특정 시점에서 최고 추천도 종목 선택"""
-    
-    def __init__(self, technical_analyzer):
+
+    def __init__(self, technical_analyzer, debug_mode=False):
         self.technical_analyzer = technical_analyzer
         self.results = []
+        self.debug_mode = debug_mode
     
-    def run_recommendation_backtest(self, symbols, months_back=6, min_recommendation_score=75):
+    def run_recommendation_backtest(self, symbols, months_back=6, min_recommendation_score=75, progress_callback=None):
         """
         추천도 기반 백테스팅 실행
-        
+
         과정:
         1. N개월 전 시점에서 모든 종목 스크리닝
         2. 매수/매도 조건 만족하는 종목들의 추천도 계산
         3. 추천도가 가장 높은 종목 선택
         4. 그 종목에 투자했다면 현재까지의 수익률 계산
-        
+
         매개변수:
         - symbols: 분석할 종목 리스트
         - months_back: 몇 개월 전부터 백테스팅할지 (6 또는 12)
         - min_recommendation_score: 최소 추천도 (기본 75점)
+        - progress_callback: 진행률 콜백 함수 (current, total, symbol, status)
         """
         
         target_date = datetime.now() - timedelta(days=30 * months_back)
-        
-        print(f"🎯 추천도 기반 백테스팅 시작")
-        print(f"📅 분석 기준일: {target_date.strftime('%Y-%m-%d')}")
-        print(f"📊 분석 종목 수: {len(symbols)}개")
-        print(f"⭐ 최소 추천도: {min_recommendation_score}점")
-        print("-" * 60)
+
+        if self.debug_mode:
+            logger.info("🎯 추천도 기반 백테스팅 시작")
+            logger.info(f"📅 분석 기준일: {target_date.strftime('%Y-%m-%d')}")
+            logger.info(f"📊 분석 종목 수: {len(symbols)}개")
+            logger.info(f"⭐ 최소 추천도: {min_recommendation_score}점")
+            logger.info("-" * 60)
         
         candidates = []
         
         # 1단계: 각 종목별로 분석 기준일의 추천도 계산
         for i, symbol in enumerate(symbols):
             try:
-                print(f"분석 중 ({i+1}/{len(symbols)}): {symbol}")
-                
+                # 진행률 콜백 호출
+                if progress_callback:
+                    progress_callback(i + 1, len(symbols), symbol, "분석 중")
+
+                if self.debug_mode:
+                    logger.debug(f"분석 중 ({i+1}/{len(symbols)}): {symbol}")
+
                 # 과거 데이터 가져오기 (분석일 기준 충분한 과거 데이터 필요) - 캐싱 사용
                 data_start = target_date - timedelta(days=200)  # 지표 계산용 여유
                 data_end = target_date + timedelta(days=30)     # 분석일 이후 여유
@@ -68,44 +80,67 @@ class RecommendationBacktestingEngine:
                 data = get_stock_data(symbol, period=period_str)
                 
                 if len(data) < 120:
-                    print(f"   ⚠️ 데이터 부족: {len(data)}일")
+                    if progress_callback:
+                        progress_callback(i + 1, len(symbols), symbol, "데이터 부족")
+                    if self.debug_mode:
+                        logger.warning(f"   ⚠️ 데이터 부족: {len(data)}일")
                     continue
                 
                 # 분석 기준일에 가장 가까운 데이터 찾기
-                target_idx = data.index.get_indexer([target_date], method='nearest')[0]
+                # timezone 처리: data.index가 timezone-aware면 target_date도 맞춰줌
+                if data.index.tz is not None:
+                    target_date_tz = pd.Timestamp(target_date).tz_localize(data.index.tz)
+                else:
+                    target_date_tz = target_date
+
+                target_idx = data.index.get_indexer([target_date_tz], method='nearest')[0]
                 
                 if target_idx < 60:  # 충분한 과거 데이터 필요
-                    print(f"   ⚠️ 과거 데이터 부족")
+                    if progress_callback:
+                        progress_callback(i + 1, len(symbols), symbol, "과거 데이터 부족")
+                    if self.debug_mode:
+                        logger.warning(f"   ⚠️ 과거 데이터 부족")
                     continue
                 
                 # 기술적 지표 계산 (분석일까지의 데이터만 사용)
-                analysis_data = data.iloc[:target_idx+1]
+                analysis_data = data.iloc[:target_idx+1].copy()
                 analysis_data = self.technical_analyzer.calculate_all_indicators(analysis_data)
                 
                 # 매수/매도 조건 체크 및 추천도 계산
                 recommendation_score = self.calculate_recommendation_score(analysis_data)
                 
                 if recommendation_score >= min_recommendation_score:
+                    if progress_callback:
+                        progress_callback(i + 1, len(symbols), symbol, f"✅ 후보 발견 (추천도: {recommendation_score}점)")
+
                     entry_price = analysis_data.iloc[-1]['Close']
                     entry_date = analysis_data.index[-1]
-                    
+
                     candidate = {
                         'symbol': symbol,
                         'entry_date': entry_date,
                         'entry_price': entry_price,
                         'recommendation_score': recommendation_score
                     }
-                    
+
                     candidates.append(candidate)
-                    print(f"   ✅ 매수 후보 - 추천도: {recommendation_score}점, 가격: {entry_price:,.0f}")
+                    if self.debug_mode:
+                        logger.info(f"   ✅ 매수 후보 - 추천도: {recommendation_score}점, 가격: {entry_price:,.0f}")
                 else:
-                    print(f"   ❌ 조건 미달 - 추천도: {recommendation_score}점")
+                    if progress_callback:
+                        progress_callback(i + 1, len(symbols), symbol, f"조건 미달 (추천도: {recommendation_score}점)")
+                    if self.debug_mode:
+                        logger.debug(f"   ❌ 조건 미달 - 추천도: {recommendation_score}점")
                     
             except Exception as e:
-                print(f"   ❌ 분석 실패: {e}")
+                if progress_callback:
+                    progress_callback(i + 1, len(symbols), symbol, f"❌ 오류 발생")
+                if self.debug_mode:
+                    logger.error(f"   ❌ 분석 실패: {e}")
                 continue
-        
-        print(f"\n🎯 매수 후보 종목: {len(candidates)}개 발견")
+
+        if self.debug_mode:
+            logger.info(f"\n🎯 매수 후보 종목: {len(candidates)}개 발견")
         
         if not candidates:
             return {
@@ -117,11 +152,12 @@ class RecommendationBacktestingEngine:
         
         # 2단계: 추천도가 가장 높은 종목 선택
         best_candidate = max(candidates, key=lambda x: x['recommendation_score'])
-        
-        print(f"\n🏆 선택된 종목: {best_candidate['symbol']}")
-        print(f"   📅 매수일: {best_candidate['entry_date'].strftime('%Y-%m-%d')}")
-        print(f"   💰 매수가: {best_candidate['entry_price']:,.0f}")
-        print(f"   ⭐ 추천도: {best_candidate['recommendation_score']}점")
+
+        if self.debug_mode:
+            logger.info(f"\n🏆 선택된 종목: {best_candidate['symbol']}")
+            logger.info(f"   📅 매수일: {best_candidate['entry_date'].strftime('%Y-%m-%d')}")
+            logger.info(f"   💰 매수가: {best_candidate['entry_price']:,.0f}")
+            logger.info(f"   ⭐ 추천도: {best_candidate['recommendation_score']}점")
         
         # 3단계: 현재까지의 투자 성과 계산
         performance = self.calculate_investment_performance(best_candidate)
@@ -230,7 +266,8 @@ class RecommendationBacktestingEngine:
                     score += 10
         
         except Exception as e:
-            print(f"추천도 계산 오류: {e}")
+            if self.debug_mode:
+                logger.error(f"추천도 계산 오류: {e}")
             return 0
         
         return min(score, 100)  # 최대 100점으로 제한
@@ -250,10 +287,16 @@ class RecommendationBacktestingEngine:
             
             current_price = current_data['Close'].iloc[-1]
             current_date = datetime.now()
-            
+
+            # entry_date의 timezone 제거 (비교를 위해)
+            if hasattr(entry_date, 'tz') and entry_date.tz is not None:
+                entry_date_naive = entry_date.replace(tzinfo=None)
+            else:
+                entry_date_naive = entry_date
+
             # 수익률 계산
             return_rate = (current_price - entry_price) / entry_price * 100
-            holding_period = (current_date - entry_date).days
+            holding_period = (current_date - entry_date_naive).days
             
             # 연환산 수익률 (복리 적용)
             if holding_period > 0:
@@ -271,29 +314,30 @@ class RecommendationBacktestingEngine:
             }
             
         except Exception as e:
-            print(f"성과 계산 오류: {e}")
+            if self.debug_mode:
+                logger.error(f"성과 계산 오류: {e}")
             return None
     
     def print_performance_summary(self, result):
         """성과 요약 출력"""
         perf = result['performance']
         stock = result['selected_stock']
-        
-        print(f"\n" + "="*60)
-        print(f"📈 투자 성과 요약")
-        print(f"="*60)
-        print(f"🏢 종목: {stock['symbol']}")
-        print(f"📅 매수일: {stock['entry_date'].strftime('%Y-%m-%d')}")
-        print(f"💰 매수가: {perf['entry_price']:,.0f}원")
-        print(f"💰 현재가: {perf['current_price']:,.0f}원")
-        print(f"📊 수익률: {perf['return_rate']:+.2f}%")
-        print(f"📊 연환산 수익률: {perf['annual_return']:+.2f}%")
-        print(f"⏱️ 보유기간: {perf['holding_period']}일")
-        print(f"🎯 당시 추천도: {stock['recommendation_score']}점")
-        print(f"-"*40)
-        print(f"💵 투자금액별 손익:")
-        print(f"   100만원 → {((perf['current_price'] / perf['entry_price']) * 1000000):,.0f}원 (손익: {((perf['current_price'] / perf['entry_price'] - 1) * 1000000):+,.0f}원)")
-        print(f"   1000주 → {(perf['current_price'] * 1000):,.0f}원 (손익: {(perf['profit_loss_amount'] * 1000):+,.0f}원)")
+
+        logger.info(f"\n" + "="*60)
+        logger.info(f"📈 투자 성과 요약")
+        logger.info(f"="*60)
+        logger.info(f"🏢 종목: {stock['symbol']}")
+        logger.info(f"📅 매수일: {stock['entry_date'].strftime('%Y-%m-%d')}")
+        logger.info(f"💰 매수가: {perf['entry_price']:,.0f}원")
+        logger.info(f"💰 현재가: {perf['current_price']:,.0f}원")
+        logger.info(f"📊 수익률: {perf['return_rate']:+.2f}%")
+        logger.info(f"📊 연환산 수익률: {perf['annual_return']:+.2f}%")
+        logger.info(f"⏱️ 보유기간: {perf['holding_period']}일")
+        logger.info(f"🎯 당시 추천도: {stock['recommendation_score']}점")
+        logger.info(f"-"*40)
+        logger.info(f"💵 투자금액별 손익:")
+        logger.info(f"   100만원 → {((perf['current_price'] / perf['entry_price']) * 1000000):,.0f}원 (손익: {((perf['current_price'] / perf['entry_price'] - 1) * 1000000):+,.0f}원)")
+        logger.info(f"   1000주 → {(perf['current_price'] * 1000):,.0f}원 (손익: {(perf['profit_loss_amount'] * 1000):+,.0f}원)")
 
 
 class BacktestingEngine:
@@ -307,8 +351,8 @@ class BacktestingEngine:
                     start_date, end_date, initial_capital=100000):
         """기존 백테스팅 실행 (기존 코드 유지)"""
         
-        print(f"🔄 백테스팅 시작: {start_date} ~ {end_date}")
-        print(f"💰 초기 자본: ${initial_capital:,}")
+        logger.info(f"🔄 백테스팅 시작: {start_date} ~ {end_date}")
+        logger.info(f"💰 초기 자본: ${initial_capital:,}")
         
         portfolio = Portfolio(initial_capital)
         trade_log = []
@@ -316,7 +360,7 @@ class BacktestingEngine:
         # 각 종목별로 백테스팅 수행
         for symbol in symbols:
             try:
-                print(f"\n📊 {symbol} 분석 중...")
+                logger.info(f"\n📊 {symbol} 분석 중...")
                 
                 # 과거 데이터 다운로드 (백테스팅 기간 + 여유분) - 캐싱 사용
                 data_start = start_date - timedelta(days=180)  # 지표 계산용 여유
@@ -328,7 +372,7 @@ class BacktestingEngine:
                 data = get_stock_data(symbol, period=period_str)
                 
                 if len(data) < 120:
-                    print(f"⚠️ {symbol}: 데이터 부족")
+                    logger.warning(f"⚠️ {symbol}: 데이터 부족")
                     continue
                 
                 # 기술적 지표 계산
@@ -338,7 +382,7 @@ class BacktestingEngine:
                 backtest_data = data[start_date:end_date]
                 
                 if len(backtest_data) < 30:
-                    print(f"⚠️ {symbol}: 백테스팅 기간 데이터 부족")
+                    logger.warning(f"⚠️ {symbol}: 백테스팅 기간 데이터 부족")
                     continue
                 
                 # 일별 신호 체크 및 거래 실행
@@ -349,7 +393,7 @@ class BacktestingEngine:
                 trade_log.extend(trades)
                 
             except Exception as e:
-                print(f"❌ {symbol} 오류: {e}")
+                logger.error(f"❌ {symbol} 오류: {e}")
                 continue
         
         # 백테스팅 결과 분석
@@ -380,7 +424,7 @@ class BacktestingEngine:
                                     'buy_date': date
                                 }
                                 
-                                print(f"📈 매수: {symbol} {shares}주 @ ${row['Close']:.2f}")
+                                logger.info(f"📈 매수: {symbol} {shares}주 @ ${row['Close']:.2f}")
                 
                 # 현재 보유 중이면 매도 신호 체크
                 elif position is not None:
@@ -420,12 +464,12 @@ class BacktestingEngine:
                         }
                         trades.append(trade)
                         
-                        print(f"📉 매도: {symbol} {position['shares']}주 @ ${row['Close']:.2f} ({profit_rate*100:.1f}%)")
+                        logger.info(f"📉 매도: {symbol} {position['shares']}주 @ ${row['Close']:.2f} ({profit_rate*100:.1f}%)")
                         
                         position = None
             
             except Exception as e:
-                print(f"❌ {date} {symbol} 거래 오류: {e}")
+                logger.error(f"❌ {date} {symbol} 거래 오류: {e}")
                 continue
         
         return trades
@@ -645,6 +689,16 @@ class BacktestingDialog(QDialog):
         
         layout.addWidget(tab_widget)
         
+        # 진행률 표시
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        layout.addWidget(self.progress_bar)
+
+        self.progress_label = QLabel("")
+        self.progress_label.setVisible(False)
+        self.progress_label.setStyleSheet("color: #666; padding: 5px;")
+        layout.addWidget(self.progress_label)
+
         # 결과 표시 영역 (공통)
         self.results_text = QTextEdit()
         self.results_text.setMaximumHeight(250)
@@ -707,6 +761,12 @@ class BacktestingDialog(QDialog):
             "스웨덴 종목만"
         ])
         settings_layout.addWidget(self.rec_stocks_combo, 2, 1)
+
+        # 디버그 모드
+        settings_layout.addWidget(QLabel("디버그 모드:"), 3, 0)
+        self.rec_debug_mode = QCheckBox("콘솔 로그 출력")
+        self.rec_debug_mode.setToolTip("체크하면 상세한 분석 과정이 콘솔에 출력됩니다 (성능 저하 가능)")
+        settings_layout.addWidget(self.rec_debug_mode, 3, 1)
         
         settings_group.setLayout(settings_layout)
         layout.addWidget(settings_group)
@@ -862,9 +922,19 @@ class BacktestingDialog(QDialog):
                 QMessageBox.warning(self, "경고", "분석할 종목이 없습니다. 먼저 샘플 생성을 해주세요.")
                 return
             
+            # 진행률 표시 시작
+            self.progress_bar.setVisible(True)
+            self.progress_label.setVisible(True)
+            self.progress_bar.setMaximum(len(symbols))
+            self.progress_bar.setValue(0)
+
             # 추천도 백테스팅 실행
-            engine = RecommendationBacktestingEngine(self.stock_screener.technical_analyzer)
-            result = engine.run_recommendation_backtest(symbols, months_back, min_score)
+            debug_mode = self.rec_debug_mode.isChecked()
+            engine = RecommendationBacktestingEngine(self.stock_screener.technical_analyzer, debug_mode=debug_mode)
+            result = engine.run_recommendation_backtest(
+                symbols, months_back, min_score,
+                progress_callback=self.update_progress
+            )
             
             # 결과 표시
             self.display_recommendation_results(result)
@@ -875,6 +945,8 @@ class BacktestingDialog(QDialog):
         finally:
             self.rec_run_btn.setEnabled(True)
             self.rec_run_btn.setText("🚀 추천도 백테스팅 실행")
+            self.progress_bar.setVisible(False)
+            self.progress_label.setVisible(False)
     
     def run_traditional_backtest(self):
         """기존 백테스팅 실행"""
@@ -935,6 +1007,12 @@ class BacktestingDialog(QDialog):
             self.run_btn.setEnabled(True)
             self.run_btn.setText("🚀 전통적 백테스팅 실행")
     
+    def update_progress(self, current, total, symbol, status):
+        """진행률 업데이트"""
+        self.progress_bar.setValue(current)
+        self.progress_label.setText(f"분석 중: {symbol} ({current}/{total}) - {status}")
+        QApplication.processEvents()
+
     def get_symbols_for_analysis(self, selection):
         """분석 대상 종목 리스트 가져오기"""
         symbols = []

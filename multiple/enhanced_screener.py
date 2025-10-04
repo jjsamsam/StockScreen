@@ -16,10 +16,17 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 from datetime import datetime, timedelta
+import warnings
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from functools import partial
 
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
+
+# 로깅 설정
+from logger_config import get_logger
+logger = get_logger(__name__)
 
 # 최적화 모듈 import
 from cache_manager import get_stock_data, get_ticker_info, get_cache_instance
@@ -56,13 +63,13 @@ except ImportError:
 ML_AVAILABLE = SKLEARN_AVAILABLE and XGBOOST_AVAILABLE and LIGHTGBM_AVAILABLE
 
 if ML_AVAILABLE:
-    print("✅ 모든 ML 라이브러리 사용 가능")
+    logger.info("모든 ML 라이브러리 사용 가능")
 else:
-    print("⚠️ 일부 ML 라이브러리 누락:")
-    print(f"   - scikit-learn: {'✅' if SKLEARN_AVAILABLE else '❌'}")
-    print(f"   - XGBoost: {'✅' if XGBOOST_AVAILABLE else '❌'}")
-    print(f"   - LightGBM: {'✅' if LIGHTGBM_AVAILABLE else '❌'}")
-    print(f"   - statsmodels: {'✅' if STATSMODELS_AVAILABLE else '❌'}")
+    logger.warning("일부 ML 라이브러리 누락:")
+    logger.warning(f"   - scikit-learn: {'✅' if SKLEARN_AVAILABLE else '❌'}")
+    logger.warning(f"   - XGBoost: {'✅' if XGBOOST_AVAILABLE else '❌'}")
+    logger.warning(f"   - LightGBM: {'✅' if LIGHTGBM_AVAILABLE else '❌'}")
+    logger.warning(f"   - statsmodels: {'✅' if STATSMODELS_AVAILABLE else '❌'}")
 
 
 def to_scalar(value):
@@ -104,12 +111,12 @@ class EnhancedCPUPredictor:
     def __init__(self):
         """CPU 최적화 모델들 초기화"""
         if not ML_AVAILABLE:
-            print("⚠️ ML 라이브러리가 부족합니다")
+            logger.warning("ML 라이브러리가 부족합니다")
             self.models = {}
             self.scalers = {}
             return
-        
-        print("🤖 CPU 최적화 예측기 초기화 중...")
+
+        logger.info("CPU 최적화 예측기 초기화 중...")
         
         # 고정된 시드로 초기화
         self.fix_all_random_seeds(42)
@@ -199,7 +206,7 @@ class EnhancedCPUPredictor:
         self.max_history_records = 1000  # 최대 기록 수
         self.accuracy_window_days = 30   # 정확도 평가 기간
 
-        print(f"✅ {len(self.models)}개 모델 초기화 완료")
+        logger.info(f"{len(self.models)}개 모델 초기화 완료")
 
 
     def get_model_config_for_period(self, forecast_days):
@@ -298,11 +305,11 @@ class EnhancedCPUPredictor:
     def reconfigure_models(self, forecast_days):
         """예측 기간에 따라 모델 재구성"""
         config = self.get_model_config_for_period(forecast_days)
-        
-        print(f"🔧 {forecast_days}일 예측을 위한 모델 재구성:")
-        print(f"   • 시퀀스 길이: {config['sequence_length']}일")
-        print(f"   • 최소 데이터: {config['min_data_days']}일")
-        print(f"   • MA 기간: {config['ma_periods']}")
+
+        logger.debug(f"{forecast_days}일 예측을 위한 모델 재구성:")
+        logger.debug(f"   • 시퀀스 길이: {config['sequence_length']}일")
+        logger.debug(f"   • 최소 데이터: {config['min_data_days']}일")
+        logger.debug(f"   • MA 기간: {config['ma_periods']}")
         
         # 모델 재생성
         for model_name, params in config['models'].items():
@@ -343,17 +350,17 @@ class EnhancedCPUPredictor:
                 with open('prediction_settings.json', 'r', encoding='utf-8') as f:
                     saved_settings = json.load(f)
                 default_settings.update(saved_settings)
-                print(f"✅ 설정 로드 완료: 예측기간 {saved_settings.get('forecast_days', 7)}일")
+                logger.info(f"설정 로드 완료: 예측기간 {saved_settings.get('forecast_days', 7)}일")
             else:
-                print("⚠️ 설정 파일 없음, 기본값 사용")
+                logger.warning("설정 파일 없음, 기본값 사용")
         except Exception as e:
-            print(f"❌ 설정 로드 오류: {e}, 기본값 사용")
+            logger.error(f"설정 로드 오류: {e}, 기본값 사용")
         
         self.settings = default_settings
 
     def fix_all_random_seeds(self, seed=42):
         """모든 랜덤 시드 고정 - 완전한 일관성 보장"""
-        print(f"🔒 모든 랜덤 시드를 {seed}로 고정")
+        logger.debug(f"모든 랜덤 시드를 {seed}로 고정")
         
         # Python 기본 random
         random.seed(seed)
@@ -375,20 +382,20 @@ class EnhancedCPUPredictor:
         if ticker in self._data_cache:
             data, timestamp = self._data_cache[ticker]
             elapsed_seconds = (datetime.now() - timestamp).total_seconds()
-            
+
             if elapsed_seconds < self._cache_duration:
-                print(f"  💾 캐시 사용: {ticker} (저장된 지 {int(elapsed_seconds)}초)")
-                
+                logger.debug(f"캐시 사용: {ticker} (저장된 지 {int(elapsed_seconds)}초)")
+
                 # ✅ 추가: 데이터 유효성 확인
                 if data is not None and not data.empty and len(data) > 0:
                     return data
                 else:
                     # 잘못된 캐시 데이터 삭제
-                    print(f"  ⚠️ 잘못된 캐시 데이터 삭제: {ticker}")
+                    logger.warning(f"잘못된 캐시 데이터 삭제: {ticker}")
                     del self._data_cache[ticker]
                     return None
             else:
-                print(f"  ⏰ 캐시 만료: {ticker} (저장된 지 {int(elapsed_seconds)}초)")
+                logger.debug(f"캐시 만료: {ticker} (저장된 지 {int(elapsed_seconds)}초)")
                 del self._data_cache[ticker]
         
         return None
@@ -397,11 +404,11 @@ class EnhancedCPUPredictor:
         """데이터 캐싱"""
         # ✅ 추가: 유효한 데이터만 캐싱
         if data is None or data.empty or len(data) == 0:
-            print(f"  ⚠️ 잘못된 데이터, 캐싱 안 함: {ticker}")
+            logger.warning(f"잘못된 데이터, 캐싱 안 함: {ticker}")
             return
-        
+
         self._data_cache[ticker] = (data.copy(), datetime.now())
-        print(f"  💾 캐시 저장: {ticker} ({len(data)}개 데이터)")
+        logger.debug(f"캐시 저장: {ticker} ({len(data)}개 데이터)")
     
     def clear_cache(self):
         """캐시 전체 삭제 (메모리 정리용)
@@ -412,7 +419,7 @@ class EnhancedCPUPredictor:
         cache_count = len(self._data_cache)
         self._data_cache.clear()
         self._feature_cache.clear()
-        print(f"  🗑️ 캐시 정리 완료: {cache_count}개 항목 삭제")
+        logger.info(f"캐시 정리 완료: {cache_count}개 항목 삭제")
 
     # ✅ 통합된 예측 함수 - predict_stock_consistent의 로직을 predict_stock으로 변경
     def predict_stock(self, ticker, forecast_days=None, min_data_days=None, mode='smart'):
@@ -428,10 +435,10 @@ class EnhancedCPUPredictor:
             min_data_days = config['min_data_days']
         
         sequence_length = config['sequence_length']
-        
-        print(f"📊 {ticker} 예측 시작:")
-        print(f"   • 예측 기간: {forecast_days}일 ({'단기' if forecast_days <= 5 else '중기' if forecast_days <= 14 else '장기'})")
-        print(f"   • 시퀀스: {sequence_length}일")
+
+        logger.info(f"{ticker} 예측 시작:")
+        logger.info(f"   • 예측 기간: {forecast_days}일 ({'단기' if forecast_days <= 5 else '중기' if forecast_days <= 14 else '장기'})")
+        logger.info(f"   • 시퀀스: {sequence_length}일")
 
         confidence_threshold = getattr(self, 'settings', {}).get('confidence_threshold', 0.6)
 
@@ -439,7 +446,7 @@ class EnhancedCPUPredictor:
         self.fix_all_random_seeds(42)
         
         try:
-            print(f"📊 {ticker} 일관성 예측 시작...")
+            logger.info(f"{ticker} 일관성 예측 시작...")
             
             # 1. 실제 현재가 조회 (캐싱 사용)
             current_data = get_stock_data(ticker, period="2d")
@@ -455,7 +462,7 @@ class EnhancedCPUPredictor:
             data = self.get_cached_data(ticker)
 
             if data is None:
-                print(f"  📥 {ticker} 데이터 다운로드 중...")
+                logger.info(f"{ticker} 데이터 다운로드 중...")
 
                 days_needed = min_data_days + 100
                 period_param = f'{days_needed}d'
@@ -471,7 +478,7 @@ class EnhancedCPUPredictor:
                 self.cache_data(ticker, data)
             else:
                 # 캐시된 데이터 사용
-                print(f"  ⚡ 캐시 데이터 사용: {len(data)}개 행")
+                logger.info(f"캐시 데이터 사용: {len(data)}개 행")
             
             # 3. 데이터 길이 확인 (기존과 동일)
             if len(data) < min_data_days:
@@ -494,16 +501,16 @@ class EnhancedCPUPredictor:
             
             if features.empty or features.isnull().all().all():
                 return None, "특성 생성 실패"
-            
-            print(f"  🔍 미래 수익률 계산 전 데이터 길이: {len(data)}")
+
+            logger.debug(f"미래 수익률 계산 전 데이터 길이: {len(data)}")
 
             # ✅ 설정에서 가져온 forecast_days 사용 (수정된 부분)
             future_returns = data['Close'].pct_change(forecast_days).shift(-forecast_days)
 
-            print(f"  🔍 미래 수익률 계산 후:")
-            print(f"     전체 길이: {len(future_returns)}")
-            print(f"     유효 값: {future_returns.notna().sum()}개")
-            print(f"     NaN: {future_returns.isna().sum()}개")
+            logger.debug(f"미래 수익률 계산 후:")
+            logger.debug(f"     전체 길이: {len(future_returns)}")
+            logger.debug(f"     유효 값: {future_returns.notna().sum()}개")
+            logger.debug(f"     NaN: {future_returns.isna().sum()}개")
 
             # ✅ DataFrame이 아니라 Series로 유지
             if isinstance(future_returns, pd.DataFrame):
@@ -523,23 +530,23 @@ class EnhancedCPUPredictor:
                                                     sequence_length=15, 
                                                     forecast_horizon=forecast_days)
 
-            print(f"\n  🔍 ===== 데이터 진단 =====")
-            print(f"  📊 X shape: {X.shape}")
-            print(f"  📊 y shape: {y.shape}")
-            print(f"  📊 y 통계:")
-            print(f"     최소값: {y.min():.6f}")
-            print(f"     최대값: {y.max():.6f}")
-            print(f"     평균: {y.mean():.6f}")
-            print(f"     표준편차: {y.std():.6f}")
-            print(f"     중앙값: {np.median(y):.6f}")
-            print(f"  📊 y 분포 샘플 (처음 10개): {y[:10]}")
-            print(f"  📊 y 분포 샘플 (마지막 10개): {y[-10:]}")
-            print(f"  ===========================\n")
+            logger.debug(f"\n===== 데이터 진단 =====")
+            logger.debug(f"X shape: {X.shape}")
+            logger.debug(f"y shape: {y.shape}")
+            logger.debug(f"y 통계:")
+            logger.debug(f"     최소값: {y.min():.6f}")
+            logger.debug(f"     최대값: {y.max():.6f}")
+            logger.debug(f"     평균: {y.mean():.6f}")
+            logger.debug(f"     표준편차: {y.std():.6f}")
+            logger.debug(f"     중앙값: {np.median(y):.6f}")
+            logger.debug(f"y 분포 샘플 (처음 10개): {y[:10]}")
+            logger.debug(f"y 분포 샘플 (마지막 10개): {y[-10:]}")
+            logger.debug(f"===========================\n")
 
             if len(X) == 0 or len(y) == 0:
                 return None, "시퀀스 데이터 생성 실패"
-            
-            print(f"  ✅ 데이터 준비 완료: {len(X)}개 학습 샘플")
+
+            logger.info(f"데이터 준비 완료: {len(X)}개 학습 샘플")
             
             # ✅ 전체 데이터 학습으로 변경
             X_train = X
@@ -547,7 +554,7 @@ class EnhancedCPUPredictor:
             X_test = np.array([])  # 빈 배열
             y_test = np.array([])
 
-            print(f"  🔍 전체 데이터로 학습: {len(X_train)}개 샘플")
+            logger.debug(f"전체 데이터로 학습: {len(X_train)}개 샘플")
 
             # 데이터 정규화
             try:
@@ -557,8 +564,8 @@ class EnhancedCPUPredictor:
                 # 최신 데이터 준비 (예측용)
                 latest_X = X[-1]
                 latest_X_scaled = latest_X.reshape(1, -1)
-                
-                print(f"  🔍 스케일링 제거됨 (Tree 기반 모델은 불필요)")
+
+                logger.debug(f"스케일링 제거됨 (Tree 기반 모델은 불필요)")
             except Exception as e:
                 return None, f"데이터 준비 실패: {str(e)}"
             
@@ -575,7 +582,7 @@ class EnhancedCPUPredictor:
             
             for model_name, model in self.models.items():
                 if not models_enabled.get(model_name, True):
-                    print(f"  ⏭️ {model_name} 모델 비활성화됨 (설정)")
+                    logger.debug(f"{model_name} 모델 비활성화됨 (설정)")
                     continue
                 
                 result = self.safe_predict_with_model(
@@ -595,8 +602,8 @@ class EnhancedCPUPredictor:
 
             if successful_models == 0:
                 return None, "모든 모델이 실패했습니다"
-            
-            print(f"  ✅ {successful_models}개 모델 성공 (설정 적용됨)")
+
+            logger.info(f"{successful_models}개 모델 성공 (설정 적용됨)")
             
             # 결정적 앙상블 계산 - 기존 코드 그대로
             ensemble_prediction, confidence = self.calculate_deterministic_ensemble(
@@ -673,52 +680,52 @@ class EnhancedCPUPredictor:
             }
             
             confidence_status = "높은 신뢰도" if is_high_confidence else "낮은 신뢰도"
-            print(f"  ✅ 예측 완료: {predicted_return*100:+.2f}% (신뢰도: {confidence*100:.1f}% - {confidence_status})")
+            logger.info(f"예측 완료: {predicted_return*100:+.2f}% (신뢰도: {confidence*100:.1f}% - {confidence_status})")
                       
             return result, None
             
         except Exception as e:
             import traceback
             error_msg = f"예측 중 오류: {str(e)}"
-            print(f"  ❌ {error_msg}")
-            print(f"  📍 상세 에러:")
+            logger.error(f"{error_msg}")
+            logger.error(f"상세 에러:")
             traceback.print_exc()  # ✅ 전체 스택 트레이스 출력
             return None, error_msg
 
     def safe_predict_with_model(self, model, X_train, y_train, X_test, y_test, X_predict, model_name):
         """개별 모델 예측 - 성능 평가 포함"""
         try:
-            print(f"  🔧 {model_name} 훈련 중...")
-            
+            logger.debug(f"{model_name} 훈련 중...")
+
             # 입력 데이터 검증
             if X_train.size == 0 or y_train.size == 0:
-                print(f"    ❌ {model_name} 오류: 빈 훈련 데이터")
+                logger.error(f"{model_name} 오류: 빈 훈련 데이터")
                 return None
-            
+
             # 모델 훈련
             model.fit(X_train, y_train)
-            
+
             # 학습 데이터 성능 확인 (과적합 진단)
             y_pred_train_sample = model.predict(X_train[-5:])  # 마지막 5개
-            print(f"    📊 학습 데이터 마지막 5개 예측 평균: {y_pred_train_sample.mean()*100:+.2f}%")
-            
+            logger.debug(f"학습 데이터 마지막 5개 예측 평균: {y_pred_train_sample.mean()*100:+.2f}%")
+
             # ✅ 테스트 없이 바로 예측
             prediction = model.predict(X_predict)[0]
-            
+
             if pd.isnull(prediction) or np.isinf(prediction):
-                print(f"    ❌ {model_name} 오류: 잘못된 예측값")
+                logger.error(f"{model_name} 오류: 잘못된 예측값")
                 return None
-            
-            print(f"    ✅ {model_name} 완료: {prediction:.6f} ({prediction*100:+.2f}%)")
-            
+
+            logger.info(f"{model_name} 완료: {prediction:.6f} ({prediction*100:+.2f}%)")
+
             return {
                 'prediction': float(prediction),
                 'r2_score': 0.0,  # R² 계산 안 함
                 'mae': 0.0
             }
-            
+
         except Exception as e:
-            print(f"    ❌ {model_name} 오류: {str(e)}")
+            logger.error(f"{model_name} 오류: {str(e)}")
             return None
 
     def calculate_deterministic_ensemble(self, predictions, model_results):
@@ -753,9 +760,9 @@ class EnhancedCPUPredictor:
         
         # 신뢰도 계산
         confidence = self.calculate_advanced_confidence(predictions, model_results)
-        
-        print(f"  📊 동적 가중치: {weights}")
-        
+
+        logger.debug(f"동적 가중치: {weights}")
+
         return weighted_sum, confidence
 
     # def calculate_advanced_confidence(self, predictions, model_results, market_conditions=None):
@@ -863,13 +870,13 @@ class EnhancedCPUPredictor:
     def get_market_data(self):
         """기본 시장 데이터 수집 (S&P 500 기준)"""
         try:
-            print("📊 시장 데이터 수집 중...")
+            logger.info("시장 데이터 수집 중...")
             
             # S&P 500 ETF (SPY) 데이터 사용
             spy = yf.download('SPY', period='6mo', progress=False, auto_adjust=True)
             
             if len(spy) < 50:
-                print("⚠️ SPY 데이터 부족, 기본값 사용")
+                logger.warning("SPY 데이터 부족, 기본값 사용")
                 return self.get_default_market_data()
             
             # 기본 통계 계산
@@ -885,7 +892,7 @@ class EnhancedCPUPredictor:
             except:
                 current_vix = 20.0  # 기본값
             
-            print(f"  ✅ 시장 데이터 수집 완료: SPY=${current_price:.2f}, VIX={current_vix:.1f}")
+            logger.info(f"시장 데이터 수집 완료: SPY=${current_price:.2f}, VIX={current_vix:.1f}")
             
             return {
                 'spy': spy,
@@ -898,7 +905,7 @@ class EnhancedCPUPredictor:
             }
             
         except Exception as e:
-            print(f"⚠️ 시장 데이터 수집 오류: {e}")
+            logger.warning(f"시장 데이터 수집 오류: {e}")
             return self.get_default_market_data()
 
     def get_default_market_data(self):
@@ -970,7 +977,7 @@ class EnhancedCPUPredictor:
             }
             
         except Exception as e:
-            print(f"⚠️ 기술적 지표 분석 오류: {e}")
+            logger.warning(f"기술적 지표 분석 오류: {e}")
             return {
                 'market_ma_position': 'neutral',
                 'market_momentum': 0.0,
@@ -1009,7 +1016,7 @@ class EnhancedCPUPredictor:
             }
             
         except Exception as e:
-            print(f"⚠️ 시장 상황 분석 오류: {e}")
+            logger.warning(f"시장 상황 분석 오류: {e}")
             # 기본값 반환
             return self.get_default_market_conditions()
 
@@ -1040,7 +1047,7 @@ class EnhancedCPUPredictor:
                 return 'sideways'
                 
         except Exception as e:
-            print(f"⚠️ 시장 체제 분류 오류: {e}")
+            logger.warning(f"시장 체제 분류 오류: {e}")
             return 'sideways'  # 기본값
 
     def analyze_volatility(self, market_data):
@@ -1079,7 +1086,7 @@ class EnhancedCPUPredictor:
             }
             
         except Exception as e:
-            print(f"⚠️ 변동성 분석 오류: {e}")
+            logger.warning(f"변동성 분석 오류: {e}")
             return {
                 'current_vix': 20.0,
                 'volatility_percentile': 0.5,
@@ -1134,7 +1141,7 @@ class EnhancedCPUPredictor:
             }
             
         except Exception as e:
-            print(f"⚠️ 추세 분석 오류: {e}")
+            logger.warning(f"추세 분석 오류: {e}")
             return {'direction': 'sideways', 'strength': 0.5, 'duration_days': 30}
 
     def calculate_market_confidence_adjustment(self, market_conditions):
@@ -1212,13 +1219,13 @@ class EnhancedCPUPredictor:
             if os.path.exists(self.accuracy_history_file):
                 with open(self.accuracy_history_file, 'r', encoding='utf-8') as f:
                     history = json.load(f)
-                    print(f"✅ 과거 성능 기록 로드: {len(history)}건")
+                    logger.info(f"과거 성능 기록 로드: {len(history)}건")
                     return history
             else:
-                print("📋 새로운 성능 추적 시작")
+                logger.info("새로운 성능 추적 시작")
                 return []
         except Exception as e:
-            print(f"⚠️ 성능 기록 로드 오류: {e}")
+            logger.warning(f"성능 기록 로드 오류: {e}")
             return []
 
     def save_accuracy_history(self):
@@ -1230,9 +1237,9 @@ class EnhancedCPUPredictor:
             
             with open(self.accuracy_history_file, 'w', encoding='utf-8') as f:
                 json.dump(self.accuracy_history, f, indent=2, ensure_ascii=False)
-            print(f"💾 성능 기록 저장: {len(self.accuracy_history)}건")
+            logger.info(f"성능 기록 저장: {len(self.accuracy_history)}건")
         except Exception as e:
-            print(f"⚠️ 성능 기록 저장 오류: {e}")
+            logger.warning(f"성능 기록 저장 오류: {e}")
 
     def record_prediction(self, ticker, prediction_data):
         """예측 기록 저장 - 나중에 정확도 평가용"""
@@ -1261,11 +1268,11 @@ class EnhancedCPUPredictor:
             # 주기적으로 저장 (10개마다)
             if len(self.accuracy_history) % 10 == 0:
                 self.save_accuracy_history()
-                
-            print(f"📝 예측 기록 저장: {ticker}")
-            
+
+            logger.info(f"예측 기록 저장: {ticker}")
+
         except Exception as e:
-            print(f"⚠️ 예측 기록 오류: {e}")
+            logger.warning(f"예측 기록 오류: {e}")
 
     def evaluate_past_predictions(self):
         """과거 예측들의 실제 결과 평가"""
@@ -1288,11 +1295,11 @@ class EnhancedCPUPredictor:
                         evaluated_count += 1
             
             if evaluated_count > 0:
-                print(f"📊 {evaluated_count}개 과거 예측 평가 완료")
+                logger.info(f"{evaluated_count}개 과거 예측 평가 완료")
                 self.save_accuracy_history()
-                
+
         except Exception as e:
-            print(f"⚠️ 과거 예측 평가 오류: {e}")
+            logger.warning(f"과거 예측 평가 오류: {e}")
 
     def evaluate_single_prediction(self, record):
         """개별 예측 기록 평가"""
@@ -1328,12 +1335,12 @@ class EnhancedCPUPredictor:
             record['evaluation_date'] = datetime.now().isoformat()
             record['is_evaluated'] = True
             
-            print(f"✅ {ticker} 예측 평가: 예측{predicted_return*100:+.1f}% vs 실제{actual_return*100:+.1f}% (정확도: {accuracy_score:.2f})")
-            
+            logger.info(f"{ticker} 예측 평가: 예측{predicted_return*100:+.1f}% vs 실제{actual_return*100:+.1f}% (정확도: {accuracy_score:.2f})")
+
             return True
-            
+
         except Exception as e:
-            print(f"⚠️ {record.get('ticker', 'N/A')} 평가 오류: {e}")
+            logger.warning(f"{record.get('ticker', 'N/A')} 평가 오류: {e}")
             return False
 
     def calculate_prediction_accuracy(self, predicted_return, actual_return):
@@ -1351,9 +1358,9 @@ class EnhancedCPUPredictor:
             total_score = direction_score * 0.6 + magnitude_score * 0.4
             
             return max(0.0, min(1.0, total_score))
-            
+
         except Exception as e:
-            print(f"⚠️ 정확도 계산 오류: {e}")
+            logger.warning(f"정확도 계산 오류: {e}")
             return 0.5  # 기본값
 
     def calculate_historical_accuracy_adjustment(self):
@@ -1363,14 +1370,14 @@ class EnhancedCPUPredictor:
             self.evaluate_past_predictions()
             
             if not self.accuracy_history:
-                print("📊 과거 성능 데이터 없음 - 기본값 사용")
+                logger.info("과거 성능 데이터 없음 - 기본값 사용")
                 return 0.8  # 기본값
-            
+
             # 평가된 기록들만 필터링
             evaluated_records = [r for r in self.accuracy_history if r.get('is_evaluated', False)]
-            
+
             if len(evaluated_records) < 5:
-                print(f"📊 평가된 기록 부족 ({len(evaluated_records)}개) - 기본값 사용")
+                logger.info(f"평가된 기록 부족 ({len(evaluated_records)}개) - 기본값 사용")
                 return 0.8
             
             # 1. 전체 정확도 계산
@@ -1393,13 +1400,13 @@ class EnhancedCPUPredictor:
                 model_performance * 0.1
             )
             
-            print(f"📈 역사적 성능 조정: {adjustment:.3f} (기록 {len(evaluated_records)}개 기반)")
-            
+            logger.info(f"역사적 성능 조정: {adjustment:.3f} (기록 {len(evaluated_records)}개 기반)")
+
             # 합리적 범위로 제한
             return max(0.3, min(1.0, adjustment))
-            
+
         except Exception as e:
-            print(f"⚠️ 역사적 성능 계산 오류: {e}")
+            logger.warning(f"역사적 성능 계산 오류: {e}")
             return 0.8  # 기본값
 
     def calculate_overall_accuracy(self, evaluated_records):
@@ -1415,9 +1422,9 @@ class EnhancedCPUPredictor:
             weighted_avg = sum(score * weight for score, weight in zip(accuracy_scores, weights)) / sum(weights)
             
             return weighted_avg
-            
+
         except Exception as e:
-            print(f"⚠️ 전체 정확도 계산 오류: {e}")
+            logger.warning(f"전체 정확도 계산 오류: {e}")
             return 0.8
 
     def calculate_recent_performance_trend(self, evaluated_records):
@@ -1452,9 +1459,9 @@ class EnhancedCPUPredictor:
                 return max(0.3, min(1.0, trend_adjustment))
             else:
                 return sum(recent_scores) / len(recent_scores)
-                
+
         except Exception as e:
-            print(f"⚠️ 최근 추세 계산 오류: {e}")
+            logger.warning(f"최근 추세 계산 오류: {e}")
             return 0.8
 
     def calculate_contextual_performance(self, evaluated_records):
@@ -1477,15 +1484,15 @@ class EnhancedCPUPredictor:
                 # 비슷한 상황에서의 성능
                 context_scores = [r['accuracy_score'] for r in similar_context_records if r.get('accuracy_score') is not None]
                 context_performance = sum(context_scores) / len(context_scores)
-                print(f"🎯 {current_regime} 시장에서 과거 성능: {context_performance:.3f} ({len(context_scores)}건)")
+                logger.info(f"{current_regime} 시장에서 과거 성능: {context_performance:.3f} ({len(context_scores)}건)")
                 return context_performance
             else:
                 # 전체 평균 사용
                 all_scores = [r['accuracy_score'] for r in evaluated_records if r.get('accuracy_score') is not None]
                 return sum(all_scores) / len(all_scores) if all_scores else 0.8
-                
+
         except Exception as e:
-            print(f"⚠️ 상황별 성능 계산 오류: {e}")
+            logger.warning(f"상황별 성능 계산 오류: {e}")
             return 0.8
 
     def calculate_model_specific_performance(self, evaluated_records):
@@ -1523,9 +1530,9 @@ class EnhancedCPUPredictor:
                     all_performances.extend(performances)
                 
                 return sum(all_performances) / len(all_performances) if all_performances else 0.8
-                
+
         except Exception as e:
-            print(f"⚠️ 모델별 성능 계산 오류: {e}")
+            logger.warning(f"모델별 성능 계산 오류: {e}")
             return 0.8
 
     def create_advanced_features_deterministic(self, data, ma_periods=None):
@@ -1536,8 +1543,8 @@ class EnhancedCPUPredictor:
             # MA 기간이 지정되지 않으면 기본값
             if ma_periods is None:
                 ma_periods = [5, 10, 20, 50]
-            
-            print(f"  📊 MA 기간 사용: {ma_periods}")
+
+            logger.debug(f"MA 기간 사용: {ma_periods}")
             
             # 1. 기본 수익률
             features['returns'] = data['Close'].pct_change()
@@ -1609,18 +1616,53 @@ class EnhancedCPUPredictor:
                 features['atr_14'] = tr.rolling(14).mean()
 
                 # 10. 거래량 가중 가격
-                features['vwap'] = (data['Close'] * data['Volume']).rolling(20).sum() / data['Volume'].rolling(20).sum()
-                features['vwap_ratio'] = data['Close'] / features['vwap']
+                try:
+                    # Close와 Volume을 명시적으로 Series로 변환
+                    if isinstance(data['Close'], pd.DataFrame):
+                        close_series = data['Close'].iloc[:, 0]
+                    else:
+                        close_series = data['Close']
+
+                    if isinstance(data['Volume'], pd.DataFrame):
+                        volume_series = data['Volume'].iloc[:, 0]
+                    else:
+                        volume_series = data['Volume']
+
+                    # VWAP 계산
+                    vwap_numerator = (close_series * volume_series).rolling(20).sum()
+                    vwap_denominator = volume_series.rolling(20).sum()
+                    vwap_calc = vwap_numerator / vwap_denominator
+
+                    # 결과가 DataFrame이면 Series로 변환
+                    if isinstance(vwap_calc, pd.DataFrame):
+                        vwap_calc = vwap_calc.iloc[:, 0]
+
+                    features['vwap'] = vwap_calc
+
+                    # vwap_ratio 계산
+                    vwap_ratio_calc = close_series / vwap_calc
+
+                    # 결과가 DataFrame이면 Series로 변환
+                    if isinstance(vwap_ratio_calc, pd.DataFrame):
+                        vwap_ratio_calc = vwap_ratio_calc.iloc[:, 0]
+
+                    features['vwap_ratio'] = vwap_ratio_calc
+
+                except Exception as vwap_error:
+                    logger.debug(f"VWAP 계산 오류 (스킵): {vwap_error}")
+                    # VWAP 실패 시 기본값 사용
+                    features['vwap'] = close_series
+                    features['vwap_ratio'] = 1.0
 
                 # 데이터 정리 (결정적 방식)
                 features = features.replace([np.inf, -np.inf], 0)
                 features = features.ffill().bfill().fillna(0)
-                
-                print(f"  ✅ {len(features.columns)}개 결정적 특성 생성 완료")
+
+                logger.info(f"{len(features.columns)}개 결정적 특성 생성 완료")
                 return features
-                
+
         except Exception as e:
-            print(f"  ❌ 특성 생성 오류: {e}")
+            logger.error(f"특성 생성 오류: {e}")
             # 최소한의 특성 생성
             features = pd.DataFrame(index=data.index)
             features['returns'] = data['Close'].pct_change().fillna(0)
@@ -1630,17 +1672,17 @@ class EnhancedCPUPredictor:
     def prepare_sequences_deterministic(self, features, targets, sequence_length=15, forecast_horizon=7):
         """결정적 시퀀스 데이터 준비 - DataFrame 처리 버전"""
         try:
-            # ✅ 수정 1: targets가 DataFrame이면 Series로 변환
+            # ✅ 수정 1: targets가 DataFrame이면 Series로 자동 변환
             if isinstance(targets, pd.DataFrame):
-                print(f"  ⚠️ targets가 DataFrame입니다. Series로 변환 중...")
+                logger.debug(f"targets DataFrame을 Series로 자동 변환 중...")
                 if targets.shape[1] == 1:
                     targets = targets.iloc[:, 0]  # 첫 번째 컬럼을 Series로
                 else:
-                    print(f"  ❌ targets에 여러 컬럼이 있습니다: {targets.columns}")
+                    logger.error(f"targets에 여러 컬럼이 있습니다: {targets.columns}")
                     return np.array([]), np.array([])
-            
-            print(f"  🔍 targets 변환 후 타입: {type(targets)}")
-            print(f"  🔍 targets NaN 개수: {targets.isna().sum()}/{len(targets)}")
+
+            logger.debug(f"targets 변환 후 타입: {type(targets)}")
+            logger.debug(f"targets NaN 개수: {targets.isna().sum()}/{len(targets)}")
             
             # 유효한 데이터 필터링
             targets_valid = pd.notna(targets)
@@ -1649,13 +1691,13 @@ class EnhancedCPUPredictor:
             
             valid_features = features[valid_indices].copy()
             valid_targets = targets[valid_indices].copy()
-            
-            print(f"  🔍 필터링 후 유효 데이터: {len(valid_targets)}개")
-            
+
+            logger.debug(f"필터링 후 유효 데이터: {len(valid_targets)}개")
+
             # 데이터 길이 확인
             min_required = sequence_length + forecast_horizon
             if len(valid_features) < min_required:
-                print(f"  ❌ 유효 데이터 부족: {len(valid_features)}개 < {min_required}개 필요")
+                logger.error(f"유효 데이터 부족: {len(valid_features)}개 < {min_required}개 필요")
                 return np.array([]), np.array([])
             
             # ✅ 수정 2: numpy array로 변환 (Series 문제 완전 회피)
@@ -1698,116 +1740,185 @@ class EnhancedCPUPredictor:
                     fail_count += 1
                     continue
             
-            print(f"  📊 시퀀스 생성 결과: 성공 {success_count}개, 실패 {fail_count}개")
-            
+            logger.debug(f"시퀀스 생성 결과: 성공 {success_count}개, 실패 {fail_count}개")
+
             # 결과 확인
             if len(X) == 0 or len(y) == 0:
-                print(f"  ❌ 유효한 시퀀스 생성 실패")
+                logger.error(f"유효한 시퀀스 생성 실패")
                 return np.array([]), np.array([])
-            
+
             X_array = np.array(X, dtype=np.float64)
             y_array = np.array(y, dtype=np.float64)
-            
-            print(f"  ✅ 시퀀스 데이터 준비 완료: {len(X_array)}개 샘플, 특성 {X_array.shape[1]}개")
-            
+
+            logger.info(f"시퀀스 데이터 준비 완료: {len(X_array)}개 샘플, 특성 {X_array.shape[1]}개")
+
             return X_array, y_array
-            
+
         except Exception as e:
-            print(f"  ❌ 시퀀스 데이터 준비 전체 오류: {e}")
+            logger.error(f"시퀀스 데이터 준비 전체 오류: {e}")
             import traceback
             traceback.print_exc()
             return np.array([]), np.array([])
 
-    def backtest_predictions(self, ticker, test_periods=10, forecast_days=7):
+    def _backtest_single_period(self, data, test_idx, test_periods, forecast_days, ticker):
+        """단일 백테스팅 기간 처리 (병렬 처리용 워커 함수)"""
+        try:
+            # 예측 시점 설정 (뒤에서부터 역순으로)
+            prediction_point = len(data) - (test_periods - test_idx) * forecast_days - forecast_days
+
+            if prediction_point < 300:
+                return None
+
+            # 예측 시점까지의 데이터만 사용
+            train_data = data.iloc[:prediction_point].copy()
+
+            # 실제 미래 가격 (정답)
+            actual_future_point = prediction_point + forecast_days
+            if actual_future_point >= len(data):
+                return None
+
+            # FutureWarning 방지: .iloc[0] 사용
+            actual_price_val = data['Close'].iloc[actual_future_point]
+            actual_price = float(actual_price_val.iloc[0] if isinstance(actual_price_val, pd.Series) else actual_price_val)
+
+            current_price_val = train_data['Close'].iloc[-1]
+            current_price = float(current_price_val.iloc[0] if isinstance(current_price_val, pd.Series) else current_price_val)
+
+            actual_return = (actual_price / current_price - 1)
+
+            prediction_date = train_data.index[-1]
+
+            # 예측 실행 (과거 시점에서)
+            predicted_return = self.predict_with_historical_data(
+                train_data, forecast_days
+            )
+
+            if predicted_return is None:
+                logger.debug(f"테스트 {test_idx+1}: 예측 실패")
+                return None
+
+            predicted_price = current_price * (1 + predicted_return)
+
+            # 정확도 계산
+            direction_correct = (predicted_return * actual_return > 0)
+            magnitude_error = abs(predicted_return - actual_return)
+
+            result = {
+                'test_idx': test_idx,
+                'date': prediction_date,
+                'current_price': float(current_price),
+                'predicted_price': float(predicted_price),
+                'predicted_return': float(predicted_return),
+                'actual_price': float(actual_price),
+                'actual_return': float(actual_return),
+                'direction_correct': direction_correct,
+                'magnitude_error': float(magnitude_error),
+                'accuracy_score': 1.0 if direction_correct else 0.0
+            }
+
+            logger.debug(f"테스트 {test_idx+1}: {prediction_date.strftime('%Y-%m-%d')} - "
+                        f"예측 {predicted_return*100:+.2f}% vs 실제 {actual_return*100:+.2f}%")
+
+            return result
+
+        except Exception as e:
+            logger.warning(f"테스트 {test_idx+1} 오류: {e}")
+            return None
+
+    def backtest_predictions(self, ticker, test_periods=10, forecast_days=7, progress_callback=None, use_parallel=True, max_workers=None, cancel_callback=None):
         """
-        과거 데이터로 예측 알고리즘 검증
-        
+        과거 데이터로 예측 알고리즘 검증 (병렬 처리 지원)
+
         Args:
             ticker: 종목 코드
             test_periods: 테스트할 기간 수 (예: 10 = 10번 예측)
             forecast_days: 예측 기간
-        
+            progress_callback: 진행률 콜백 함수 (current, total, message)
+            use_parallel: 병렬 처리 사용 여부 (기본: True)
+            max_workers: 최대 워커 수 (None이면 CPU 코어 수)
+            cancel_callback: 중지 확인 콜백 함수 (True 반환 시 중지)
+
         Returns:
             검증 결과 딕셔너리
         """
-        print(f"\n{'='*60}")
-        print(f"🔬 {ticker} 백테스팅 시작")
-        print(f"   • 테스트 기간: {test_periods}회")
-        print(f"   • 예측 기간: {forecast_days}일")
-        print(f"{'='*60}\n")
-        
+        logger.info(f"\n{'='*60}")
+        logger.info(f"{ticker} 백테스팅 시작")
+        logger.info(f"   • 테스트 기간: {test_periods}회")
+        logger.info(f"   • 예측 기간: {forecast_days}일")
+        logger.info(f"   • 병렬 처리: {'활성화' if use_parallel else '비활성화'}")
+        logger.info(f"{'='*60}\n")
+
         # 전체 데이터 다운로드
         end_date = datetime.now()
         start_date = end_date - timedelta(days=365 * 2)  # 2년 데이터
-        
+
         data = yf.download(ticker, start=start_date, end=end_date, progress=False, auto_adjust=True)
-        
+
         if len(data) < 300:
             return None, "데이터 부족"
-        
+
         results = []
-        
-        # 각 테스트 기간마다 예측 실행
-        for i in range(test_periods):
-            # 예측 시점 설정 (뒤에서부터 역순으로)
-            prediction_point = len(data) - (test_periods - i) * forecast_days - forecast_days
-            
-            if prediction_point < 300:
-                continue
-            
-            # 예측 시점까지의 데이터만 사용
-            train_data = data.iloc[:prediction_point].copy()
-            
-            # 실제 미래 가격 (정답)
-            actual_future_point = prediction_point + forecast_days
-            if actual_future_point >= len(data):
-                continue
-            
-            actual_price = float(data['Close'].iloc[actual_future_point])
-            current_price = float(train_data['Close'].iloc[-1])
-            actual_return = (actual_price / current_price - 1)
-            
-            prediction_date = train_data.index[-1]
-            
-            print(f"\n📅 테스트 {i+1}/{test_periods}: {prediction_date.strftime('%Y-%m-%d')}")
-            print(f"   현재가: ${current_price:.2f}")
-            
-            # 예측 실행 (과거 시점에서)
-            try:
-                predicted_return = self.predict_with_historical_data(
-                    train_data, forecast_days
-                )
-                
-                if predicted_return is None:
-                    print(f"   ⚠️ 예측 실패")
-                    continue
-                
-                predicted_price = current_price * (1 + predicted_return)
-                
-                # 정확도 계산
-                direction_correct = (predicted_return * actual_return > 0)
-                magnitude_error = abs(predicted_return - actual_return)
-                
-                result = {
-                    'date': prediction_date,
-                    'current_price': float(current_price),
-                    'predicted_price': float(predicted_price),
-                    'predicted_return': float(predicted_return),
-                    'actual_price': float(actual_price),
-                    'actual_return': float(actual_return),
-                    'direction_correct': direction_correct,
-                    'magnitude_error': float(magnitude_error),
-                    'accuracy_score': 1.0 if direction_correct else 0.0
-                }
-                
-                results.append(result)
-                
-                print(f"   예측: {predicted_return*100:+.2f}% → 실제: {actual_return*100:+.2f}%")
-                print(f"   방향: {'✅ 정확' if direction_correct else '❌ 틀림'}")
-                
-            except Exception as e:
-                print(f"   ⚠️ 오류: {e}")
-                continue
+
+        if use_parallel:
+            # 병렬 처리 모드
+            logger.info(f"🚀 병렬 처리 모드 시작 (워커: {max_workers or 'CPU 코어 수'})")
+
+            # ThreadPoolExecutor 사용 (ML 모델은 GIL 영향을 덜 받음)
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # 모든 테스트 작업 제출
+                future_to_idx = {}
+                for i in range(test_periods):
+                    future = executor.submit(
+                        self._backtest_single_period,
+                        data, i, test_periods, forecast_days, ticker
+                    )
+                    future_to_idx[future] = i
+
+                # 완료된 작업부터 결과 수집
+                completed_count = 0
+                for future in as_completed(future_to_idx):
+                    # 중지 확인
+                    if cancel_callback and cancel_callback():
+                        logger.info("⏹ 병렬 백테스팅 중지 요청 - 남은 작업 취소 중...")
+                        # 남은 작업 취소
+                        for f in future_to_idx:
+                            f.cancel()
+                        return None, "사용자에 의해 중지됨"
+
+                    test_idx = future_to_idx[future]
+                    completed_count += 1
+
+                    # 진행률 콜백 호출
+                    if progress_callback:
+                        progress_callback(completed_count, test_periods, f"테스트 {completed_count}/{test_periods} 완료")
+
+                    try:
+                        result = future.result()
+                        if result is not None:
+                            results.append(result)
+                    except Exception as e:
+                        logger.warning(f"테스트 {test_idx+1} 실패: {e}")
+
+            # 결과를 test_idx 순서로 정렬
+            results.sort(key=lambda x: x['test_idx'])
+
+        else:
+            # 순차 처리 모드 (기존 방식)
+            logger.info("⏳ 순차 처리 모드")
+            for i in range(test_periods):
+                # 중지 확인
+                if cancel_callback and cancel_callback():
+                    logger.info(f"⏹ 순차 백테스팅 중지 요청 - {i}/{test_periods}에서 중단")
+                    return None, "사용자에 의해 중지됨"
+
+                # 진행률 콜백 호출
+                if progress_callback:
+                    progress_callback(i + 1, test_periods, f"테스트 {i+1}/{test_periods}")
+
+                # 워커 함수 호출
+                result = self._backtest_single_period(data, i, test_periods, forecast_days, ticker)
+                if result is not None:
+                    results.append(result)
         
         # 전체 통계
         if not results:
@@ -1824,13 +1935,13 @@ class EnhancedCPUPredictor:
             'results': results
         }
         
-        print(f"\n{'='*60}")
-        print(f"📊 백테스팅 결과 요약")
-        print(f"{'='*60}")
-        print(f"✅ 성공한 테스트: {len(results)}/{test_periods}회")
-        print(f"📈 방향 정확도: {direction_accuracy*100:.1f}%")
-        print(f"📉 평균 오차: {avg_magnitude_error*100:.2f}%")
-        print(f"{'='*60}\n")
+        logger.info(f"\n{'='*60}")
+        logger.info(f"백테스팅 결과 요약")
+        logger.info(f"{'='*60}")
+        logger.info(f"성공한 테스트: {len(results)}/{test_periods}회")
+        logger.info(f"방향 정확도: {direction_accuracy*100:.1f}%")
+        logger.info(f"평균 오차: {avg_magnitude_error*100:.2f}%")
+        logger.info(f"{'='*60}\n")
         
         return summary, None
 
@@ -1861,12 +1972,15 @@ class EnhancedCPUPredictor:
             y_train = y
             latest_X = X[-1].reshape(1, -1)
             
-            # 모델 예측
+            # 모델 예측 (feature names 경고 억제)
             predictions = []
             for model_name, model in self.models.items():
                 try:
                     model.fit(X_train, y_train)
-                    pred = model.predict(latest_X)[0]
+                    # sklearn UserWarning 억제
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
+                        pred = model.predict(latest_X)[0]
                     predictions.append(pred)
                 except:
                     continue
@@ -1875,9 +1989,9 @@ class EnhancedCPUPredictor:
                 return None
             
             return float(np.mean(predictions))
-            
+
         except Exception as e:
-            print(f"      예측 오류: {e}")
+            logger.error(f"예측 오류: {e}")
             return None
 
 class EnhancedStockScreenerMethods:
@@ -1921,7 +2035,7 @@ class EnhancedStockScreenerMethods:
             with open('prediction_settings.json', 'w') as f:
                 json.dump(self.prediction_settings, f, indent=2)
         except Exception as e:
-            print(f"설정 저장 오류: {e}")
+            logger.error(f"설정 저장 오류: {e}")
     
     def enhance_ui_with_ai_features(self):
         """기존 UI에 AI 기능 추가 - 단순화된 버전"""
@@ -2003,51 +2117,33 @@ class EnhancedStockScreenerMethods:
                     self.show_chart(ticker)
     
     def predict_from_table(self, table):
-        """테이블에서 선택된 종목 예측"""
+        """테이블에서 선택된 종목 예측 - 다이얼로그 열기"""
         current_row = table.currentRow()
         if current_row >= 0:
             ticker_item = table.item(current_row, 0)
             if ticker_item:
                 ticker = ticker_item.text()
+                # 예측 다이얼로그를 열고 종목 자동 입력
                 self.show_prediction_dialog(ticker)
-    
+
     def show_prediction_dialog(self, ticker=None):
-        """✅ 수정: 설정 적용을 확인하는 예측 다이얼로그"""
+        """예측 다이얼로그 표시 - 종목 자동 입력 지원"""
         if not ML_AVAILABLE:
             QMessageBox.warning(self, "오류", "AI 예측에 필요한 라이브러리가 설치되지 않았습니다.")
             return
-        
-        if ticker:
-            # 직접 예측 실행 (우클릭에서 호출된 경우)
-            try:
-                # ✅ 예측 실행 시 설정 새로고침
-                self.predictor.load_settings()  # 최신 설정 로드
-                
-                result, error = self.predictor.predict_stock(ticker)
-                
-                if error:
-                    QMessageBox.critical(self, "예측 오류", error)
-                    return
-                
-                if result:
-                    # ✅ 설정 적용 여부 확인
-                    if result.get('settings_applied'):
-                        settings_info = f"(설정적용: {result.get('forecast_days')}일 예측, 활성모델: {len(result.get('active_models', []))}개)"
-                    else:
-                        settings_info = "(기본값 사용)"
-                    
-                    self.show_prediction_result(result, settings_info)
-                    
-            except Exception as e:
-                QMessageBox.critical(self, "오류", f"예측 중 오류:\n{str(e)}")
-        else:
-            # 예측 다이얼로그 표시
-            try:
-                from prediction_window import StockPredictionDialog
-                dialog = StockPredictionDialog(self)
-                dialog.exec_()
-            except ImportError:
-                QMessageBox.critical(self, "Import 오류", "StockPredictionDialog를 찾을 수 없습니다.")
+
+        # 예측 다이얼로그 표시
+        try:
+            from prediction_window import StockPredictionDialog
+            dialog = StockPredictionDialog(self)
+
+            # 종목이 지정된 경우 자동 입력
+            if ticker:
+                dialog.ticker_input.setText(ticker)
+
+            dialog.exec_()
+        except ImportError:
+            QMessageBox.critical(self, "Import 오류", "StockPredictionDialog를 찾을 수 없습니다.")
 
     def show_prediction_result(self, result, settings_info=""):
         """예측 결과 표시"""
@@ -2097,27 +2193,27 @@ class EnhancedStockScreenerMethods:
         
         # 스크리닝 결과 수집 및 변환
         candidates = []
-        
-        print("🔍 스크리닝 결과 확인 중...")
-        
+
+        logger.info("스크리닝 결과 확인 중...")
+
         # 매수 후보 처리
         if hasattr(self, 'last_buy_candidates') and self.last_buy_candidates:
-            print(f"📈 매수 후보 발견: {len(self.last_buy_candidates)}개")
+            logger.info(f"매수 후보 발견: {len(self.last_buy_candidates)}개")
             for candidate in self.last_buy_candidates:
                 # 다양한 데이터 구조에 대응
                 converted = self.convert_candidate_format(candidate, '매수')
                 if converted:
                     candidates.append(converted)
-        
+
         # 매도 후보 처리
         if hasattr(self, 'last_sell_candidates') and self.last_sell_candidates:
-            print(f"📉 매도 후보 발견: {len(self.last_sell_candidates)}개")
+            logger.info(f"매도 후보 발견: {len(self.last_sell_candidates)}개")
             for candidate in self.last_sell_candidates:
                 converted = self.convert_candidate_format(candidate, '매도')
                 if converted:
                     candidates.append(converted)
-        
-        print(f"✅ 변환된 후보: {len(candidates)}개")
+
+        logger.info(f"변환된 후보: {len(candidates)}개")
         
         # 후보가 없는 경우 처리
         if not candidates:
@@ -2152,7 +2248,7 @@ class EnhancedStockScreenerMethods:
                 unique_candidates.append(candidate)
                 seen_symbols.add(symbol)
         
-        print(f"🎯 최종 예측 대상: {len(unique_candidates)}개 (중복 제거 후)")
+        logger.info(f"최종 예측 대상: {len(unique_candidates)}개 (중복 제거 후)")
         
         try:
             # 배치 예측 다이얼로그 실행
@@ -2186,7 +2282,7 @@ class EnhancedStockScreenerMethods:
                     break
             
             if not symbol:
-                print(f"⚠️ 종목 코드 없음: {candidate}")
+                logger.warning(f"종목 코드 없음: {candidate}")
                 return None
             
             if not name:
@@ -2205,9 +2301,9 @@ class EnhancedStockScreenerMethods:
                 converted['Score'] = candidate['recommendation_score']
             
             return converted
-            
+
         except Exception as e:
-            print(f"⚠️ 후보 변환 오류: {e}, 데이터: {candidate}")
+            logger.warning(f"후보 변환 오류: {e}, 데이터: {candidate}")
             return None
 
     def get_screening_debug_info(self):
@@ -2513,12 +2609,12 @@ class BatchPredictionDialog(QDialog):
                 self.result_table.setItem(i, 7, QTableWidgetItem("⏳ 대기 중"))
                 
             except Exception as e:
-                print(f"⚠️ 테이블 초기화 오류 (행 {i}): {e}")
+                logger.warning(f"테이블 초기화 오류 (행 {i}): {e}")
                 self.result_table.setItem(i, 0, QTableWidgetItem('오류'))
                 self.result_table.setItem(i, 1, QTableWidgetItem('데이터 오류'))
                 self.result_table.setItem(i, 7, QTableWidgetItem("❌ 초기화 오류"))
-        
-        print(f"🚀 배치 예측 시작: {len(self.candidates)}개 종목")
+
+        logger.info(f"배치 예측 시작: {len(self.candidates)}개 종목")
         
         # 예측 시작
         self.run_next_prediction()
@@ -2535,7 +2631,7 @@ class BatchPredictionDialog(QDialog):
         ticker = self.extract_ticker_from_candidate(candidate)
         
         if not ticker:
-            print(f"⚠️ 종목 코드 추출 실패: {candidate}")
+            logger.warning(f"종목 코드 추출 실패: {candidate}")
             # 실패한 경우 다음으로 넘어감
             self.result_table.setItem(self.current_index, 7, QTableWidgetItem("❌ 종목코드 오류"))
             self.current_index += 1
@@ -2543,8 +2639,8 @@ class BatchPredictionDialog(QDialog):
             self.update_stats()
             QTimer.singleShot(100, self.run_next_prediction)
             return
-        
-        print(f"🎯 예측 시작: {ticker} ({self.current_index + 1}/{len(self.candidates)})")
+
+        logger.info(f"예측 시작: {ticker} ({self.current_index + 1}/{len(self.candidates)})")
         
         # UI 업데이트
         self.current_work_label.setText(f"예측 중: {ticker}")
@@ -2564,52 +2660,52 @@ class BatchPredictionDialog(QDialog):
             return candidate.strip().upper()
         
         if not isinstance(candidate, dict):
-            print(f"❌ 잘못된 데이터 타입: {type(candidate)}")
+            logger.error(f"잘못된 데이터 타입: {type(candidate)}")
             return None
-        
+
         # 가능한 키 이름들 시도
         possible_keys = [
-            'Symbol', 'symbol', 'Ticker', 'ticker', 
+            'Symbol', 'symbol', 'Ticker', 'ticker',
             'Code', 'code', 'stock_code', 'stock_symbol'
         ]
-        
+
         for key in possible_keys:
             if key in candidate and candidate[key]:
                 ticker = str(candidate[key]).strip().upper()
                 if ticker and ticker != 'N/A':
                     return ticker
-        
-        print(f"❌ 종목 코드를 찾을 수 없음. 사용 가능한 키: {list(candidate.keys())}")
+
+        logger.error(f"종목 코드를 찾을 수 없음. 사용 가능한 키: {list(candidate.keys())}")
         return None
 
     def execute_prediction_for_ticker(self, ticker):
         """특정 종목에 대한 예측 실행 - 오류 수정 버전"""
         try:
-            print(f"🎯 예측 실행: {ticker}")
-            
+            logger.info(f"예측 실행: {ticker}")
+
             # Enhanced Screener를 사용한 예측
             forecast_days = self.prediction_settings.get('forecast_days', 7)
             result, error = self.predictor.predict_stock(ticker, forecast_days=forecast_days)
-            
+
             if error:
-                print(f"❌ 예측 실패 ({ticker}): {error}")
+                logger.error(f"예측 실패 ({ticker}): {error}")
                 # 예측 실패
                 self.result_table.setItem(self.current_index, 7, QTableWidgetItem(f"❌ {error[:15]}..."))
-                
+
             elif result:
-                print(f"✅ 예측 성공 ({ticker})")
+                logger.info(f"예측 성공 ({ticker})")
                 # 예측 성공 - 결과를 테이블에 표시
                 self.display_prediction_result(result, self.current_index)
                 self.results.append(result)
                 self.result_table.setItem(self.current_index, 7, QTableWidgetItem("✅ 완료"))
-                
+
             else:
-                print(f"⚠️ 결과 없음 ({ticker})")
+                logger.warning(f"결과 없음 ({ticker})")
                 # 결과 없음
                 self.result_table.setItem(self.current_index, 7, QTableWidgetItem("❌ 결과 없음"))
-            
+
         except Exception as e:
-            print(f"❌ 예측 오류 ({ticker}): {e}")
+            logger.error(f"예측 오류 ({ticker}): {e}")
             error_msg = str(e)[:15] + "..." if len(str(e)) > 15 else str(e)
             self.result_table.setItem(self.current_index, 7, QTableWidgetItem(f"❌ {error_msg}"))
         
@@ -2691,14 +2787,14 @@ class BatchPredictionDialog(QDialog):
                 rec_item = QTableWidgetItem(recommendation)
                 rec_item.setBackground(QColor(color))
                 self.result_table.setItem(row, 6, rec_item)
-                
-                print(f"📊 결과 표시 완료: {ticker} - {expected_return*100:+.1f}%")
-                
+
+                logger.info(f"결과 표시 완료: {ticker} - {expected_return*100:+.1f}%")
+
             except Exception as table_error:
-                print(f"⚠️ 테이블 업데이트 오류: {table_error}")
-            
+                logger.warning(f"테이블 업데이트 오류: {table_error}")
+
         except Exception as e:
-            print(f"⚠️ 결과 표시 오류: {e}")
+            logger.warning(f"결과 표시 오류: {e}")
     
     def update_stats(self):
         """통계 업데이트"""
@@ -2948,14 +3044,14 @@ if __name__ == "__main__":
     import sys
     app = QApplication(sys.argv)
     
-    print("🧪 Enhanced Screener 테스트")
-    
+    logger.info("Enhanced Screener 테스트")
+
     if ML_AVAILABLE:
-        print("✅ CPU 최적화 ML 스택 사용 가능")
-        
+        logger.info("CPU 최적화 ML 스택 사용 가능")
+
         # 예제 1: CPU 최적화 예측기 테스트
         predictor = EnhancedCPUPredictor()
-        print("🚀 예측기 초기화 완료")
+        logger.info("예측기 초기화 완료")
         
         # 예제 2: 배치 예측 다이얼로그 테스트
         sample_candidates = [
@@ -2987,7 +3083,7 @@ if __name__ == "__main__":
         settings_dialog.show()
         
     else:
-        print("⚠️ ML 라이브러리 설치 필요")
-        print("설치 명령어: pip install scikit-learn xgboost lightgbm statsmodels")
+        logger.warning("ML 라이브러리 설치 필요")
+        logger.warning("설치 명령어: pip install scikit-learn xgboost lightgbm statsmodels")
     
     sys.exit(app.exec_())

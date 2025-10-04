@@ -11,6 +11,9 @@ import pickle
 import os
 from pathlib import Path
 import hashlib
+from logger_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class StockDataCache:
@@ -72,7 +75,7 @@ class StockDataCache:
                 self._save_to_disk(cache_key, data)
                 return data
         except Exception as e:
-            print(f"Error fetching data for {symbol}: {e}")
+            logger.error(f"Error fetching data for {symbol}: {e}")
 
         return None
 
@@ -112,7 +115,7 @@ class StockDataCache:
                 self._save_to_disk(cache_key, info)
                 return info
         except Exception as e:
-            print(f"Error fetching info for {symbol}: {e}")
+            logger.error(f"Error fetching info for {symbol}: {e}")
 
         return {}
 
@@ -164,7 +167,7 @@ class StockDataCache:
                     'key': cache_key
                 }, f)
         except Exception as e:
-            print(f"Error saving cache to disk: {e}")
+            logger.error(f"Error saving cache to disk: {e}")
 
     def _load_from_disk(self, cache_key):
         """Load data from disk cache"""
@@ -178,7 +181,7 @@ class StockDataCache:
                 if datetime.now() - cached['timestamp'] < timedelta(hours=self._max_cache_age_hours):
                     return cached['data']
         except Exception as e:
-            print(f"Error loading cache from disk: {e}")
+            logger.error(f"Error loading cache from disk: {e}")
 
         return None
 
@@ -220,7 +223,7 @@ class StockDataCache:
                     # Remove corrupted cache files
                     cache_file.unlink()
         except Exception as e:
-            print(f"Error cleaning up cache: {e}")
+            logger.error(f"Error cleaning up cache: {e}")
 
     def get_cache_stats(self):
         """Get cache statistics"""

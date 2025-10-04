@@ -6,6 +6,9 @@ DataFrame.iterrows() 최적화 - 벡터화 연산으로 10-50배 성능 향상
 import pandas as pd
 import numpy as np
 from typing import List, Dict, Any, Callable
+from logger_config import get_logger
+
+logger = get_logger(__name__)
 
 
 # ============================================================================
@@ -241,9 +244,9 @@ def benchmark_performance():
         'market_cap': np.random.uniform(1e6, 1e12, 10000),
     })
 
-    print("=" * 60)
-    print("성능 비교: iterrows() vs 벡터화")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("성능 비교: iterrows() vs 벡터화")
+    logger.info("=" * 60)
 
     # 1. 곱셈 연산
     start = time.time()
@@ -254,10 +257,10 @@ def benchmark_performance():
     result_fast = example_fast_vectorized(df)
     time_fast = time.time() - start
 
-    print(f"\n1. 곱셈 연산 (10,000 rows)")
-    print(f"   iterrows(): {time_slow:.4f}s")
-    print(f"   벡터화:     {time_fast:.4f}s")
-    print(f"   속도 향상:  {time_slow/time_fast:.1f}x")
+    logger.info(f"\n1. 곱셈 연산 (10,000 rows)")
+    logger.info(f"   iterrows(): {time_slow:.4f}s")
+    logger.info(f"   벡터화:     {time_fast:.4f}s")
+    logger.info(f"   속도 향상:  {time_slow/time_fast:.1f}x")
 
     # 2. 검색
     start = time.time()
@@ -268,10 +271,10 @@ def benchmark_performance():
     result_fast = search_stocks_fast(df, 'STOCK1')
     time_fast = time.time() - start
 
-    print(f"\n2. 검색 (10,000 rows)")
-    print(f"   iterrows(): {time_slow:.4f}s")
-    print(f"   벡터화:     {time_fast:.4f}s")
-    print(f"   속도 향상:  {time_slow/time_fast:.1f}x")
+    logger.info(f"\n2. 검색 (10,000 rows)")
+    logger.info(f"   iterrows(): {time_slow:.4f}s")
+    logger.info(f"   벡터화:     {time_fast:.4f}s")
+    logger.info(f"   속도 향상:  {time_slow/time_fast:.1f}x")
 
     # 3. 그룹 분석
     start = time.time()
@@ -282,11 +285,11 @@ def benchmark_performance():
     result_fast = group_analysis_fast(df)
     time_fast = time.time() - start
 
-    print(f"\n3. 그룹 분석 (10,000 rows)")
-    print(f"   iterrows(): {time_slow:.4f}s")
-    print(f"   벡터화:     {time_fast:.4f}s")
-    print(f"   속도 향상:  {time_slow/time_fast:.1f}x")
-    print("=" * 60)
+    logger.info(f"\n3. 그룹 분석 (10,000 rows)")
+    logger.info(f"   iterrows(): {time_slow:.4f}s")
+    logger.info(f"   벡터화:     {time_fast:.4f}s")
+    logger.info(f"   속도 향상:  {time_slow/time_fast:.1f}x")
+    logger.info("=" * 60)
 
 
 # ============================================================================
