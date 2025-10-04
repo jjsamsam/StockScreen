@@ -141,16 +141,41 @@ class CSVDataManager:
             force_reload: 강제 재로드 여부
 
         Returns:
-            {file_path: dataframe} 딕셔너리
+            {market_name: dataframe} 딕셔너리 (예: {'korea': df, 'usa': df, 'sweden': df})
         """
-        master_files = self.get_master_csv_files()
+        # 파일 매핑: 여러 가능한 파일명 지원
+        # 우선순위: _master.csv (전체 종목) > .csv (필터링된 종목)
+        file_mappings = {
+            'korea': [
+                'stock_data/korea_stocks_master.csv',
+                'master_csv/korea_stocks_master.csv',
+                'stock_data/korea_stocks.csv'
+            ],
+            'usa': [
+                'stock_data/usa_stocks_master.csv',
+                'master_csv/usa_stocks_master.csv',
+                'stock_data/usa_stocks.csv'
+            ],
+            'sweden': [
+                'stock_data/sweden_stocks_master.csv',
+                'master_csv/sweden_stocks_master.csv',
+                'stock_data/sweden_stocks.csv'
+            ]
+        }
+
         result = {}
 
-        for file_path in master_files:
-            if os.path.exists(file_path):
-                df = self.read_csv(file_path, force_reload=force_reload)
-                if df is not None:
-                    result[file_path] = df
+        for market, possible_files in file_mappings.items():
+            # 존재하는 첫 번째 파일 사용
+            for file_path in possible_files:
+                if os.path.exists(file_path):
+                    df = self.read_csv(file_path, force_reload=force_reload)
+                    if df is not None and not df.empty:
+                        result[market] = df
+                        print(f"✅ {market}: {file_path} 로드됨 ({len(df)}개 종목)")
+                        break
+            else:
+                print(f"⚠️ {market}: CSV 파일을 찾을 수 없음")
 
         return result
 

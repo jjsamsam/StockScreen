@@ -4078,6 +4078,7 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         try:
             # ✅ csv_manager 사용 - 캐싱으로 80-90% I/O 감소
             master_data = load_all_master_csvs()
+            print(f"📊 load_all_master_csvs() 결과: {list(master_data.keys()) if master_data else 'None'}")
 
             # DataFrame을 dict records로 변환 + DataFrame도 별도 저장 (검색용)
             self._stock_dataframes = getattr(self, '_stock_dataframes', {})
@@ -4085,20 +4086,30 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
             for market in ['korea', 'usa', 'sweden']:
                 if market in master_data and master_data[market] is not None:
                     df = master_data[market]
+                    print(f"  {market}: {len(df)}개 종목 로드")
                     self.stock_lists[market] = df.to_dict('records')
                     self._stock_dataframes[market] = df
                 else:
+                    print(f"  {market}: 데이터 없음")
                     self.stock_lists[market] = []
+
+            total_stocks = sum(len(v) for v in self.stock_lists.values())
+            print(f"✅ 총 {total_stocks}개 종목 로드됨")
 
             # 검색 인덱스 재구성 (DataFrame 사용)
             if hasattr(self, 'rebuild_search_index'):
                 self.rebuild_search_index()
 
             # 종목 개수 업데이트
-            self.update_stock_count()
-            self.statusbar.showMessage('📁 CSV 파일 로드 완료')
+            if hasattr(self, 'update_stock_count'):
+                self.update_stock_count()
+            if hasattr(self, 'statusbar'):
+                self.statusbar.showMessage('📁 CSV 파일 로드 완료')
 
         except Exception as e:
+            print(f"❌ CSV 로드 오류: {e}")
+            import traceback
+            traceback.print_exc()
             QMessageBox.warning(self, "오류", f"CSV 파일 로드 중 오류: {str(e)}")
 
     # 검색 성능 모니터링 함수
