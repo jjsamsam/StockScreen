@@ -3907,10 +3907,15 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         QMessageBox.information(self, "🔍 종목 검색 도움말", help_text)
 
     def rebuild_search_index(self):
-        """검색 인덱스 재구성 - 데이터 형태 안전 처리"""
+        """검색 인덱스 재구성 - 데이터 형태 안전 처리 (중복 방지)"""
         try:
+            # 이미 인덱스가 구성되어 있으면 스킵
+            if hasattr(self, '_index_built') and self._index_built:
+                logger.debug("검색 인덱스 이미 구성됨 - 스킵")
+                return
+
             self.search_index = {}
-            
+
             for market, data in self.stock_lists.items():
                 if not data:
                     continue
@@ -3932,10 +3937,12 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
                             self._index_stock_data(stock, market)
             
             logger.info(f"✅ 검색 인덱스 구성 완료: {len(self.search_index)}개 항목")
-            
+            self._index_built = True  # 플래그 설정
+
         except Exception as e:
             logger.warning(f"⚠️ 검색 인덱스 구성 오류: {e}")
             self.search_index = {}
+            self._index_built = False
 
     def _index_stock_data(self, stock, market):
         """주식 데이터 인덱싱 헬퍼 메서드"""

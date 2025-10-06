@@ -106,14 +106,28 @@ def to_scalar(value):
         return None
 
 class EnhancedCPUPredictor:
-    """CPU 최적화 예측기 - 통합된 예측 함수 버전"""
-    
+    """CPU 최적화 예측기 - 통합된 예측 함수 버전 (싱글톤)"""
+
+    _instance = None
+    _initialized = False
+
+    def __new__(cls):
+        """싱글톤 패턴: 인스턴스가 없으면 생성, 있으면 재사용"""
+        if cls._instance is None:
+            cls._instance = super(EnhancedCPUPredictor, cls).__new__(cls)
+        return cls._instance
+
     def __init__(self):
-        """CPU 최적화 모델들 초기화"""
+        """CPU 최적화 모델들 초기화 (1회만 실행)"""
+        # 이미 초기화되었으면 스킵
+        if EnhancedCPUPredictor._initialized:
+            return
+
         if not ML_AVAILABLE:
             logger.warning("ML 라이브러리가 부족합니다")
             self.models = {}
             self.scalers = {}
+            EnhancedCPUPredictor._initialized = True
             return
 
         logger.info("CPU 최적화 예측기 초기화 중...")
@@ -201,12 +215,15 @@ class EnhancedCPUPredictor:
 
         self.accuracy_history_file = 'prediction_accuracy_history.json'
         self.accuracy_history = self.load_accuracy_history()
-        
+
         # 성능 추적 설정
         self.max_history_records = 1000  # 최대 기록 수
         self.accuracy_window_days = 30   # 정확도 평가 기간
 
         logger.info(f"{len(self.models)}개 모델 초기화 완료")
+
+        # 초기화 완료 플래그 설정
+        EnhancedCPUPredictor._initialized = True
 
 
     def get_model_config_for_period(self, forecast_days):
@@ -1996,11 +2013,20 @@ class EnhancedCPUPredictor:
 
 class EnhancedStockScreenerMethods:
     """기존 StockScreener 클래스에 추가할 AI 예측 메서드들"""
-    
+
     def __init__(self):
-        """AI 예측 관련 초기화"""
-        self.predictor = EnhancedCPUPredictor() if ML_AVAILABLE else None
+        """AI 예측 관련 초기화 (Lazy Loading)"""
+        self._predictor = None  # Lazy Loading: 실제 사용 시점에 초기화
         self.prediction_settings = self.load_prediction_settings()
+
+    @property
+    def predictor(self):
+        """예측기 Lazy Loading: 처음 호출될 때만 초기화"""
+        if self._predictor is None and ML_AVAILABLE:
+            logger.info("🚀 AI 예측기 첫 사용 - 초기화 중...")
+            self._predictor = EnhancedCPUPredictor()
+            logger.info("✅ AI 예측기 초기화 완료")
+        return self._predictor
         
     def load_prediction_settings(self):
         """예측 설정 로드"""

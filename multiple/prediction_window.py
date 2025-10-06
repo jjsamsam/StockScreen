@@ -34,14 +34,121 @@ from logger_config import get_logger
 
 logger = get_logger(__name__)
 
+# ✅ 예측 작업을 위한 Worker Thread
+class PredictionWorker(QThread):
+    """백그라운드에서 예측을 실행하는 워커 스레드"""
+    finished = pyqtSignal(object, object)  # (result, error)
+    progress = pyqtSignal(str, int)  # (message, percent)
+
+    def __init__(self, predictor, ticker, forecast_days):
+        super().__init__()
+        self.predictor = predictor
+        self.ticker = ticker
+        self.forecast_days = forecast_days
+
+    def run(self):
+        """백그라운드에서 실행"""
+        try:
+            # 진행 콜백 설정
+            def progress_callback(step, message):
+                self.progress.emit(message, self.get_progress_percent(step))
+
+            if hasattr(self.predictor, 'set_progress_callback'):
+                self.predictor.set_progress_callback(progress_callback)
+
+            # 예측 실행
+            result = self.predictor.predict_stock_price(
+                self.ticker,
+                forecast_days=self.forecast_days,
+                show_plot=False
+            )
+
+            self.finished.emit(result, None)
+
+        except Exception as e:
+            logger.error(f"예측 워커 오류: {e}")
+            self.finished.emit(None, str(e))
+
+    def get_progress_percent(self, step):
+        """단계를 퍼센트로 변환"""
+        progress_map = {
+            'data': 20,
+            'market_analysis': 30,
+            'kalman': 40,
+            'ml': 55,  # ML 모델은 시간이 오래 걸림
+            'arima': 70,
+            'lstm': 80,
+            'transformer': 85,
+            'ensemble': 92,
+            'complete': 100
+        }
+        return progress_map.get(step, 50)
+
+# ✅ 백테스팅 작업을 위한 Worker Thread
+class BacktestWorker(QThread):
+    """백그라운드에서 백테스팅을 실행하는 워커 스레드"""
+    finished = pyqtSignal(object, object)  # (summary, error)
+    progress = pyqtSignal(int, int, str)  # (current, total, message)
+
+    def __init__(self, predictor, ticker, test_periods, forecast_days, use_parallel):
+        super().__init__()
+        self.predictor = predictor
+        self.ticker = ticker
+        self.test_periods = test_periods
+        self.forecast_days = forecast_days
+        self.use_parallel = use_parallel
+        self.cancelled = False
+
+    def run(self):
+        """백그라운드에서 백테스팅 실행"""
+        try:
+            # 진행 콜백 설정
+            def progress_callback(current, total, message):
+                if not self.cancelled:
+                    self.progress.emit(current, total, message)
+
+            # 중지 콜백
+            def cancel_callback():
+                return self.cancelled
+
+            summary, error = self.predictor.backtest_predictions(
+                self.ticker,
+                test_periods=self.test_periods,
+                forecast_days=self.forecast_days,
+                progress_callback=progress_callback,
+                use_parallel=self.use_parallel,
+                cancel_callback=cancel_callback
+            )
+
+            self.finished.emit(summary, error)
+
+        except Exception as e:
+            logger.error(f"백테스팅 워커 오류: {e}")
+            self.finished.emit(None, str(e))
+
+    def cancel(self):
+        """백테스팅 중지"""
+        self.cancelled = True
+
 # Enhanced Screener의 예측기 import
 try:
     from enhanced_screener import EnhancedCPUPredictor
-    ML_AVAILABLE = True
-    logger.info("Enhanced Screener 예측기 사용")
+    ENHANCED_AVAILABLE = True
+    logger.info("Enhanced Screener 예측기 사용 가능")
 except ImportError as e:
     logger.warning(f"Enhanced Screener 없음: {e}")
-    ML_AVAILABLE = False
+    ENHANCED_AVAILABLE = False
+
+# 새로운 딥러닝 예측기 import
+try:
+    from stock_prediction import StockPredictor
+    DEEP_LEARNING_AVAILABLE = True
+    logger.info("딥러닝 예측기 사용 가능")
+except ImportError as e:
+    logger.warning(f"딥러닝 예측기 없음: {e}")
+    DEEP_LEARNING_AVAILABLE = False
+
+ML_AVAILABLE = ENHANCED_AVAILABLE or DEEP_LEARNING_AVAILABLE
 
 # 기본 라이브러리 확인
 try:
@@ -65,8 +172,26 @@ class StockPredictionDialog(QDialog):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        # Enhanced Screener의 예측기 사용
-        self.predictor = EnhancedCPUPredictor() if ML_AVAILABLE else None
+        # 예측기 초기화 (딥러닝 우선, Enhanced 대체)
+        self.predictor = None
+        self.predictor_type = "None"
+
+        # 딥러닝 예측기 우선 사용
+        if DEEP_LEARNING_AVAILABLE:
+            self.predictor = StockPredictor(
+                use_deep_learning=True,      # LSTM, Transformer 사용
+                use_optimization=False        # Bayesian Opt (시간이 오래 걸리므로 기본 False)
+            )
+            self.predictor_type = "DeepLearning"
+            logger.info("딥러닝 예측기 활성화 (LSTM + Transformer)")
+        elif ENHANCED_AVAILABLE:
+            self.predictor = EnhancedCPUPredictor()
+            self.predictor_type = "Enhanced"
+            logger.info("Enhanced CPU 예측기 활성화")
+
+        # 딥러닝/최적화 옵션
+        self.use_deep_learning = True
+        self.use_optimization = False
         
         # ✨ 진행률 추적 변수들 추가
         self.prediction_steps = [
@@ -88,15 +213,40 @@ class StockPredictionDialog(QDialog):
         self.initUI()
         
     def initUI(self):
-        self.setWindowTitle('🤖 AI 주식 예측 (Enhanced)')
-        self.setGeometry(200, 200, 800, 600)
-        
+        # 예측기 타입에 따라 제목 변경
+        if self.predictor_type == "DeepLearning":
+            title = '🧠 AI 주식 예측 (DeepLearning + LSTM + Transformer)'
+        else:
+            title = '🚀 AI 주식 예측 (Enhanced)'
+
+        self.setWindowTitle(title)
+        self.setGeometry(200, 50, 1000, 960)  # 크기 증가 (800x600 -> 1000x700)
+
         layout = QVBoxLayout()
+        layout.setSpacing(8)  # 전체 레이아웃 간격 조정
         
         # 상단 입력 패널
         input_panel = self.create_input_panel()
         layout.addWidget(input_panel)
-        
+
+        # ✅ 진행 상태 표시 (프로그레스 바 + 상태 메시지)
+        progress_widget = QWidget()
+        progress_layout = QVBoxLayout()
+        progress_layout.setContentsMargins(0, 5, 0, 5)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        self.progress_bar.setMaximum(100)
+        progress_layout.addWidget(self.progress_bar)
+
+        self.status_label = QLabel("")
+        self.status_label.setStyleSheet("color: #2196F3; font-weight: bold;")
+        self.status_label.setVisible(False)
+        progress_layout.addWidget(self.status_label)
+
+        progress_widget.setLayout(progress_layout)
+        layout.addWidget(progress_widget)
+
         # 결과 표시 영역
         self.result_area = QTextEdit()
         self.result_area.setReadOnly(True)
@@ -194,181 +344,171 @@ pip install scikit-learn xgboost lightgbm statsmodels
         return button_layout
 
     def create_input_panel(self):
-        """입력 패널 생성 - 마스터 CSV 검색 기능 추가"""
+        """입력 패널 생성 - 컴팩트한 레이아웃"""
         panel = QGroupBox("🎯 예측 설정")
         layout = QGridLayout()
-        
-        # 종목 코드 입력 및 검색
+
+        # 간격 조정 - 세로 간격을 더욱 줄임
+        layout.setVerticalSpacing(4)  # 세로 간격 줄이기 (8 -> 4)
+        layout.setHorizontalSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)  # 패널 내부 여백 줄임
+
+        # === Row 0: 종목 코드 ===
         layout.addWidget(QLabel("종목 코드:"), 0, 0)
-        
-        # 종목 입력 레이아웃 (입력창 + 검색 버튼)
+
         ticker_layout = QHBoxLayout()
-        
+        ticker_layout.setSpacing(2)
+
         self.ticker_input = QLineEdit("AAPL")
         self.ticker_input.setPlaceholderText("예: AAPL, MSFT, 005930.KS, 삼성")
+        self.ticker_input.setMaximumWidth(200)  # 가로 길이 제한
         ticker_layout.addWidget(self.ticker_input)
-        
-        # 종목 검색 버튼
-        self.search_btn = QPushButton("🔍")
-        self.search_btn.setToolTip("종목 검색 (마스터 CSV)")
-        self.search_btn.setMaximumWidth(40)
+
+        self.search_btn = QPushButton("🔍 검색")
+        self.search_btn.setToolTip("종목 검색")
+        self.search_btn.setMinimumWidth(70)  # 검색 버튼 크기 증가
         self.search_btn.clicked.connect(self.show_enhanced_stock_search_dialog)
         ticker_layout.addWidget(self.search_btn)
-        
-        # 자동완성 기능
+
+        ticker_layout.addStretch()  # 남은 공간을 오른쪽으로
+
         self.ticker_input.textChanged.connect(self.on_ticker_text_changed)
-        
+
         ticker_widget = QWidget()
         ticker_widget.setLayout(ticker_layout)
         layout.addWidget(ticker_widget, 0, 1)
-        
-        # 예측 기간
+
+        # === Row 1: 예측 기간 + 설정 동기화 ===
         layout.addWidget(QLabel("예측 기간:"), 1, 0)
+
         days_layout = QHBoxLayout()
+        days_layout.setSpacing(2)
+
         self.days_input = QSpinBox()
         self.days_input.setRange(1, 30)
-        # ✅ 설정 파일에서 가져온 값으로 초기화
         self.days_input.setValue(self.current_settings.get('forecast_days', 7))
         self.days_input.setSuffix(" 일")
+        self.days_input.setMaximumWidth(80)
         days_layout.addWidget(self.days_input)
-        
-        # ✅ 새로 추가: 설정 정보 표시 라벨
-        self.setting_info_label = QLabel(f"(설정파일: {self.current_settings.get('forecast_days', 7)}일)")
-        self.setting_info_label.setStyleSheet("color: #666; font-size: 10px;")
-        days_layout.addWidget(self.setting_info_label)
-        
-        # ✅ 새로 추가: 설정 동기화 버튼
+
         self.sync_settings_btn = QPushButton("⚙️")
         self.sync_settings_btn.setToolTip("설정 파일과 동기화")
-        self.sync_settings_btn.setMaximumWidth(30)
+        self.sync_settings_btn.setMaximumWidth(45)
         self.sync_settings_btn.clicked.connect(self.sync_with_settings)
         days_layout.addWidget(self.sync_settings_btn)
-        
+
+        days_layout.addStretch()
+
         days_widget = QWidget()
         days_widget.setLayout(days_layout)
         layout.addWidget(days_widget, 1, 1)
 
-        # 백테스팅 횟수 (새로 추가)
-        layout.addWidget(QLabel("백테스팅 횟수:"), 2, 0)
+        # === Row 2: 딥러닝 설정 (좌우로 배치) ===
+        layout.addWidget(QLabel("🧠 AI 모델:"), 2, 0)
+
+        ai_layout = QHBoxLayout()
+        ai_layout.setSpacing(5)
+
+        self.deep_learning_checkbox = QCheckBox("딥러닝 (LSTM+Transformer)")
+        self.deep_learning_checkbox.setChecked(self.use_deep_learning and DEEP_LEARNING_AVAILABLE)
+        self.deep_learning_checkbox.setEnabled(DEEP_LEARNING_AVAILABLE)
+        self.deep_learning_checkbox.setToolTip("LSTM과 Transformer 사용 (정확도↑, 시간↑)")
+        self.deep_learning_checkbox.stateChanged.connect(self.on_deep_learning_changed)
+        ai_layout.addWidget(self.deep_learning_checkbox)
+
+        self.optimization_checkbox = QCheckBox("Bayesian 최적화")
+        self.optimization_checkbox.setChecked(self.use_optimization)
+        self.optimization_checkbox.setToolTip("하이퍼파라미터 자동 조정 (정확도↑↑, 시간↑↑)")
+        self.optimization_checkbox.stateChanged.connect(self.on_optimization_changed)
+        ai_layout.addWidget(self.optimization_checkbox)
+
+        ai_layout.addStretch()
+
+        ai_widget = QWidget()
+        ai_widget.setLayout(ai_layout)
+        layout.addWidget(ai_widget, 2, 1)
+
+        # === Row 3: 백테스팅 설정 ===
+        layout.addWidget(QLabel("백테스팅:"), 3, 0)
+
         backtest_layout = QHBoxLayout()
+        backtest_layout.setSpacing(2)
+
         self.backtest_periods_input = QSpinBox()
         self.backtest_periods_input.setRange(5, 100)
         self.backtest_periods_input.setValue(self.current_settings.get('backtest_periods', 30))
         self.backtest_periods_input.setSuffix(" 회")
-        self.backtest_periods_input.setToolTip("백테스팅 시 테스트할 기간 수 (많을수록 정확하지만 느림)")
+        self.backtest_periods_input.setMaximumWidth(80)
+        self.backtest_periods_input.setToolTip("테스트 횟수 (많을수록 정확, 느림)")
+        self.backtest_periods_input.setKeyboardTracking(True)  # 키보드 입력 즉시 반영
+        self.backtest_periods_input.setWrapping(False)  # 순환 방지
+        self.backtest_periods_input.setFocusPolicy(Qt.StrongFocus)  # 포커스 강화
         backtest_layout.addWidget(self.backtest_periods_input)
 
-        # 병렬 처리 체크박스
-        self.parallel_backtest_checkbox = QCheckBox("🚀 병렬 처리")
-        self.parallel_backtest_checkbox.setChecked(True)  # 기본값: 활성화
-        self.parallel_backtest_checkbox.setToolTip("여러 테스트를 동시에 실행하여 속도 향상 (CPU 코어 수만큼 빨라짐)")
+        self.parallel_backtest_checkbox = QCheckBox("병렬")
+        self.parallel_backtest_checkbox.setChecked(True)
+        self.parallel_backtest_checkbox.setToolTip("병렬 처리로 속도 향상")
         backtest_layout.addWidget(self.parallel_backtest_checkbox)
 
-        backtest_info_label = QLabel(f"(설정: {self.current_settings.get('backtest_periods', 30)}회)")
-        backtest_info_label.setStyleSheet("color: #666; font-size: 10px;")
-        backtest_layout.addWidget(backtest_info_label)
+        backtest_layout.addStretch()
 
         backtest_widget = QWidget()
         backtest_widget.setLayout(backtest_layout)
-        layout.addWidget(backtest_widget, 2, 1)
+        layout.addWidget(backtest_widget, 3, 1)
 
-        # 모델 선택 (Enhanced Screener 정보 표시)
-        layout.addWidget(QLabel("사용 모델:"), 3, 0)
-        
-        model_layout = QVBoxLayout()
-        
-        # 모델 정보 표시
-        if ML_AVAILABLE:
-            enabled_models = self.current_settings.get('models_enabled', {})
-            active_models = [name for name, enabled in enabled_models.items() if enabled]
-            
-            self.model_combo = QComboBox()
-            self.model_combo.addItems([
-                f"🚀 Enhanced Ensemble ({len(active_models)}개 모델 활성화)",
-                f"📊 활성 모델: {', '.join(active_models[:3])}" + ("..." if len(active_models) > 3 else ""),
-                "🎯 성능 기반 가중치 + 설정 연동",
-                "🔒 완전한 일관성 보장"
-            ])
-            
-            # ✅ 새로 추가: 모델별 체크박스 표시 (읽기전용 정보)
-            models_info = []
-            for model_name, enabled in enabled_models.items():
-                status = "✅" if enabled else "❌"
-                models_info.append(f"{status} {model_name}")
-            
-            self.models_info_label = QLabel(" | ".join(models_info))
-            self.models_info_label.setStyleSheet("color: #666; font-size: 9px;")
-            self.models_info_label.setWordWrap(True)
-            
-        else:
-            self.model_combo = QComboBox()
-            self.model_combo.addItems(["❌ Enhanced Screener 필요"])
-            self.models_info_label = QLabel("Enhanced Screener를 설치해주세요")
-        
-        model_layout.addWidget(self.model_combo)
-        model_layout.addWidget(self.models_info_label)
-
-        model_widget = QWidget()
-        model_widget.setLayout(model_layout)
-        layout.addWidget(model_widget, 3, 1)
-
-        # ✅ 새로 추가: 추가 설정 정보
-        layout.addWidget(QLabel("기타 설정:"), 4, 0)
-        
-        settings_info = f"최소데이터: {self.current_settings.get('min_data_days', 300)}일 | "
-        settings_info += f"신뢰도임계값: {self.current_settings.get('confidence_threshold', 0.6)*100:.0f}%"
-        
-        self.settings_summary_label = QLabel(settings_info)
-        self.settings_summary_label.setStyleSheet("color: #444; font-size: 10px;")
-        layout.addWidget(self.settings_summary_label, 4, 1)
-        
         panel.setLayout(layout)
         return panel
 
+    def on_deep_learning_changed(self, state):
+        """딥러닝 옵션 변경 핸들러"""
+        self.use_deep_learning = (state == 2)  # Qt.Checked = 2
+
+        # 예측기 재생성
+        if DEEP_LEARNING_AVAILABLE:
+            self.predictor = StockPredictor(
+                use_deep_learning=self.use_deep_learning,
+                use_optimization=self.use_optimization
+            )
+            self.predictor_type = "DeepLearning"
+            logger.info(f"딥러닝 모델: {'활성화' if self.use_deep_learning else '비활성화'}")
+
+    def on_optimization_changed(self, state):
+        """하이퍼파라미터 최적화 옵션 변경 핸들러"""
+        self.use_optimization = (state == 2)
+
+        # 예측기 재생성
+        if DEEP_LEARNING_AVAILABLE:
+            self.predictor = StockPredictor(
+                use_deep_learning=self.use_deep_learning,
+                use_optimization=self.use_optimization
+            )
+            logger.info(f"Bayesian Optimization: {'활성화' if self.use_optimization else '비활성화'}")
+
     def sync_with_settings(self):
-            """✅ 새로 추가: 설정 파일과 동기화"""
+            """설정 파일과 동기화 - 간소화 버전"""
             self.load_current_settings()
-            
+
             # UI 업데이트
             self.days_input.setValue(self.current_settings.get('forecast_days', 7))
-            self.setting_info_label.setText(f"(설정파일: {self.current_settings.get('forecast_days', 7)}일)")
-            
-            # 모델 정보 업데이트
-            if ML_AVAILABLE:
-                enabled_models = self.current_settings.get('models_enabled', {})
-                active_models = [name for name, enabled in enabled_models.items() if enabled]
-                
-                # 콤보박스 업데이트
-                self.model_combo.clear()
-                self.model_combo.addItems([
-                    f"🚀 Enhanced Ensemble ({len(active_models)}개 모델 활성화)",
-                    f"📊 활성 모델: {', '.join(active_models[:3])}" + ("..." if len(active_models) > 3 else ""),
-                    "🎯 성능 기반 가중치 + 설정 연동",
-                    "🔒 완전한 일관성 보장"
-                ])
-                
-                # 모델 정보 라벨 업데이트
-                models_info = []
-                for model_name, enabled in enabled_models.items():
-                    status = "✅" if enabled else "❌"
-                    models_info.append(f"{status} {model_name}")
-                self.models_info_label.setText(" | ".join(models_info))
-            
-            # 기타 설정 정보 업데이트
-            settings_info = f"최소데이터: {self.current_settings.get('min_data_days', 300)}일 | "
-            settings_info += f"신뢰도임계값: {self.current_settings.get('confidence_threshold', 0.6)*100:.0f}%"
-            self.settings_summary_label.setText(settings_info)
-            
-            QMessageBox.information(self, "설정 동기화", 
+            self.backtest_periods_input.setValue(self.current_settings.get('backtest_periods', 30))
+
+            # 메시지 표시
+            QMessageBox.information(self, "설정 동기화",
                                 f"✅ 설정이 동기화되었습니다!\n\n"
                                 f"• 예측 기간: {self.current_settings.get('forecast_days', 7)}일\n"
-                                f"• 활성 모델: {len(active_models)}개\n"
-                                f"• 최소 데이터: {self.current_settings.get('min_data_days', 300)}일")
+                                f"• 백테스팅: {self.current_settings.get('backtest_periods', 30)}회\n"
+                                f"• 신뢰도 임계값: {self.current_settings.get('confidence_threshold', 0.6)*100:.0f}%")
 
 
     def show_enhanced_stock_search_dialog(self):
         """마스터 CSV를 활용한 종목 검색 다이얼로그 표시"""
         dialog = EnhancedStockSearchDialog(self)
+
+        # ✅ 입력란에 이미 입력된 내용이 있으면 검색창에 미리 채우기
+        current_text = self.ticker_input.text().strip()
+        if current_text:
+            dialog.search_input.setText(current_text)
+
         if dialog.exec_() == QDialog.Accepted:
             selected_ticker = dialog.get_selected_ticker()
             if selected_ticker:
@@ -493,10 +633,23 @@ pip install scikit-learn xgboost lightgbm statsmodels
         # 비동기 예측 시작
         self.start_step_by_step_prediction()
 
+    def show_progress(self, message, percent):
+        """진행 상태 표시"""
+        self.progress_bar.setVisible(True)
+        self.status_label.setVisible(True)
+        self.progress_bar.setValue(percent)
+        self.status_label.setText(f"🔄 {message}")
+
+    def hide_progress(self):
+        """진행 상태 숨기기"""
+        self.progress_bar.setVisible(False)
+        self.status_label.setVisible(False)
+
     def on_prediction_finished_enhanced(self, result, error_msg):
         """Enhanced 예측 완료 처리 - 차트 버튼 활성화 추가"""
         self.predict_btn.setEnabled(True)
-        
+        self.hide_progress()  # ✅ 진행 상태 숨기기
+
         if error_msg:
             QMessageBox.critical(self, "예측 오류", f"예측 실패:\n{error_msg}")
             return
@@ -522,16 +675,71 @@ pip install scikit-learn xgboost lightgbm statsmodels
                             f"📈 '예측 차트 보기' 버튼을 눌러 상세 차트를 확인하세요.")
 
     def run_prediction_step(self, ticker, forecast_days):
-        """실제 예측 실행"""
+        """실제 예측 실행 - Worker Thread 사용"""
         try:
-            # predictor.predict_stock()이 자동으로 forecast_days에 맞게 최적화됨
-            result, error = self.predictor.predict_stock(ticker, forecast_days=forecast_days)
-            
-            # 결과 처리
-            self.on_prediction_finished_enhanced(result, error)
-            
+            # ✅ 진행 상태 표시 시작
+            self.show_progress("예측 준비 중...", 10)
+
+            if self.predictor_type == "DeepLearning":
+                # Worker Thread로 예측 실행
+                logger.info(f"딥러닝 예측기 실행 (백그라운드): {ticker} ({forecast_days}일)")
+
+                self.worker = PredictionWorker(self.predictor, ticker, forecast_days)
+                self.worker.progress.connect(self.on_worker_progress)
+                self.worker.finished.connect(self.on_worker_finished)
+                self.worker.start()
+
+            else:
+                # Enhanced 예측기는 기존 방식 유지
+                logger.info(f"Enhanced 예측기 실행: {ticker} ({forecast_days}일)")
+                result, error = self.predictor.predict_stock(ticker, forecast_days=forecast_days)
+                self.on_prediction_finished_enhanced(result, error)
+
         except Exception as e:
+            logger.error(f"예측 오류: {e}")
             self.on_prediction_finished_enhanced(None, str(e))
+
+    def on_worker_progress(self, message, percent):
+        """워커 진행 상태 업데이트"""
+        logger.info(f"진행률 업데이트: {percent}% - {message}")
+        self.show_progress(message, percent)
+        QApplication.processEvents()  # UI 즉시 업데이트
+
+    def on_worker_finished(self, result, error):
+        """워커 완료 처리"""
+        if error:
+            self.on_prediction_finished_enhanced(None, error)
+        elif result and 'error' in result:
+            self.on_prediction_finished_enhanced(None, result['error'])
+        else:
+            # 결과 형식 변환
+            ticker = self.ticker_input.text().strip().upper()
+            forecast_days = self.days_input.value()
+
+            converted_result = {
+                'ticker': ticker,
+                'current_price': result['current_price'],
+                'predicted_prices': result['predicted_prices'],
+                'predicted_price': result['predicted_prices'][-1],
+                'expected_return': result['expected_returns'][0] / 100,
+                'expected_returns': result['expected_returns'],
+                'future_dates': result['future_dates'],
+                'days': forecast_days,
+                'confidence': result['confidence_score'],
+                'confidence_score': result['confidence_score'],
+                'recommendation': result['recommendation'],
+                'models_used': result.get('models_used', []),
+                'model_weights': result.get('model_weights', {}),
+                'market_regime': result.get('market_regime', 'unknown'),
+                'predictor_type': 'DeepLearning',
+                'is_high_confidence': result['confidence_score'] >= 0.6,
+                'data_points': 'N/A',
+                'training_samples': 'N/A',
+                'market_correlations': result.get('market_correlations', {}),
+                'sector_performance': result.get('sector_performance', {}),
+                'institutional_flow': result.get('institutional_flow', {})
+            }
+            self.on_prediction_finished_enhanced(converted_result, None)
 
     def start_step_by_step_prediction(self):
         """단계별 예측 실행 - 진행률 표시와 함께"""
@@ -801,16 +1009,28 @@ pip install scikit-learn xgboost lightgbm statsmodels
             }
     
     def display_results(self, result):
-        """✅ 수정: 신뢰도 임계값 정보가 포함된 결과 표시"""
-        return_rate = result['expected_return']
-        confidence = result['confidence']
-        
+        """✅ 수정: 딥러닝 정보 포함 결과 표시"""
+        # 결과 형식에 따라 다르게 처리
+        if 'expected_return' in result:
+            return_rate = result['expected_return']
+            confidence = result['confidence']
+        elif 'expected_returns' in result:
+            return_rate = result['expected_returns'][0] / 100  # 첫 번째 예측일 수익률
+            confidence = result['confidence_score']
+        else:
+            return_rate = 0
+            confidence = 0.5
+
+        # 예측기 타입 확인
+        predictor_info = result.get('predictor_type', 'Enhanced')
+        market_regime = result.get('market_regime', 'unknown')
+
         # ✅ 신뢰도 임계값 정보 가져오기
         confidence_threshold = result.get('confidence_threshold', 0.6)
-        is_high_confidence = result.get('is_high_confidence', True)
+        is_high_confidence = result.get('is_high_confidence', confidence >= confidence_threshold)
         recommendation = result.get('recommendation', '⏸️ 관망')
         confidence_note = result.get('confidence_note', '')
-        
+
         # ✅ 신뢰도에 따른 색상 결정
         if is_high_confidence:
             if return_rate > 0.02:
@@ -821,20 +1041,40 @@ pip install scikit-learn xgboost lightgbm statsmodels
                 color = "⚪"
         else:
             color = "🟡"  # 낮은 신뢰도는 항상 노란색
-        
+
         # ✅ 신뢰도 상태 표시
         confidence_status = f"✅ {confidence*100:.1f}%" if is_high_confidence else f"⚠️ {confidence*100:.1f}%"
         confidence_bar = "█" * min(10, int(confidence * 10)) + "░" * (10 - min(10, int(confidence * 10)))
-        
+
+        # 예측 기간
+        days = result.get('days', len(result.get('predicted_prices', [])))
+
+        # 시장 상황 이모지
+        regime_emoji = {'bull': '📈', 'bear': '📉', 'sideways': '↔️'}.get(market_regime, '❓')
+
         # 결과 텍스트 생성
+        predictor_name = "🧠 DeepLearning AI" if predictor_info == "DeepLearning" else "🚀 Enhanced AI"
+
+        # 예측 가격 처리 (단수/복수 형식 모두 지원)
+        if 'predicted_price' in result:
+            predicted_price = result['predicted_price']
+        elif 'predicted_prices' in result:
+            predicted_price = result['predicted_prices'][-1]  # 마지막 예측일 가격
+        else:
+            predicted_price = result['current_price']
+
+        # 실제 수익률 계산 (예측 가격 기준)
+        current_price = result['current_price']
+        actual_return_rate = (predicted_price - current_price) / current_price
+
         text = f"""
 ══════════════════════════════════════════════════
-🎯 {result['ticker']} Enhanced AI 예측 ({result['days']}일 후)
+🎯 {result['ticker']} {predictor_name} 예측 ({days}일 후)
 ══════════════════════════════════════════════════
 
-💰 현재 가격: ${result['current_price']:.2f}
-🎯 예측 가격: ${result['predicted_price']:.2f}
-📊 예상 수익률: {return_rate*100:+.2f}%
+💰 현재 가격: ${current_price:.2f}
+🎯 예측 가격: ${predicted_price:.2f}
+📊 예상 수익률: {actual_return_rate*100:+.2f}%
 
 🎚️ 신뢰도: {confidence_status}
    [{confidence_bar}] {confidence*100:.1f}% / {confidence_threshold*100:.0f}%
@@ -853,14 +1093,75 @@ pip install scikit-learn xgboost lightgbm statsmodels
 {'✅ 일관된 예측 - 투자 참고 가능' if is_high_confidence else '⚠️ 불일치 예측 - 신중한 판단 필요'}
 
 ──────────────────────────────────────────────────
-🚀 Enhanced Screener 분석 정보:
+🔬 {predictor_name} 분석 정보:
 ──────────────────────────────────────────────────
-• 예측 방법: {result.get('method', 'Enhanced Screener')}
-• 성공한 모델: {result.get('successful_models', 0)}개
+• 예측기 타입: {predictor_info}
+• 시장 상황: {regime_emoji} {market_regime.upper()}
+• 성공한 모델: {result.get('successful_models', len(result.get('models_used', [])))}개
+• 사용 모델: {', '.join(result.get('models_used', ['N/A']))}
 • 사용된 특성: {result.get('feature_count', 30)}개 이상
-• 데이터 기간: {result['data_points']}일 (고정)
-• 학습 샘플: {result['training_samples']}개
-• 예측 완료: {result.get('prediction_date', 'N/A')}
+• 데이터 기간: {result.get('data_points', 'N/A')}일
+• 학습 샘플: {result.get('training_samples', 'N/A')}개
+• 예측 완료: {result.get('prediction_date', datetime.now().strftime('%Y-%m-%d %H:%M'))}"""
+
+        # 시장 상관관계 정보 추가
+        market_corr = result.get('market_correlations', {})
+        if market_corr:
+            text += f"""
+
+──────────────────────────────────────────────────
+📊 시장 지수 상관관계:
+──────────────────────────────────────────────────"""
+            for index_name, corr_value in market_corr.items():
+                corr_percent = corr_value * 100
+                if abs(corr_value) > 0.7:
+                    strength = "강한"
+                    emoji = "🔴" if corr_value > 0 else "🔵"
+                elif abs(corr_value) > 0.4:
+                    strength = "보통"
+                    emoji = "🟠" if corr_value > 0 else "🟦"
+                else:
+                    strength = "약한"
+                    emoji = "⚪"
+
+                text += f"\n• {index_name}: {emoji} {corr_percent:+.1f}% ({strength} {'양' if corr_value > 0 else '음'}의 상관)"
+
+        # 섹터 성과 정보 추가 (미국 종목)
+        sector_perf = result.get('sector_performance', {})
+        if sector_perf:
+            # 상위 3개 섹터만 표시
+            sorted_sectors = sorted(sector_perf.items(), key=lambda x: x[1], reverse=True)[:3]
+            text += f"""
+
+──────────────────────────────────────────────────
+🏭 섹터 성과 (최근 1개월, Top 3):
+──────────────────────────────────────────────────"""
+            for sector, perf in sorted_sectors:
+                emoji = "📈" if perf > 0 else "📉"
+                text += f"\n• {sector}: {emoji} {perf:+.2f}%"
+
+        # 외국인/기관 매매 동향 (한국 종목)
+        inst_flow = result.get('institutional_flow', {})
+        if inst_flow:
+            text += f"""
+
+──────────────────────────────────────────────────
+💰 외국인/기관 매매 동향 (최근 30일):
+──────────────────────────────────────────────────"""
+
+            foreign_net = inst_flow.get('foreign_net_buy', 0)
+            institution_net = inst_flow.get('institution_net_buy', 0)
+
+            foreign_emoji = "🟢" if foreign_net > 0 else "🔴" if foreign_net < 0 else "⚪"
+            inst_emoji = "🟢" if institution_net > 0 else "🔴" if institution_net < 0 else "⚪"
+
+            text += f"\n• 외국인: {foreign_emoji} {foreign_net:+,.0f}주 {'순매수' if foreign_net > 0 else '순매도' if foreign_net < 0 else '보합'}"
+            text += f"\n• 기관: {inst_emoji} {institution_net:+,.0f}주 {'순매수' if institution_net > 0 else '순매도' if institution_net < 0 else '보합'}"
+
+            if inst_flow.get('foreign_ownership'):
+                text += f"\n• 외국인 지분율: {inst_flow['foreign_ownership']:.2f}%"
+
+        text += """
 
 ──────────────────────────────────────────────────
 📈 모델별 성능 및 예측:
@@ -925,17 +1226,31 @@ pip install scikit-learn xgboost lightgbm statsmodels
             
             # 📈 4. 예측 가격 생성 (부드러운 곡선)
             current_price = result['current_price']
-            target_price = result['predicted_price']
+
+            # 예측 가격 처리 (단수/복수 형식 모두 지원)
+            if 'predicted_price' in result:
+                target_price = result['predicted_price']
+                predicted_prices_array = None
+            elif 'predicted_prices' in result:
+                predicted_prices_array = result['predicted_prices']
+                target_price = predicted_prices_array[-1]
+            else:
+                target_price = current_price
+                predicted_prices_array = None
             
-            predicted_prices = []
-            for i in range(forecast_days):
-                progress = (i + 1) / forecast_days
-                # 시그모이드 함수로 부드러운 변화
-                smooth_progress = 1 / (1 + np.exp(-5 * (progress - 0.5)))
-                predicted_price = current_price + (target_price - current_price) * smooth_progress
-                predicted_prices.append(predicted_price)
-            
-            predicted_prices = np.array(predicted_prices)
+            # 실제 예측 가격 배열이 있으면 사용, 없으면 부드러운 곡선 생성
+            if predicted_prices_array is not None and len(predicted_prices_array) == forecast_days:
+                predicted_prices = np.array(predicted_prices_array)
+            else:
+                predicted_prices = []
+                for i in range(forecast_days):
+                    progress = (i + 1) / forecast_days
+                    # 시그모이드 함수로 부드러운 변화
+                    smooth_progress = 1 / (1 + np.exp(-5 * (progress - 0.5)))
+                    predicted_price = current_price + (target_price - current_price) * smooth_progress
+                    predicted_prices.append(predicted_price)
+
+                predicted_prices = np.array(predicted_prices)
             
             # 🎨 5. 차트 그리기 - 호환성 개선된 마커 사용
             # 5-1. 과거 데이터 (파란색 실선)
@@ -1199,22 +1514,57 @@ pip install scikit-learn xgboost lightgbm statsmodels
         self.result_area.setText("백테스팅 진행 중...\n")
         QApplication.processEvents()
 
-        # 백테스팅 실행
+        # 백테스팅 실행 (Worker Thread 사용)
         try:
             # 병렬 처리 옵션 가져오기
             use_parallel = self.parallel_backtest_checkbox.isChecked()
 
-            summary, error = self.predictor.backtest_predictions(
+            # Worker 생성 및 시작
+            self.backtest_worker = BacktestWorker(
+                self.predictor,
                 ticker,
-                test_periods=test_periods,
-                forecast_days=days,
-                progress_callback=self.update_backtest_progress,
-                use_parallel=use_parallel,
-                cancel_callback=self.is_backtest_cancelled  # 중지 콜백 추가
+                test_periods,
+                days,
+                use_parallel
             )
 
+            # 시그널 연결
+            self.backtest_worker.progress.connect(self.on_backtest_progress)
+            self.backtest_worker.finished.connect(self.on_backtest_finished)
+
+            # 워커 시작
+            self.backtest_worker.start()
+
+        except Exception as e:
+            QMessageBox.critical(self, "오류", f"백테스팅 시작 실패:\n{str(e)}")
+            self.backtest_btn.setEnabled(True)
+            self.backtest_progress_bar.setVisible(False)
+            self.backtest_progress_label.setVisible(False)
+            self.backtest_cancel_btn.setVisible(False)
+
+    def cancel_backtest(self):
+        """백테스팅 중지"""
+        if hasattr(self, 'backtest_worker') and self.backtest_worker.isRunning():
+            self.backtest_worker.cancel()
+            self.backtest_cancel_btn.setEnabled(False)
+            self.backtest_progress_label.setText("중지 중... 현재 작업 완료 대기")
+            logger.info("백테스팅 중지 요청됨")
+
+    def is_backtest_cancelled(self):
+        """백테스팅 중지 여부 확인 (콜백용)"""
+        return self.backtest_cancelled
+
+    def on_backtest_progress(self, current, total, message):
+        """백테스팅 진행률 업데이트 (Worker 시그널용)"""
+        self.backtest_progress_bar.setValue(current)
+        self.backtest_progress_label.setText(f"{message} - {current}/{total}")
+        QApplication.processEvents()
+
+    def on_backtest_finished(self, summary, error):
+        """백테스팅 완료 핸들러 (Worker 시그널용)"""
+        try:
             # 중지되었는지 확인
-            if self.backtest_cancelled:
+            if hasattr(self.backtest_worker, 'cancelled') and self.backtest_worker.cancelled:
                 self.result_area.setText("⏹ 백테스팅이 사용자에 의해 중지되었습니다.")
                 QMessageBox.information(self, "중지됨", "백테스팅이 중지되었습니다.")
                 return
@@ -1224,55 +1574,66 @@ pip install scikit-learn xgboost lightgbm statsmodels
                 return
 
             # 결과 표시
-            self.display_backtest_results(summary)
+            if summary:
+                self.display_backtest_results(summary)
 
         except Exception as e:
-            if not self.backtest_cancelled:
-                QMessageBox.critical(self, "오류", f"백테스팅 중 오류:\n{str(e)}")
+            QMessageBox.critical(self, "오류", f"백테스팅 결과 처리 중 오류:\n{str(e)}")
         finally:
+            # UI 복원
             self.backtest_btn.setEnabled(True)
             self.backtest_progress_bar.setVisible(False)
             self.backtest_progress_label.setVisible(False)
             self.backtest_cancel_btn.setVisible(False)
 
-    def cancel_backtest(self):
-        """백테스팅 중지"""
-        self.backtest_cancelled = True
-        self.backtest_cancel_btn.setEnabled(False)
-        self.backtest_progress_label.setText("중지 중... 현재 작업 완료 대기")
-        logger.info("백테스팅 중지 요청됨")
-
-    def is_backtest_cancelled(self):
-        """백테스팅 중지 여부 확인 (콜백용)"""
-        return self.backtest_cancelled
-
     def update_backtest_progress(self, current, total, message):
-        """백테스팅 진행률 업데이트"""
+        """백테스팅 진행률 업데이트 (레거시 - 삭제 예정)"""
         self.backtest_progress_bar.setValue(current)
         self.backtest_progress_label.setText(f"{message} - {current}/{total}")
         QApplication.processEvents()
 
     def display_backtest_results(self, summary):
         """백테스팅 결과 표시"""
+        # 예측 편향 분석
+        pred_bull = summary.get('pred_bull', 0)
+        pred_bear = summary.get('pred_bear', 0)
+        total = summary['test_periods']
+
+        bias_text = ""
+        if pred_bull > total * 0.7:
+            bias_text = "⚠️ 상승 편향 (낙관적 예측)"
+        elif pred_bear > total * 0.7:
+            bias_text = "⚠️ 하락 편향 (비관적 예측)"
+        else:
+            bias_text = "✅ 균형잡힌 예측"
+
         result_text = f"""
     {'='*60}
     🔬 {summary['ticker']} 백테스팅 결과
     {'='*60}
 
     📊 전체 통계:
-    • 테스트 횟수: {summary['test_count']}회
-    • 방향 정확도: {summary['direction_accuracy']*100:.1f}%
-    • 평균 오차: {summary['avg_magnitude_error']*100:.2f}%
+    • 테스트 횟수: {summary['test_periods']}회
+    • 방향 정확도: {summary['direction_accuracy']:.1f}%
+    • 평균 MAE: {summary['avg_mae']:.2f}
+    • 평균 MAPE: {summary['avg_mape']:.2f}%
+    • 상관계수: {summary['correlation']:.3f}
+
+    🎯 상세 분석:
+    • 📈 상승장 적중률: {summary.get('bull_accuracy', 0):.1f}% ({summary.get('bull_total', 0)}회 중)
+    • 📉 하락장 적중률: {summary.get('bear_accuracy', 0):.1f}% ({summary.get('bear_total', 0)}회 중)
+    • 🎲 예측 분포: 상승 {pred_bull}회 / 하락 {pred_bear}회
+    • {bias_text}
 
     📈 개별 결과:
     """
         
         for i, r in enumerate(summary['results'], 1):
-            direction = "✅" if r['direction_correct'] else "❌"
+            direction = "✅" if r['direction_match'] else "❌"
             result_text += f"""
     {i}. {r['date'].strftime('%Y-%m-%d')}
-        예측: {r['predicted_return']*100:+.2f}% → 실제: {r['actual_return']*100:+.2f}%
-        {direction} 방향 {'정확' if r['direction_correct'] else '틀림'}
+        예측: {r['predicted_return']:+.2f}% → 실제: {r['actual_return']:+.2f}%
+        {direction} 방향 {'정확' if r['direction_match'] else '틀림'}
     """
         
         result_text += f"\n{'='*60}"
@@ -2018,17 +2379,31 @@ class PredictionChartDialog(QDialog):
                 
                 # 더 자연스러운 예측 곡선 생성
                 current_price = self.result['current_price']
-                target_price = self.result['predicted_price']
-                
-                predicted_prices = []
-                for i in range(forecast_days):
-                    progress = (i + 1) / forecast_days
-                    # 3차 베지어 곡선으로 부드러운 변화
-                    smooth_progress = 3 * progress**2 - 2 * progress**3
-                    predicted_price = current_price + (target_price - current_price) * smooth_progress
-                    predicted_prices.append(predicted_price)
-                
-                predicted_prices = np.array(predicted_prices)
+
+                # 예측 가격 처리 (단수/복수 형식 모두 지원)
+                if 'predicted_price' in self.result:
+                    target_price = self.result['predicted_price']
+                    predicted_prices_array = None
+                elif 'predicted_prices' in self.result:
+                    predicted_prices_array = self.result['predicted_prices']
+                    target_price = predicted_prices_array[-1]
+                else:
+                    target_price = current_price
+                    predicted_prices_array = None
+
+                # 실제 예측 가격 배열이 있으면 사용, 없으면 부드러운 곡선 생성
+                if predicted_prices_array is not None and len(predicted_prices_array) == forecast_days:
+                    predicted_prices = np.array(predicted_prices_array)
+                else:
+                    predicted_prices = []
+                    for i in range(forecast_days):
+                        progress = (i + 1) / forecast_days
+                        # 3차 베지어 곡선으로 부드러운 변화
+                        smooth_progress = 3 * progress**2 - 2 * progress**3
+                        predicted_price = current_price + (target_price - current_price) * smooth_progress
+                        predicted_prices.append(predicted_price)
+
+                    predicted_prices = np.array(predicted_prices)
                 
                 # 고급 차트 스타일
                 ax.plot(historical_dates, historical_prices, 'b-', 
@@ -2042,8 +2417,16 @@ class PredictionChartDialog(QDialog):
         except Exception as e:
             # 기본 차트 표시
             days = list(range(forecast_days + 1))
-            prices = [self.result['current_price']] + \
-                    [self.result['predicted_price']] * forecast_days
+
+            # 예측 가격 처리
+            if 'predicted_price' in self.result:
+                final_price = self.result['predicted_price']
+            elif 'predicted_prices' in self.result:
+                final_price = self.result['predicted_prices'][-1]
+            else:
+                final_price = self.result['current_price']
+
+            prices = [self.result['current_price']] + [final_price] * forecast_days
             ax.plot(days, prices, 'r--', linewidth=2, marker='o')
         
         ax.set_title(f"{ticker} AI 주가 예측 상세 차트", fontsize=16, fontweight='bold')
