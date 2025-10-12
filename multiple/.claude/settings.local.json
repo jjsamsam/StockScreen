@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(find:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(if not exist \"models\" mkdir models)",
+      "Bash(mkdir:*)"
     ],
     "deny": [],
     "ask": []

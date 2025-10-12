@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import warnings
 warnings.filterwarnings('ignore')
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing
 
 # 로깅 설정
@@ -302,12 +302,49 @@ class AdvancedMLPredictor:
     XGBoost, LightGBM, Random Forest를 사용한 고급 머신러닝 예측기
     """
 
-    def __init__(self, sequence_length=30, use_optimization=False):
+    def __init__(self, sequence_length=30, use_optimization=False, ticker=None, auto_load=True):
         self.sequence_length = sequence_length
         self.scaler = RobustScaler()  # StandardScaler -> RobustScaler (이상치에 강함)
         self.models = {}
         self.use_optimization = use_optimization
         self.progress_callback = None  # 진행 콜백 (외부에서 설정)
+        self.ticker = ticker
+        self.persistence = None
+
+        # 모델 저장/로드 시스템 초기화
+        try:
+            from model_persistence import get_model_persistence
+            self.persistence = get_model_persistence()
+
+            # 자동 로드
+            if auto_load and ticker:
+                self._try_load_models()
+        except ImportError:
+            logger.debug("model_persistence 모듈 없음, 저장/로드 비활성화")
+
+    def _try_load_models(self):
+        """저장된 ML 모델들 자동 로드 시도"""
+        if not self.persistence or not self.ticker:
+            return
+
+        loaded_count = 0
+        for model_type in ['random_forest', 'xgboost', 'lightgbm']:
+            try:
+                model, metadata, scaler = self.persistence.load_sklearn_model(self.ticker, model_type)
+                if model is not None:
+                    self.models[model_type] = model
+                    if scaler is not None and loaded_count == 0:  # 첫 번째 모델의 scaler 사용
+                        self.scaler = scaler
+                    loaded_count += 1
+                    logger.info(f"✅ 저장된 {model_type} 모델 로드: {self.ticker}")
+            except Exception as e:
+                logger.debug(f"{model_type} 모델 로드 실패: {e}")
+
+        if loaded_count > 0:
+            logger.info(f"✅ 총 {loaded_count}개 ML 모델 로드 완료")
+            return True
+
+        return False
         
     def create_features(self, data):
         """기술적 지표를 포함한 피처 생성 - 고급 지표 추가"""
@@ -549,6 +586,16 @@ class AdvancedMLPredictor:
         self.models['random_forest'] = rf_final
         logger.info(f"Random Forest CV RMSE: {np.mean(rf_scores):.2f} (±{np.std(rf_scores):.2f})")
 
+        # 모델 저장
+        if self.persistence and self.ticker:
+            try:
+                metadata = {'cv_rmse_mean': np.mean(rf_scores), 'cv_rmse_std': np.std(rf_scores)}
+                self.persistence.save_sklearn_model(rf_final, self.ticker, 'random_forest', metadata, self.scaler)
+                # 저장 직후, 오래된 버전 정리(최신 5개만 유지)
+                self.persistence.delete_old_models(self.ticker, keep_latest=5)                
+            except Exception as e:
+                logger.warning(f"Random Forest 저장 실패: {e}")
+
         # 2. XGBoost with CV
         if XGBOOST_AVAILABLE:
             if self.progress_callback:
@@ -593,6 +640,16 @@ class AdvancedMLPredictor:
             self.models['xgboost'] = xgb_final
             logger.info(f"XGBoost CV RMSE: {np.mean(xgb_scores):.2f} (±{np.std(xgb_scores):.2f})")
 
+            # 모델 저장
+            if self.persistence and self.ticker:
+                try:
+                    metadata = {'cv_rmse_mean': np.mean(xgb_scores), 'cv_rmse_std': np.std(xgb_scores)}
+                    self.persistence.save_sklearn_model(xgb_final, self.ticker, 'xgboost', metadata, self.scaler)
+                    # 저장 직후, 오래된 버전 정리(최신 5개만 유지)
+                    self.persistence.delete_old_models(self.ticker, keep_latest=5)
+                except Exception as e:
+                    logger.warning(f"XGBoost 저장 실패: {e}")
+
         # 3. LightGBM with CV
         if LIGHTGBM_AVAILABLE:
             if self.progress_callback:
@@ -636,6 +693,16 @@ class AdvancedMLPredictor:
             lgb_final.fit(X, y)
             self.models['lightgbm'] = lgb_final
             logger.info(f"LightGBM CV RMSE: {np.mean(lgb_scores):.2f} (±{np.std(lgb_scores):.2f})")
+
+            # 모델 저장
+            if self.persistence and self.ticker:
+                try:
+                    metadata = {'cv_rmse_mean': np.mean(lgb_scores), 'cv_rmse_std': np.std(lgb_scores)}
+                    self.persistence.save_sklearn_model(lgb_final, self.ticker, 'lightgbm', metadata, self.scaler)
+                    # 저장 직후, 오래된 버전 정리(최신 5개만 유지)
+                    self.persistence.delete_old_models(self.ticker, keep_latest=5)
+                except Exception as e:
+                    logger.warning(f"LightGBM 저장 실패: {e}")
 
     def train_models(self, X_train, y_train, X_val, y_val):
         """여러 ML 모델 훈련 - 하이퍼파라미터 최적화 옵션"""
@@ -789,11 +856,42 @@ class AdvancedMLPredictor:
 class LSTMPredictor:
     """LSTM 딥러닝 모델을 사용한 주가 예측"""
 
-    def __init__(self, sequence_length=60, units=128):
+    def __init__(self, sequence_length=60, units=128, ticker=None, auto_load=True):
         self.sequence_length = sequence_length
         self.units = units
         self.model = None
         self.scaler = MinMaxScaler()
+        self.ticker = ticker
+        self.persistence = None
+
+        # 모델 저장/로드 시스템 초기화
+        try:
+            from model_persistence import get_model_persistence
+            self.persistence = get_model_persistence()
+
+            # 자동 로드 (티커가 있고, auto_load=True인 경우)
+            if auto_load and ticker:
+                self._try_load_model()
+        except ImportError:
+            logger.debug("model_persistence 모듈 없음, 저장/로드 비활성화")
+
+    def _try_load_model(self):
+        """저장된 모델 자동 로드 시도"""
+        if not self.persistence or not self.ticker:
+            return
+
+        try:
+            model, metadata, scaler = self.persistence.load_keras_model(self.ticker, 'lstm')
+            if model is not None:
+                self.model = model
+                if scaler is not None:
+                    self.scaler = scaler
+                logger.info(f"✅ 저장된 LSTM 모델 로드: {self.ticker} (버전: {metadata.get('version', 'unknown')})")
+                return True
+        except Exception as e:
+            logger.debug(f"LSTM 모델 로드 실패 (새로 훈련): {e}")
+
+        return False
 
     def build_model(self, input_shape):
         """LSTM 모델 구축"""
@@ -834,13 +932,18 @@ class LSTMPredictor:
 
         return np.array(X), np.array(y)
 
-    def fit_predict(self, prices, forecast_days=5):
+    def fit_predict(self, prices, forecast_days=5, force_retrain=False):
         """LSTM 모델 학습 및 예측"""
         if not TENSORFLOW_AVAILABLE:
             logger.warning("TensorFlow 없음 - LSTM 건너뜀")
             return {'future_predictions': np.full(forecast_days, prices[-1]), 'method': 'fallback'}
 
         try:
+            # 저장된 모델이 있고 재훈련 강제가 아니면 예측만 수행
+            if self.model is not None and not force_retrain:
+                logger.info("✅ 기존 LSTM 모델 사용 (재훈련 없음)")
+                return self._predict_only(prices, forecast_days)
+
             X, y = self.prepare_sequences(prices)
 
             if len(X) < 50:
@@ -861,14 +964,15 @@ class LSTMPredictor:
             # 콜백 설정
             EarlyStopping = _tensorflow_modules['EarlyStopping']
             ReduceLROnPlateau = _tensorflow_modules['ReduceLROnPlateau']
-            early_stop = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+            early_stop = EarlyStopping(monitor='val_loss', patience=15, restore_best_weights=True)  # patience 10 → 15
             reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5, min_lr=0.0001)
 
             # 학습
-            self.model.fit(
+            logger.info("🔄 LSTM 모델 훈련 시작...")
+            history = self.model.fit(
                 X_train, y_train,
                 validation_data=(X_val, y_val),
-                epochs=100,
+                epochs=150,  # 100 → 150
                 batch_size=32,
                 callbacks=[early_stop, reduce_lr],
                 verbose=0
@@ -889,28 +993,107 @@ class LSTMPredictor:
             # 역스케일링
             predictions = self.scaler.inverse_transform(np.array(predictions).reshape(-1, 1)).flatten()
 
+            # 모델 저장
+            if self.persistence and self.ticker:
+                try:
+                    metadata = {
+                        'train_loss': history.history['loss'][-1],
+                        'val_loss': history.history['val_loss'][-1],
+                        'epochs_trained': len(history.history['loss']),
+                        'sequence_length': self.sequence_length,
+                        'units': self.units,
+                        'data_size': len(prices)
+                    }
+                    self.persistence.save_keras_model(self.model, self.ticker, 'lstm', metadata, self.scaler)
+                    # 저장 직후, 오래된 버전 정리(최신 5개만 유지)
+                    self.persistence.delete_old_models(self.ticker, keep_latest=5)
+                except Exception as e:
+                    logger.warning(f"모델 저장 실패: {e}")
+
             return {
                 'future_predictions': predictions,
                 'model_type': 'LSTM',
-                'train_loss': self.model.history.history['loss'][-1],
-                'val_loss': self.model.history.history['val_loss'][-1]
+                'train_loss': history.history['loss'][-1],
+                'val_loss': history.history['val_loss'][-1]
             }
 
         except Exception as e:
             logger.error(f"LSTM 실패: {e}")
             return {'future_predictions': np.full(forecast_days, prices[-1]), 'method': 'fallback', 'error': str(e)}
 
+    def _predict_only(self, prices, forecast_days):
+        """저장된 모델로 예측만 수행 (재훈련 없음)"""
+        try:
+            X, y = self.prepare_sequences(prices)
+            X = X.reshape((X.shape[0], X.shape[1], 1))
+
+            # 미래 예측
+            last_sequence = X[-1].reshape((1, self.sequence_length, 1))
+            predictions = []
+
+            for _ in range(forecast_days):
+                pred = self.model.predict(last_sequence, verbose=0)[0, 0]
+                predictions.append(pred)
+
+                # 시퀀스 업데이트
+                last_sequence = np.roll(last_sequence, -1, axis=1)
+                last_sequence[0, -1, 0] = pred
+
+            # 역스케일링
+            predictions = self.scaler.inverse_transform(np.array(predictions).reshape(-1, 1)).flatten()
+
+            return {
+                'future_predictions': predictions,
+                'model_type': 'LSTM',
+                'using_cached_model': True
+            }
+
+        except Exception as e:
+            logger.error(f"LSTM 예측 실패: {e}")
+            return {'future_predictions': np.full(forecast_days, prices[-1]), 'method': 'fallback', 'error': str(e)}
+
 
 class TransformerPredictor:
     """Transformer 모델을 사용한 주가 예측"""
 
-    def __init__(self, sequence_length=60, d_model=64, num_heads=4, num_layers=2):
+    def __init__(self, sequence_length=60, d_model=64, num_heads=4, num_layers=2, ticker=None, auto_load=True):
         self.sequence_length = sequence_length
         self.d_model = d_model
         self.num_heads = num_heads
         self.num_layers = num_layers
         self.model = None
         self.scaler = MinMaxScaler()
+        self.ticker = ticker
+        self.persistence = None
+
+        # 모델 저장/로드 시스템 초기화
+        try:
+            from model_persistence import get_model_persistence
+            self.persistence = get_model_persistence()
+
+            # 자동 로드
+            if auto_load and ticker:
+                self._try_load_model()
+        except ImportError:
+            logger.debug("model_persistence 모듈 없음, 저장/로드 비활성화")
+
+    def _try_load_model(self):
+        """저장된 모델 자동 로드 시도"""
+        if not self.persistence or not self.ticker:
+            return
+
+        try:
+            model, metadata, scaler = self.persistence.load_keras_model(self.ticker, 'transformer')
+            if model is not None:
+                self.model = model
+                if scaler is not None:
+                    self.scaler = scaler
+                logger.info(f"✅ 저장된 Transformer 모델 로드: {self.ticker} (버전: {metadata.get('version', 'unknown')})")
+                return True
+        except Exception as e:
+            logger.debug(f"Transformer 모델 로드 실패 (새로 훈련): {e}")
+
+        return False
 
     def transformer_encoder(self, inputs, head_size, num_heads, ff_dim, dropout=0.1):
         """Transformer Encoder Block"""
@@ -982,13 +1165,18 @@ class TransformerPredictor:
 
         return np.array(X), np.array(y)
 
-    def fit_predict(self, prices, forecast_days=5):
+    def fit_predict(self, prices, forecast_days=5, force_retrain=False):
         """Transformer 모델 학습 및 예측"""
         if not TENSORFLOW_AVAILABLE:
             logger.warning("TensorFlow 없음 - Transformer 건너뜀")
             return {'future_predictions': np.full(forecast_days, prices[-1]), 'method': 'fallback'}
 
         try:
+            # 저장된 모델이 있고 재훈련 강제가 아니면 예측만 수행
+            if self.model is not None and not force_retrain:
+                logger.info("✅ 기존 Transformer 모델 사용 (재훈련 없음)")
+                return self._predict_only(prices, forecast_days)
+
             X, y = self.prepare_sequences(prices)
 
             if len(X) < 50:
@@ -1009,14 +1197,15 @@ class TransformerPredictor:
             # 콜백 설정
             EarlyStopping = _tensorflow_modules['EarlyStopping']
             ReduceLROnPlateau = _tensorflow_modules['ReduceLROnPlateau']
-            early_stop = EarlyStopping(monitor='val_loss', patience=15, restore_best_weights=True)
+            early_stop = EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True)  # patience 15 → 20
             reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5, min_lr=0.0001)
 
             # 학습
-            self.model.fit(
+            logger.info("🔄 Transformer 모델 훈련 시작...")
+            history = self.model.fit(
                 X_train, y_train,
                 validation_data=(X_val, y_val),
-                epochs=100,
+                epochs=150,  # 100 → 150
                 batch_size=32,
                 callbacks=[early_stop, reduce_lr],
                 verbose=0
@@ -1037,15 +1226,65 @@ class TransformerPredictor:
             # 역스케일링
             predictions = self.scaler.inverse_transform(np.array(predictions).reshape(-1, 1)).flatten()
 
+            # 모델 저장
+            if self.persistence and self.ticker:
+                try:
+                    metadata = {
+                        'train_loss': history.history['loss'][-1],
+                        'val_loss': history.history['val_loss'][-1],
+                        'epochs_trained': len(history.history['loss']),
+                        'sequence_length': self.sequence_length,
+                        'd_model': self.d_model,
+                        'num_heads': self.num_heads,
+                        'num_layers': self.num_layers,
+                        'data_size': len(prices)
+                    }
+                    self.persistence.save_keras_model(self.model, self.ticker, 'transformer', metadata, self.scaler)
+                    # 저장 직후, 오래된 버전 정리(최신 5개만 유지)
+                    self.persistence.delete_old_models(self.ticker, keep_latest=5)
+                except Exception as e:
+                    logger.warning(f"모델 저장 실패: {e}")
+
             return {
                 'future_predictions': predictions,
                 'model_type': 'Transformer',
-                'train_loss': self.model.history.history['loss'][-1],
-                'val_loss': self.model.history.history['val_loss'][-1]
+                'train_loss': history.history['loss'][-1],
+                'val_loss': history.history['val_loss'][-1]
             }
 
         except Exception as e:
             logger.error(f"Transformer 실패: {e}")
+            return {'future_predictions': np.full(forecast_days, prices[-1]), 'method': 'fallback', 'error': str(e)}
+
+    def _predict_only(self, prices, forecast_days):
+        """저장된 모델로 예측만 수행 (재훈련 없음)"""
+        try:
+            X, y = self.prepare_sequences(prices)
+            X = X.reshape((X.shape[0], X.shape[1], 1))
+
+            # 미래 예측
+            last_sequence = X[-1].reshape((1, self.sequence_length, 1))
+            predictions = []
+
+            for _ in range(forecast_days):
+                pred = self.model.predict(last_sequence, verbose=0)[0, 0]
+                predictions.append(pred)
+
+                # 시퀀스 업데이트
+                last_sequence = np.roll(last_sequence, -1, axis=1)
+                last_sequence[0, -1, 0] = pred
+
+            # 역스케일링
+            predictions = self.scaler.inverse_transform(np.array(predictions).reshape(-1, 1)).flatten()
+
+            return {
+                'future_predictions': predictions,
+                'model_type': 'Transformer',
+                'using_cached_model': True
+            }
+
+        except Exception as e:
+            logger.error(f"Transformer 예측 실패: {e}")
             return {'future_predictions': np.full(forecast_days, prices[-1]), 'method': 'fallback', 'error': str(e)}
 
 
@@ -1318,23 +1557,23 @@ class MarketRegimeDetector:
         """시장 상황별 모델 가중치 반환"""
         weights = {
             'bull': {  # 상승장: 트렌드 추종 모델 강화
-                'kalman': 0.15,
-                'ml_models': 0.50,
+                'kalman': 0.20,
+                'ml_models': 0.40,
                 'arima': 0.15,
-                'lstm': 0.10,
+                'lstm': 0.15,
                 'transformer': 0.10
             },
             'bear': {  # 하락장: 안정적인 모델 강화
                 'kalman': 0.30,
-                'ml_models': 0.30,
+                'ml_models': 0.25,
                 'arima': 0.25,
                 'lstm': 0.10,
-                'transformer': 0.05
+                'transformer': 0.10
             },
             'sideways': {  # 횡보장: 균형잡힌 가중치
                 'kalman': 0.20,
-                'ml_models': 0.35,
-                'arima': 0.20,
+                'ml_models': 0.25,
+                'arima': 0.25,
                 'lstm': 0.15,
                 'transformer': 0.10
             }
@@ -1346,16 +1585,17 @@ class MarketRegimeDetector:
 class EnsemblePredictor:
     """여러 모델을 결합한 앙상블 예측기 - 동적 가중치 + 시장 상황 인식"""
 
-    def __init__(self, use_deep_learning=False, use_optimization=False):
+    def __init__(self, use_deep_learning=False, use_optimization=False, ticker=None):
+        self.ticker = ticker
         self.kalman = KalmanFilterPredictor()
-        self.ml_predictor = AdvancedMLPredictor(use_optimization=use_optimization) if (SKLEARN_AVAILABLE or XGBOOST_AVAILABLE or LIGHTGBM_AVAILABLE) else None
+        self.ml_predictor = AdvancedMLPredictor(use_optimization=use_optimization, ticker=ticker) if (SKLEARN_AVAILABLE or XGBOOST_AVAILABLE or LIGHTGBM_AVAILABLE) else None
         self.arima = ARIMAPredictor()
 
         # 딥러닝 모델 (옵션)
         self.use_deep_learning = use_deep_learning and TENSORFLOW_AVAILABLE
         if self.use_deep_learning:
-            self.lstm = LSTMPredictor()
-            self.transformer = TransformerPredictor()
+            self.lstm = LSTMPredictor(ticker=ticker)
+            self.transformer = TransformerPredictor(ticker=ticker)
         else:
             self.lstm = None
             self.transformer = None
@@ -1615,15 +1855,18 @@ class EnsemblePredictor:
 class StockPredictor:
     """통합 주가 예측 시스템 - 딥러닝 + 하이퍼파라미터 최적화 지원"""
 
-    def __init__(self, use_deep_learning=False, use_optimization=False):
+    def __init__(self, use_deep_learning=False, use_optimization=False, ticker=None):
         """
         Args:
             use_deep_learning: LSTM, Transformer 사용 여부
             use_optimization: Bayesian Optimization 사용 여부
+            ticker: 주식 티커 (모델 저장/로드용)
         """
+        self.ticker = ticker
         self.ensemble = EnsemblePredictor(
             use_deep_learning=use_deep_learning,
-            use_optimization=use_optimization
+            use_optimization=use_optimization,
+            ticker=ticker
         )
         self.use_deep_learning = use_deep_learning
         self.use_optimization = use_optimization
@@ -1635,9 +1878,25 @@ class StockPredictor:
         if self.ensemble:
             self.ensemble.progress_callback = callback
     
-    def get_stock_data(self, symbol, period="2y"):
-        """주식 데이터 가져오기 - 더 긴 기간 (2년)"""
+    def get_stock_data(self, symbol, period=None):
+        """
+        주식 데이터 가져오기 - 동적 기간 설정
+
+        Args:
+            symbol: 주식 티커
+            period: 기간 (None이면 자동 결정)
+        """
         try:
+            # 기간 자동 결정
+            if period is None:
+                try:
+                    from optimal_period_config import get_optimal_training_period
+                    period = get_optimal_training_period(symbol)
+                    logger.info(f"📅 {symbol} 최적 훈련 기간: {period}")
+                except ImportError:
+                    period = "3y"  # 기본값: 3년 (2y → 3y 개선)
+                    logger.debug(f"기본 훈련 기간 사용: {period}")
+
             data = get_stock_data(symbol, period=period)
             return data
         except Exception as e:
@@ -1658,6 +1917,24 @@ class StockPredictor:
 
         prices = data['Close'].values
         dates = data.index
+
+        # === 증분 학습: 최신 데이터로 XGBoost/LightGBM 미세 업데이트 ===
+        try:
+            mlp = self.ensemble.ml_predictor if hasattr(self, 'ensemble') else None
+            if mlp and mlp.persistence and self.ticker:
+                # 최신 시퀀스 일부만 사용해 빠른 증분 업데이트
+                X_all, y_all = mlp.prepare_data(prices)
+                tail = min(200, len(y_all))  # 최근 200개 샘플 사용 (데이터 적으면 가능한 범위)
+                if tail > 0:
+                    X_new, y_new = X_all[-tail:], y_all[-tail:]
+
+                    if mlp.persistence.supports_incremental_learning('xgboost'):
+                        mlp.persistence.incremental_train_xgboost(self.ticker, X_new, y_new, n_estimators_add=50)
+
+                    if mlp.persistence.supports_incremental_learning('lightgbm'):
+                        mlp.persistence.incremental_train_lightgbm(self.ticker, X_new, y_new, n_estimators_add=50)
+        except Exception as e:
+            logger.warning(f"증분 학습 건너뜀: {e}")
 
         logger.info(f"분석 기간: {dates[0].strftime('%Y-%m-%d')} ~ {dates[-1].strftime('%Y-%m-%d')}")
         logger.info(f"데이터 포인트: {len(prices)}개")
@@ -1801,8 +2078,8 @@ class StockPredictor:
         i, test_point, train_prices, actual_future_prices, forecast_days, test_date = args
 
         try:
-            # ThreadPool 병렬 처리: 각 스레드마다 독립 인스턴스 생성
-            # (메모리 공유로 모듈은 재로딩 안 됨)
+            # ProcessPool 병렬 처리: 각 프로세스마다 독립 인스턴스 생성
+            # (GIL 우회로 진정한 병렬 처리, 모듈은 각 프로세스에서 1회 로딩)
             ensemble = EnsemblePredictor(
                 use_deep_learning=self.use_deep_learning,
                 use_optimization=False  # 백테스팅에서는 최적화 비활성화 (속도 향상)
@@ -1821,6 +2098,30 @@ class StockPredictor:
             rmse = np.sqrt(np.mean((predicted_prices - actual_future_prices) ** 2))
             mape = np.mean(np.abs((actual_future_prices - predicted_prices) / actual_future_prices)) * 100
 
+            # 개별 모델 예측 수집 (모델별 성능 분석용)
+            individual_predictions = {}
+
+            # 디버깅: result 키 확인
+            logger.debug(f"Result keys: {result.keys()}")
+
+            if 'individual_results' in result:
+                logger.debug(f"Individual results found: {result['individual_results'].keys()}")
+                for model_name, model_result in result['individual_results'].items():
+                    logger.debug(f"Processing model: {model_name}, type: {type(model_result)}")
+                    if isinstance(model_result, dict) and 'future_predictions' in model_result:
+                        model_pred_price = model_result['future_predictions'][-1]
+
+                        model_pred_return = (model_pred_price - last_train_price) / last_train_price * 100
+                        individual_predictions[model_name] = {
+                            'predicted_return': model_pred_return,
+                            'direction_match': (actual_return > 0) == (model_pred_return > 0)
+                        }
+                        logger.debug(f"{model_name} 예측 추가: {model_pred_return:.2f}%")
+                    else:
+                        logger.debug(f"{model_name} 스킵: future_predictions 없음")
+            else:
+                logger.warning("individual_results 키가 없습니다!")
+
             return {
                 'success': True,
                 'index': i,
@@ -1830,7 +2131,8 @@ class StockPredictor:
                 'mae': mae,
                 'rmse': rmse,
                 'mape': mape,
-                'direction_match': (actual_return > 0) == (predicted_return > 0)
+                'direction_match': (actual_return > 0) == (predicted_return > 0),
+                'individual_predictions': individual_predictions  # 개별 모델 예측
             }
 
         except Exception as e:
@@ -1909,12 +2211,12 @@ class StockPredictor:
             if use_parallel:
                 import time
                 start_time = time.time()
-                logger.info(f"🚀 병렬 처리 모드: {multiprocessing.cpu_count()}개 스레드 사용")
 
-                # ThreadPoolExecutor로 병렬 실행 (메모리 공유, 모듈 재로딩 없음)
+                # ProcessPoolExecutor로 병렬 실행 (GIL 우회, 진정한 병렬 처리)
                 max_workers = min(multiprocessing.cpu_count(), len(tasks))
+                logger.info(f"🚀 병렬 처리 모드: {max_workers}개 프로세스 사용 (CPU 코어: {multiprocessing.cpu_count()}, 작업 수: {len(tasks)})")
 
-                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                with ProcessPoolExecutor(max_workers=max_workers) as executor:
                     futures = {executor.submit(self._backtest_single_point, task): task for task in tasks}
 
                     completed = 0
@@ -1950,7 +2252,8 @@ class StockPredictor:
                                 'mae': result['mae'],
                                 'rmse': result['rmse'],
                                 'mape': result['mape'],
-                                'direction_match': result['direction_match']
+                                'direction_match': result['direction_match'],
+                                'individual_predictions': result.get('individual_predictions', {})
                             })
                             actual_returns.append(result['actual_return'])
                             predicted_returns.append(result['predicted_return'])
@@ -1986,7 +2289,8 @@ class StockPredictor:
                             'mae': result['mae'],
                             'rmse': result['rmse'],
                             'mape': result['mape'],
-                            'direction_match': result['direction_match']
+                            'direction_match': result['direction_match'],
+                            'individual_predictions': result.get('individual_predictions', {})
                         })
                         actual_returns.append(result['actual_return'])
                         predicted_returns.append(result['predicted_return'])
@@ -2020,6 +2324,35 @@ class StockPredictor:
             pred_bull = sum(1 for r in results if r['predicted_return'] > 0)
             pred_bear = len(results) - pred_bull
 
+            # 개별 모델 성능 분석
+            logger.debug(f"📊 모델 성능 분석 시작 - 총 {len(results)}개 결과")
+            model_performance = {}
+            for idx, result in enumerate(results):
+                logger.debug(f"결과 {idx}: 'individual_predictions' 존재 = {'individual_predictions' in result}")
+                if 'individual_predictions' in result:
+                    logger.debug(f"결과 {idx} individual_predictions: {result['individual_predictions'].keys()}")
+                    for model_name, model_pred in result['individual_predictions'].items():
+                        if model_name not in model_performance:
+                            model_performance[model_name] = {'correct': 0, 'total': 0}
+
+                        model_performance[model_name]['total'] += 1
+                        if model_pred['direction_match']:
+                            model_performance[model_name]['correct'] += 1
+                else:
+                    logger.warning(f"결과 {idx}에 individual_predictions 없음: {result.keys()}")
+
+            logger.debug(f"최종 model_performance: {model_performance}")
+
+            # 모델별 적중률 계산
+            model_accuracies = {}
+            for model_name, perf in model_performance.items():
+                if perf['total'] > 0:
+                    accuracy = (perf['correct'] / perf['total']) * 100
+                    model_accuracies[model_name] = accuracy
+                    logger.info(f"📊 {model_name} 적중률: {accuracy:.1f}% ({perf['correct']}/{perf['total']})")
+
+            logger.debug(f"최종 model_accuracies: {model_accuracies}")
+
             summary = {
                 'ticker': ticker,
                 'test_periods': len(results),
@@ -2039,7 +2372,9 @@ class StockPredictor:
                 'bull_total': bull_total,
                 'bear_total': bear_total,
                 'pred_bull': pred_bull,
-                'pred_bear': pred_bear
+                'pred_bear': pred_bear,
+                # 모델별 성능
+                'model_accuracies': model_accuracies
             }
 
             return summary, None

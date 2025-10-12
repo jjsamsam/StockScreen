@@ -446,8 +446,8 @@ pip install scikit-learn xgboost lightgbm statsmodels
         backtest_layout.addWidget(self.backtest_periods_input)
 
         self.parallel_backtest_checkbox = QCheckBox("병렬")
-        self.parallel_backtest_checkbox.setChecked(True)
-        self.parallel_backtest_checkbox.setToolTip("병렬 처리로 속도 향상")
+        self.parallel_backtest_checkbox.setChecked(False)  # 기본값: 순차 처리 (안정적)
+        self.parallel_backtest_checkbox.setToolTip("병렬 처리 (100회 이상 백테스팅 시 권장)")
         backtest_layout.addWidget(self.parallel_backtest_checkbox)
 
         backtest_layout.addStretch()
@@ -1592,6 +1592,42 @@ pip install scikit-learn xgboost lightgbm statsmodels
         self.backtest_progress_label.setText(f"{message} - {current}/{total}")
         QApplication.processEvents()
 
+    def _format_model_accuracies(self, model_accuracies):
+        """모델별 적중률 포맷팅"""
+        import logging
+        logger = logging.getLogger(__name__)
+
+        logger.debug(f"🎨 _format_model_accuracies 호출됨")
+        logger.debug(f"🎨 model_accuracies 타입: {type(model_accuracies)}")
+        logger.debug(f"🎨 model_accuracies 내용: {model_accuracies}")
+        logger.debug(f"🎨 model_accuracies bool 값: {bool(model_accuracies)}")
+
+        if not model_accuracies:
+            logger.warning(f"🎨 model_accuracies가 비어있음!")
+            return "    • 모델별 데이터 없음"
+
+        lines = []
+        # 적중률 순으로 정렬
+        sorted_models = sorted(model_accuracies.items(), key=lambda x: x[1], reverse=True)
+        logger.debug(f"🎨 정렬된 모델 수: {len(sorted_models)}")
+
+        for model_name, accuracy in sorted_models:
+            # 이모지 선택
+            if accuracy >= 60:
+                emoji = "🏆"
+            elif accuracy >= 50:
+                emoji = "✅"
+            else:
+                emoji = "⚠️"
+
+            line = f"    • {emoji} {model_name}: {accuracy:.1f}%"
+            logger.debug(f"🎨 추가된 라인: {line}")
+            lines.append(line)
+
+        result = "\n".join(lines)
+        logger.debug(f"🎨 최종 결과: {result}")
+        return result
+
     def display_backtest_results(self, summary):
         """백테스팅 결과 표시"""
         # 예측 편향 분석
@@ -1624,6 +1660,9 @@ pip install scikit-learn xgboost lightgbm statsmodels
     • 📉 하락장 적중률: {summary.get('bear_accuracy', 0):.1f}% ({summary.get('bear_total', 0)}회 중)
     • 🎲 예측 분포: 상승 {pred_bull}회 / 하락 {pred_bear}회
     • {bias_text}
+
+    🤖 모델별 적중률:
+{self._format_model_accuracies(summary.get('model_accuracies', {}))}
 
     📈 개별 결과:
     """

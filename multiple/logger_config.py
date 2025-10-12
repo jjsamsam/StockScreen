@@ -115,4 +115,4 @@ def get_logger(name):
 
 
 # 초기 설정 (INFO 레벨, 콘솔만)
-setup_logging(level='INFO', log_to_file=False)
+setup_logging(level='DEBUG', log_to_file=False)
