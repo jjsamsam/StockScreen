@@ -1,4 +1,4 @@
-# Python
+﻿# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -28,7 +28,7 @@ cache/
 # PyQt/Qt
 *.ui~
 
-# Data files (optional - 주석 처리하면 데이터 파일도 커밋됨)
+# Data files (optional - 二쇱꽍 泥섎━?섎㈃ ?곗씠???뚯씪??而ㅻ컠??
 # stock_data/
 # *.csv
 
@@ -78,7 +78,7 @@ $RECYCLE.BIN/
 *.backup
 *~
 
-# Model files (optional - AI 모델 파일이 크면 제외)
+# Model files (optional - AI 紐⑤뜽 ?뚯씪???щ㈃ ?쒖쇅)
 # *.pkl
 # *.h5
 # *.pt
@@ -87,3 +87,9 @@ $RECYCLE.BIN/
 # Documentation builds (optional)
 # docs/_build/
 # site/
+
+# Editor/backup artifacts
+*.bak
+*.broken
+*.pre_repair
+*.orig

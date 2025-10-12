@@ -5,6 +5,7 @@ logger_config.py
 
 import logging
 import sys
+import os
 from pathlib import Path
 from datetime import datetime
 
@@ -32,6 +33,15 @@ def setup_logging(level='INFO', log_to_file=False, log_dir='logs'):
     """
     global _current_level
     _current_level = LEVEL_MAP.get(level.upper(), logging.INFO)
+
+    # Windows 콘솔에서 한글 깨짐 방지: stdout/stderr를 UTF-8로 재설정
+    if os.name == 'nt':
+        try:
+            # Python 3.7+
+            sys.stdout.reconfigure(encoding='utf-8')
+            sys.stderr.reconfigure(encoding='utf-8')
+        except Exception:
+            pass
 
     # 루트 로거 설정
     root_logger = logging.getLogger()
@@ -115,4 +125,4 @@ def get_logger(name):
 
 
 # 초기 설정 (INFO 레벨, 콘솔만)
-setup_logging(level='DEBUG', log_to_file=False)
+setup_logging(level='INFO', log_to_file=False)

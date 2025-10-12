@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 model_persistence.py
 ML 모델 저장/로드 및 증분 학습 시스템
@@ -50,8 +50,13 @@ class ModelPersistence:
 
         if version is None:
             # 최신 버전 찾기
-            pattern = f"{model_type}_*.pkl" if model_type in ['xgboost', 'lightgbm', 'random_forest'] else f"{model_type}_*.h5"
-            existing = sorted(model_dir.glob(pattern))
+            if model_type in ['xgboost', 'lightgbm', 'random_forest']:
+                existing = sorted(model_dir.glob(f"{model_type}_*.pkl"))
+            else:
+                # Keras 모델은 .keras(권장)와 .h5(레거시) 모두 고려
+                keras_files = list(model_dir.glob(f"{model_type}_*.keras"))
+                h5_files = list(model_dir.glob(f"{model_type}_*.h5"))
+                existing = sorted(keras_files + h5_files)
             if existing:
                 return existing[-1]
             else:
@@ -59,7 +64,7 @@ class ModelPersistence:
 
         # 파일 확장자 결정
         if model_type in ['lstm', 'transformer']:
-            ext = 'h5'
+            ext = 'keras'  # native Keras format
         else:
             ext = 'pkl'
 
@@ -92,7 +97,12 @@ class ModelPersistence:
 
         try:
             # 모델 저장
-            model.save(str(model_path))
+            # For Keras .h5, exclude optimizer to avoid legacy deserialization issues
+            try:
+                model.save(str(model_path), include_optimizer=False)
+            except TypeError:
+                # Some TF/Keras versions don't expose include_optimizer for certain formats
+                model.save(str(model_path))
             logger.info(f"✅ {model_type.upper()} 모델 저장: {model_path}")
 
             # Scaler 저장
@@ -115,8 +125,8 @@ class ModelPersistence:
                 meta.update(metadata)
 
             meta_path = self._get_metadata_path(model_path)
-            with open(meta_path, 'w') as f:
-                json.dump(meta, f, indent=2)
+            with open(meta_path, 'w', encoding='utf-8') as f:
+                json.dump(meta, f, indent=2, ensure_ascii=False)
 
             logger.info(f"✅ 메타데이터 저장: {meta_path}")
 
@@ -128,53 +138,109 @@ class ModelPersistence:
         except Exception as e:
             logger.error(f"❌ Keras 모델 저장 실패: {e}")
             raise
-
     def load_keras_model(self, ticker: str, model_type: str,
-                        version: Optional[str] = None) -> tuple:
+                         version: Optional[str] = None) -> tuple:
         """
-        Keras 모델 로드 (.h5)
-
-        Returns:
-            (model, metadata, scaler)
+        Keras (.keras or .h5) model loader with Keras 3 compatibility.
+        Returns: (model, metadata, scaler)
         """
         try:
-            # TensorFlow Lazy Import
+            # TensorFlow lazy import
             import tensorflow as tf
             from tensorflow import keras
 
             model_path = self._get_model_path(ticker, model_type, version)
-
             if not model_path.exists():
                 logger.warning(f"모델 파일 없음: {model_path}")
                 return None, None, None
 
-            # 모델 로드
-            model = keras.models.load_model(str(model_path))
-            logger.info(f"✅ {model_type.upper()} 모델 로드: {model_path}")
+            # Load metadata first (for potential rebuild)
+            metadata = None
+            meta_path = self._get_metadata_path(model_path)
+            if meta_path.exists():
+                try:
+                    with open(meta_path, 'r', encoding='utf-8') as f:
+                        metadata = json.load(f)
+                except Exception:
+                    metadata = None
 
-            # Scaler 로드
+            # Try direct load
+            load_errors = []
+            model = None
+            try:
+                model = keras.models.load_model(str(model_path), compile=False, safe_mode=False)
+            except TypeError as e:
+                load_errors.append(str(e))
+                try:
+                    model = keras.models.load_model(str(model_path), compile=False)
+                except Exception as e2:
+                    load_errors.append(str(e2))
+            except Exception as e:
+                load_errors.append(str(e))
+
+            # Try with legacy mappings
+            if model is None:
+                try:
+                    custom_objects = {
+                        'mse': tf.keras.metrics.MeanSquaredError,
+                        'mae': tf.keras.metrics.MeanAbsoluteError,
+                        'mape': tf.keras.metrics.MeanAbsolutePercentageError,
+                        'rmse': getattr(tf.keras.metrics, 'RootMeanSquaredError', tf.keras.metrics.MeanSquaredError),
+                        'mean_squared_error': tf.keras.losses.MeanSquaredError,
+                        'mean_absolute_error': tf.keras.losses.MeanAbsoluteError,
+                        'mean_absolute_percentage_error': tf.keras.losses.MeanAbsolutePercentageError,
+                    }
+                    try:
+                        model = keras.models.load_model(str(model_path), custom_objects=custom_objects, compile=False)
+                    except Exception as e3:
+                        load_errors.append(str(e3))
+                except Exception as e4:
+                    load_errors.append(str(e4))
+
+            # Rebuild architecture and load weights
+            if model is None and metadata and model_type in ('lstm', 'transformer'):
+                try:
+                    if model_type == 'lstm':
+                        from stock_prediction import LSTMPredictor
+                        seq_len = int(metadata.get('sequence_length', 60))
+                        units = int(metadata.get('units', 128)) if metadata.get('units') is not None else 128
+                        predictor = LSTMPredictor(sequence_length=seq_len, units=units, ticker=ticker, auto_load=False)
+                        model_candidate = predictor.build_model((seq_len, 1))
+                    else:
+                        from stock_prediction import TransformerPredictor
+                        seq_len = int(metadata.get('sequence_length', 60))
+                        d_model = int(metadata.get('d_model', 64))
+                        num_heads = int(metadata.get('num_heads', 4))
+                        num_layers = int(metadata.get('num_layers', 2))
+                        predictor = TransformerPredictor(sequence_length=seq_len, d_model=d_model, num_heads=num_heads, num_layers=num_layers, ticker=ticker, auto_load=False)
+                        model_candidate = predictor.build_model((seq_len, 1))
+
+                    model_candidate.load_weights(str(model_path))
+                    model = model_candidate
+                    logger.info(f"{model_type.upper()} 모델을 재구성 후 가중치로 로드: {model_path}")
+                except Exception as e5:
+                    load_errors.append(f"rebuild/weights: {e5}")
+
+            if model is None:
+                raise RuntimeError(f"Failed to load Keras model after fallbacks. Path={model_path.name} Errors: {load_errors}")
+
+            logger.info(f"✅{model_type.upper()} 모델 로드: {model_path}")
+
+            # Scaler
             scaler = None
             scaler_path = model_path.with_suffix('.scaler.pkl')
             if scaler_path.exists():
                 scaler = joblib.load(scaler_path)
-                logger.info(f"✅ Scaler 로드: {scaler_path}")
+                logger.info(f"✅Scaler 로드: {scaler_path}")
 
-            # 메타데이터 로드
-            meta_path = self._get_metadata_path(model_path)
-            metadata = None
-            if meta_path.exists():
-                with open(meta_path, 'r') as f:
-                    metadata = json.load(f)
-                logger.info(f"✅ 메타데이터 로드: {meta_path}")
+            if metadata is not None and meta_path.exists():
+                logger.info(f"✅메타데이터 로드: {meta_path}")
 
             return model, metadata, scaler
 
         except Exception as e:
-            logger.error(f"❌ Keras 모델 로드 실패: {e}")
+            logger.warning(f"Keras model load failed (will retrain): {e}")
             return None, None, None
-
-    # ========== Scikit-learn/XGBoost/LightGBM 모델 ==========
-
     def save_sklearn_model(self, model, ticker: str, model_type: str,
                           metadata: Optional[Dict[str, Any]] = None,
                           scaler=None) -> str:
@@ -223,8 +289,8 @@ class ModelPersistence:
                 meta['has_feature_importance'] = True
 
             meta_path = self._get_metadata_path(model_path)
-            with open(meta_path, 'w') as f:
-                json.dump(meta, f, indent=2)
+            with open(meta_path, 'w', encoding='utf-8') as f:
+                json.dump(meta, f, indent=2, ensure_ascii=False)
 
             logger.info(f"✅ 메타데이터 저장: {meta_path}")
 
@@ -267,7 +333,7 @@ class ModelPersistence:
             meta_path = self._get_metadata_path(model_path)
             metadata = None
             if meta_path.exists():
-                with open(meta_path, 'r') as f:
+                with open(meta_path, 'r', encoding='utf-8') as f:
                     metadata = json.load(f)
                 logger.info(f"✅ 메타데이터 로드: {meta_path}")
 
@@ -342,7 +408,7 @@ class ModelPersistence:
         models = []
         for meta_file in model_dir.glob("*.json"):
             try:
-                with open(meta_file, 'r') as f:
+                with open(meta_file, 'r', encoding='utf-8') as f:
                     meta = json.load(f)
                     models.append(meta)
             except:
@@ -545,3 +611,6 @@ if __name__ == "__main__":
         print("\n최근 모델:")
         for model in models[:3]:
             print(f"  - {model['model_type']}: {model['version']} ({model['saved_at']})")
+
+
+

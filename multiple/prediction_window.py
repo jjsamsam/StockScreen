@@ -317,6 +317,13 @@ pip install scikit-learn xgboost lightgbm statsmodels
         self.predict_btn.clicked.connect(self.start_prediction_enhanced)  # 새로운 함수 연결
         button_layout.addWidget(self.predict_btn)
 
+        # 딥러닝 모델 훈련 버튼 (LSTM/Transformer 저장 .h5)
+        self.train_dl_btn = QPushButton('딥러닝 모델 훈련')
+        self.train_dl_btn.setToolTip('현재 종목에 대해 LSTM/Transformer를 학습하고 .h5로 저장합니다')
+        self.train_dl_btn.clicked.connect(self.train_deep_models)
+        self.train_dl_btn.setEnabled(DEEP_LEARNING_AVAILABLE)
+        button_layout.addWidget(self.train_dl_btn)
+
         # 백테스팅 버튼 추가
         self.backtest_btn = QPushButton('🔬 백테스팅')
         self.backtest_btn.setToolTip('과거 데이터로 예측 알고리즘 검증')
@@ -416,6 +423,40 @@ pip install scikit-learn xgboost lightgbm statsmodels
         self.deep_learning_checkbox.stateChanged.connect(self.on_deep_learning_changed)
         ai_layout.addWidget(self.deep_learning_checkbox)
 
+        # 강제 재학습 옵션
+        self.force_retrain = False
+        self.force_retrain_checkbox = QCheckBox("강제 재학습")
+        self.force_retrain_checkbox.setToolTip("기존 저장 모델이 있어도 다시 학습합니다")
+        self.force_retrain_checkbox.stateChanged.connect(lambda s: setattr(self, 'force_retrain', s == 2))
+        self.force_retrain_checkbox.setEnabled(DEEP_LEARNING_AVAILABLE)
+        ai_layout.addWidget(self.force_retrain_checkbox)
+
+        # 훈련 기간 선택
+        ai_layout.addWidget(QLabel("훈련 기간:"))
+        self.train_period_combo = QComboBox()
+        self.train_period_combo.addItem("자동", "auto")
+        self.train_period_combo.addItem("2y", "2y")
+        self.train_period_combo.addItem("3y", "3y")
+        self.train_period_combo.addItem("5y", "5y")
+        self.train_period_combo.addItem("10y", "10y")
+        self.train_period_combo.addItem("max", "max")
+        try:
+            idx = self.train_period_combo.findData("5y")
+            if idx >= 0:
+                self.train_period_combo.setCurrentIndex(idx)
+        except Exception:
+            pass
+        self.train_period_combo.setEnabled(DEEP_LEARNING_AVAILABLE)
+        ai_layout.addWidget(self.train_period_combo)
+
+        # 강제 재학습 옵션
+        self.force_retrain = False
+        self.force_retrain_checkbox = QCheckBox("강제 재학습")
+        self.force_retrain_checkbox.setToolTip("기존 저장 모델이 있어도 다시 학습합니다")
+        self.force_retrain_checkbox.stateChanged.connect(lambda s: setattr(self, 'force_retrain', s == 2))
+        self.force_retrain_checkbox.setEnabled(DEEP_LEARNING_AVAILABLE)
+        ai_layout.addWidget(self.force_retrain_checkbox)
+
         self.optimization_checkbox = QCheckBox("Bayesian 최적화")
         self.optimization_checkbox.setChecked(self.use_optimization)
         self.optimization_checkbox.setToolTip("하이퍼파라미터 자동 조정 (정확도↑↑, 시간↑↑)")
@@ -471,6 +512,8 @@ pip install scikit-learn xgboost lightgbm statsmodels
             )
             self.predictor_type = "DeepLearning"
             logger.info(f"딥러닝 모델: {'활성화' if self.use_deep_learning else '비활성화'}")
+            if hasattr(self, 'train_dl_btn'):
+                self.train_dl_btn.setEnabled(self.use_deep_learning)
 
     def on_optimization_changed(self, state):
         """하이퍼파라미터 최적화 옵션 변경 핸들러"""
@@ -483,6 +526,92 @@ pip install scikit-learn xgboost lightgbm statsmodels
                 use_optimization=self.use_optimization
             )
             logger.info(f"Bayesian Optimization: {'활성화' if self.use_optimization else '비활성화'}")
+
+    def train_deep_models(self):
+        """현재 종목에 대해 LSTM/Transformer를 학습하고 저장(.h5)"""
+        if not DEEP_LEARNING_AVAILABLE:
+            QMessageBox.warning(self, '딥러닝 사용 불가', 'TensorFlow/딥러닝 환경이 활성화되어 있지 않습니다.')
+            return
+
+        ticker = self.ticker_input.text().strip().upper()
+        if not ticker:
+            QMessageBox.warning(self, '입력 필요', '종목 코드를 입력하세요 (예: AAPL, 005930.KS).')
+            return
+
+        # 학습 기간 결정
+        try:
+            from optimal_period_config import get_optimal_training_period
+            period = get_optimal_training_period(ticker)
+            logger.info(f"학습 기간(자동): {period}")
+        except Exception:
+            period = '5y'
+            logger.debug("학습 기간 기본값 5y 사용")
+
+        # 데이터 로드
+        try:
+            # 사용자 선택 기간이 있으면 우선 적용
+            try:
+                if hasattr(self, 'train_period_combo') and self.train_period_combo is not None:
+                    sel = self.train_period_combo.currentData()
+                    if sel not in (None, 'auto'):
+                        period = sel
+            except Exception:
+                pass
+
+            df = get_stock_data(ticker, period=period)
+            if df is None or len(df) < 100:
+                QMessageBox.warning(self, '데이터 부족', '학습에 충분한 데이터가 없습니다. 기간을 늘려보세요.')
+                return
+            prices = df['Close'].values
+        except Exception as e:
+            logger.error(f"데이터 로드 실패: {e}")
+            QMessageBox.critical(self, '오류', f"데이터 로드 실패: {e}")
+            return
+
+        forecast_days = self.days_input.value()
+
+        # 진행 안내
+        self.result_area.append(f"\n[딥러닝 훈련] {ticker} ({period}), 재학습={'ON' if self.force_retrain else 'OFF'}")
+        QApplication.processEvents()
+
+        trained_any = False
+        errors = []
+
+        try:
+            # LSTM 훈련
+            from stock_prediction import LSTMPredictor
+            lstm = LSTMPredictor(ticker=ticker, auto_load=True)
+            lstm_result = lstm.fit_predict(prices, forecast_days=forecast_days, force_retrain=self.force_retrain)
+            if 'error' in lstm_result:
+                errors.append(f"LSTM: {lstm_result['error']}")
+            else:
+                trained_any = True
+                self.result_area.append(f" - LSTM: 학습 완료 (val_loss={lstm_result.get('val_loss','N/A')})")
+        except Exception as e:
+            errors.append(f"LSTM 오류: {e}")
+
+        try:
+            # Transformer 훈련
+            from stock_prediction import TransformerPredictor
+            tr = TransformerPredictor(ticker=ticker, auto_load=True)
+            tr_result = tr.fit_predict(prices, forecast_days=forecast_days, force_retrain=self.force_retrain)
+            if 'error' in tr_result:
+                errors.append(f"Transformer: {tr_result['error']}")
+            else:
+                trained_any = True
+                self.result_area.append(f" - Transformer: 학습 완료 (val_loss={tr_result.get('val_loss','N/A')})")
+        except Exception as e:
+            errors.append(f"Transformer 오류: {e}")
+
+        if trained_any:
+            QMessageBox.information(self, '훈련 완료', f"모델이 저장되었습니다. models/{ticker} 폴더를 확인하세요.")
+        else:
+            QMessageBox.warning(self, '훈련 실패', "\n".join(errors) if errors else '훈련에 실패했습니다.')
+
+        # 상태 갱신
+        self.chart_btn.setEnabled(False)
+        self.export_btn.setEnabled(False)
+        QApplication.processEvents()
 
     def sync_with_settings(self):
             """설정 파일과 동기화 - 간소화 버전"""

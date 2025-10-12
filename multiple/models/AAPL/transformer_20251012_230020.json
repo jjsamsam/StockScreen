@@ -1,0 +1,16 @@
+{
+  "ticker": "AAPL",
+  "model_type": "transformer",
+  "version": "20251012_230020",
+  "saved_at": "2025-10-12T23:00:20.481260",
+  "framework": "tensorflow/keras",
+  "file_path": "models\\AAPL\\transformer_20251012_230020.keras",
+  "train_loss": 0.00736136082559824,
+  "val_loss": 0.01470746099948883,
+  "epochs_trained": 34,
+  "sequence_length": 60,
+  "d_model": 64,
+  "num_heads": 4,
+  "num_layers": 2,
+  "data_size": 1256
+}

@@ -1,0 +1,13 @@
+# Codex CLI configuration
+
+# Do not prompt for approvals when running commands.
+approval = "never"
+
+# Optional: keep safe defaults (uncomment if you want to enforce)
+# sandbox_mode = "workspace-write"   # allowed: read-only | workspace-write | danger-full-access
+# network_access = "restricted"       # allowed: restricted | enabled
+
+# Notes:
+# - If you want minimal prompts but not fully silent, use:
+#   # approval = "on-failure"
+# - Per-run flags override this file (e.g., `codex run --approval never`).

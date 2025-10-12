@@ -78,7 +78,48 @@ def _lazy_import_tensorflow():
 
     try:
         logger.info("TensorFlow 로딩 중... (최초 1회, 시간이 걸릴 수 있습니다)")
-        import tensorflow as tf
+        # Helpful environment info for debugging mismatched environments
+        import sys, platform
+        logger.info(f"Python: {sys.version.split()[0]} | Exec: {sys.executable} | OS: {platform.platform()}")
+        import os, re
+        # On Windows + PyQt, DLL search path may be polluted by Qt bin via AddDllDirectory.
+        # 1) Prepend safe DLL directories explicitly (System32, Python's DLLs) using add_dll_directory
+        # 2) Temporarily remove Qt bin paths from PATH during TF import
+        try:
+            import sys
+            if os.name == 'nt' and hasattr(os, 'add_dll_directory'):
+                _system32 = os.path.join(os.environ.get('SystemRoot', r'C:\\Windows'), 'System32')
+                _py_dlls = os.path.join(sys.prefix, 'DLLs')
+                _py_dir = os.path.dirname(sys.executable)
+                for _dir in (_system32, _py_dlls, _py_dir):
+                    if os.path.isdir(_dir):
+                        try:
+                            os.add_dll_directory(_dir)
+                            logger.info(f"Added DLL search dir: {_dir}")
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
+        # Temporarily remove Qt bin paths from PATH to avoid DLL conflicts when importing TensorFlow under PyQt GUI
+        _orig_path = os.environ.get('PATH', '')
+        _path_parts = _orig_path.split(os.pathsep) if _orig_path else []
+        # Detect Qt bin paths robustly (both slash styles, case-insensitive)
+        def _norm(p: str) -> str:
+            return p.replace('/', '\\').lower()
+        _qt_markers = ("\\pyqt5\\qt5\\bin", "\\pyside6\\qt\\bin", "\\qt\\bin")
+        _removed_qt_paths = [p for p in _path_parts if any(m in _norm(p) for m in _qt_markers)]
+        if _removed_qt_paths:
+            os.environ['PATH'] = os.pathsep.join([p for p in _path_parts if p not in _removed_qt_paths])
+            sample = "; ".join(_removed_qt_paths[:2])
+            logger.info(f"Temporarily sanitized PATH for TF import (removed {len(_removed_qt_paths)} Qt bin entries): {sample}...")
+        try:
+            import tensorflow as tf
+        finally:
+            # Restore original PATH regardless of import outcome
+            if _removed_qt_paths:
+                os.environ['PATH'] = _orig_path
+                logger.info("Restored original PATH after TF import attempt")
         from tensorflow import keras
         from tensorflow.keras import layers, Model
         from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
@@ -94,10 +135,41 @@ def _lazy_import_tensorflow():
         logger.info(f"✅ TensorFlow 로딩 완료 (v{tf.__version__})")
         return True
     except ImportError as e:
-        logger.warning(f"TensorFlow를 사용할 수 없습니다: {e}")
+        # Log full traceback to diagnose DLL/runtime import errors
+        logger.warning("TensorFlow 가져오기 실패 (ImportError)", exc_info=True)
+        try:
+            import os, sys, platform, ctypes, ctypes.util
+            logger.info(f"CWD: {os.getcwd()}")
+            logger.info(f"Arch: {platform.machine()} | 64bit: {ctypes.sizeof(ctypes.c_void_p) == 8}")
+            # Environment snapshot (trim overly long PATH in logs, but include start and end)
+            path = os.environ.get('PATH', '')
+            if len(path) > 400:
+                logger.info(f"PATH(start): {path[:200]}")
+                logger.info(f"PATH(end):   {path[-200:]}")
+            else:
+                logger.info(f"PATH: {path}")
+            # Check VC++ runtime presence
+            for dll in ("vcruntime140_1.dll", "vcruntime140.dll", "msvcp140_1.dll", "msvcp140.dll"):
+                try:
+                    ctypes.CDLL(dll)
+                    logger.info(f"DLL available: {dll}")
+                except OSError as de:
+                    logger.info(f"DLL missing: {dll} -> {de}")
+        except Exception:
+            pass
         logger.info("LSTM/Transformer 모델은 비활성화됩니다 (XGBoost/LightGBM 등 다른 모델은 정상 작동)")
         TENSORFLOW_AVAILABLE = False
         return False
+
+def reset_tensorflow_import():
+    """Reset TensorFlow lazy-import state so it can be retried.
+
+    Call this after fixing an environment issue so the next use can
+    attempt a fresh import via _lazy_import_tensorflow().
+    """
+    global TENSORFLOW_AVAILABLE, _tensorflow_modules
+    TENSORFLOW_AVAILABLE = None
+    _tensorflow_modules.clear()
 
 try:
     from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
@@ -310,6 +382,9 @@ class AdvancedMLPredictor:
         self.progress_callback = None  # 진행 콜백 (외부에서 설정)
         self.ticker = ticker
         self.persistence = None
+        self.loaded_model_meta = None
+        self.loaded_model_meta = None
+        self.loaded_model_meta = None
 
         # 모델 저장/로드 시스템 초기화
         try:
@@ -326,6 +401,13 @@ class AdvancedMLPredictor:
         """저장된 ML 모델들 자동 로드 시도"""
         if not self.persistence or not self.ticker:
             return
+
+        # TensorFlow가 없으면 Keras 모델 자동 로드를 시도하지 않음
+        if TENSORFLOW_AVAILABLE is None:
+            _lazy_import_tensorflow()
+        if not TENSORFLOW_AVAILABLE:
+            logger.debug("TensorFlow 없음 - LSTM 자동 로드 건너뜀")
+            return False
 
         loaded_count = 0
         for model_type in ['random_forest', 'xgboost', 'lightgbm']:
@@ -591,8 +673,6 @@ class AdvancedMLPredictor:
             try:
                 metadata = {'cv_rmse_mean': np.mean(rf_scores), 'cv_rmse_std': np.std(rf_scores)}
                 self.persistence.save_sklearn_model(rf_final, self.ticker, 'random_forest', metadata, self.scaler)
-                # 저장 직후, 오래된 버전 정리(최신 5개만 유지)
-                self.persistence.delete_old_models(self.ticker, keep_latest=5)                
             except Exception as e:
                 logger.warning(f"Random Forest 저장 실패: {e}")
 
@@ -645,8 +725,6 @@ class AdvancedMLPredictor:
                 try:
                     metadata = {'cv_rmse_mean': np.mean(xgb_scores), 'cv_rmse_std': np.std(xgb_scores)}
                     self.persistence.save_sklearn_model(xgb_final, self.ticker, 'xgboost', metadata, self.scaler)
-                    # 저장 직후, 오래된 버전 정리(최신 5개만 유지)
-                    self.persistence.delete_old_models(self.ticker, keep_latest=5)
                 except Exception as e:
                     logger.warning(f"XGBoost 저장 실패: {e}")
 
@@ -699,8 +777,6 @@ class AdvancedMLPredictor:
                 try:
                     metadata = {'cv_rmse_mean': np.mean(lgb_scores), 'cv_rmse_std': np.std(lgb_scores)}
                     self.persistence.save_sklearn_model(lgb_final, self.ticker, 'lightgbm', metadata, self.scaler)
-                    # 저장 직후, 오래된 버전 정리(최신 5개만 유지)
-                    self.persistence.delete_old_models(self.ticker, keep_latest=5)
                 except Exception as e:
                     logger.warning(f"LightGBM 저장 실패: {e}")
 
@@ -880,16 +956,33 @@ class LSTMPredictor:
         if not self.persistence or not self.ticker:
             return
 
+        # TensorFlow가 없으면 Keras 모델 자동 로드를 시도하지 않음
+        if TENSORFLOW_AVAILABLE is None:
+            _lazy_import_tensorflow()
+        if not TENSORFLOW_AVAILABLE:
+            logger.debug("TensorFlow 없음 - LSTM 자동 로드 건너뜀")
+            return False
+
+        # TensorFlow가 없으면 Keras 모델 자동 로드를 시도하지 않음
+        if TENSORFLOW_AVAILABLE is None:
+            _lazy_import_tensorflow()
+        if not TENSORFLOW_AVAILABLE:
+            logger.debug("TensorFlow 없음 - Transformer 자동 로드 건너뜀")
+            return False
+
         try:
             model, metadata, scaler = self.persistence.load_keras_model(self.ticker, 'lstm')
             if model is not None:
                 self.model = model
                 if scaler is not None:
                     self.scaler = scaler
-                logger.info(f"✅ 저장된 LSTM 모델 로드: {self.ticker} (버전: {metadata.get('version', 'unknown')})")
+                self.loaded_model_meta = metadata if isinstance(metadata, dict) else None
+                self.loaded_model_meta = metadata if isinstance(metadata, dict) else None
+                version = metadata.get('version', 'unknown') if isinstance(metadata, dict) else 'unknown'
+                logger.info(f"✅ 저장된 LSTM 모델 로드: {self.ticker} (버전: {version})")
                 return True
         except Exception as e:
-            logger.debug(f"LSTM 모델 로드 실패 (새로 훈련): {e}")
+            logger.info(f"LSTM 저장 모델 로드 실패 또는 불가 (재학습 예정): {e}")
 
         return False
 
@@ -934,6 +1027,8 @@ class LSTMPredictor:
 
     def fit_predict(self, prices, forecast_days=5, force_retrain=False):
         """LSTM 모델 학습 및 예측"""
+        if TENSORFLOW_AVAILABLE is None:
+            _lazy_import_tensorflow()
         if not TENSORFLOW_AVAILABLE:
             logger.warning("TensorFlow 없음 - LSTM 건너뜀")
             return {'future_predictions': np.full(forecast_days, prices[-1]), 'method': 'fallback'}
@@ -944,6 +1039,7 @@ class LSTMPredictor:
                 logger.info("✅ 기존 LSTM 모델 사용 (재훈련 없음)")
                 return self._predict_only(prices, forecast_days)
 
+            logger.info("저장된 LSTM 모델 없음 또는 재훈련 강제 - 학습 시작")
             X, y = self.prepare_sequences(prices)
 
             if len(X) < 50:
@@ -1005,8 +1101,6 @@ class LSTMPredictor:
                         'data_size': len(prices)
                     }
                     self.persistence.save_keras_model(self.model, self.ticker, 'lstm', metadata, self.scaler)
-                    # 저장 직후, 오래된 버전 정리(최신 5개만 유지)
-                    self.persistence.delete_old_models(self.ticker, keep_latest=5)
                 except Exception as e:
                     logger.warning(f"모델 저장 실패: {e}")
 
@@ -1082,16 +1176,24 @@ class TransformerPredictor:
         if not self.persistence or not self.ticker:
             return
 
+        # TensorFlow가 없으면 Keras 모델 자동 로드를 시도하지 않음
+        if TENSORFLOW_AVAILABLE is None:
+            _lazy_import_tensorflow()
+        if not TENSORFLOW_AVAILABLE:
+            logger.debug("TensorFlow 없음 - Transformer 자동 로드 건너뜀")
+            return False
+
         try:
             model, metadata, scaler = self.persistence.load_keras_model(self.ticker, 'transformer')
             if model is not None:
                 self.model = model
                 if scaler is not None:
                     self.scaler = scaler
-                logger.info(f"✅ 저장된 Transformer 모델 로드: {self.ticker} (버전: {metadata.get('version', 'unknown')})")
+                version = metadata.get('version', 'unknown') if isinstance(metadata, dict) else 'unknown'
+                logger.info(f"✅ 저장된 Transformer 모델 로드: {self.ticker} (버전: {version})")
                 return True
         except Exception as e:
-            logger.debug(f"Transformer 모델 로드 실패 (새로 훈련): {e}")
+            logger.info(f"Transformer 저장 모델 로드 실패 또는 불가 (재학습 예정): {e}")
 
         return False
 
@@ -1177,6 +1279,7 @@ class TransformerPredictor:
                 logger.info("✅ 기존 Transformer 모델 사용 (재훈련 없음)")
                 return self._predict_only(prices, forecast_days)
 
+            logger.info("저장된 Transformer 모델 없음 또는 재훈련 강제 - 학습 시작")
             X, y = self.prepare_sequences(prices)
 
             if len(X) < 50:
@@ -1240,8 +1343,6 @@ class TransformerPredictor:
                         'data_size': len(prices)
                     }
                     self.persistence.save_keras_model(self.model, self.ticker, 'transformer', metadata, self.scaler)
-                    # 저장 직후, 오래된 버전 정리(최신 5개만 유지)
-                    self.persistence.delete_old_models(self.ticker, keep_latest=5)
                 except Exception as e:
                     logger.warning(f"모델 저장 실패: {e}")
 
@@ -1592,7 +1693,8 @@ class EnsemblePredictor:
         self.arima = ARIMAPredictor()
 
         # 딥러닝 모델 (옵션)
-        self.use_deep_learning = use_deep_learning and TENSORFLOW_AVAILABLE
+        # Initialize without hard-gating on TensorFlow; defer check to runtime
+        self.use_deep_learning = bool(use_deep_learning)
         if self.use_deep_learning:
             self.lstm = LSTMPredictor(ticker=ticker)
             self.transformer = TransformerPredictor(ticker=ticker)
@@ -1917,24 +2019,6 @@ class StockPredictor:
 
         prices = data['Close'].values
         dates = data.index
-
-        # === 증분 학습: 최신 데이터로 XGBoost/LightGBM 미세 업데이트 ===
-        try:
-            mlp = self.ensemble.ml_predictor if hasattr(self, 'ensemble') else None
-            if mlp and mlp.persistence and self.ticker:
-                # 최신 시퀀스 일부만 사용해 빠른 증분 업데이트
-                X_all, y_all = mlp.prepare_data(prices)
-                tail = min(200, len(y_all))  # 최근 200개 샘플 사용 (데이터 적으면 가능한 범위)
-                if tail > 0:
-                    X_new, y_new = X_all[-tail:], y_all[-tail:]
-
-                    if mlp.persistence.supports_incremental_learning('xgboost'):
-                        mlp.persistence.incremental_train_xgboost(self.ticker, X_new, y_new, n_estimators_add=50)
-
-                    if mlp.persistence.supports_incremental_learning('lightgbm'):
-                        mlp.persistence.incremental_train_lightgbm(self.ticker, X_new, y_new, n_estimators_add=50)
-        except Exception as e:
-            logger.warning(f"증분 학습 건너뜀: {e}")
 
         logger.info(f"분석 기간: {dates[0].strftime('%Y-%m-%d')} ~ {dates[-1].strftime('%Y-%m-%d')}")
         logger.info(f"데이터 포인트: {len(prices)}개")

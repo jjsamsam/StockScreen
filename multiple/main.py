@@ -12,8 +12,17 @@ Advanced Global Stock Screener
 
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QMessageBox
 from logger_config import get_logger
+
+# Optional: preload TensorFlow before importing PyQt to avoid DLL conflicts
+try:
+    from stock_prediction import _lazy_import_tensorflow
+    _lazy_import_tensorflow()
+except Exception:
+    # Preload is best-effort; proceed even if it fails
+    pass
+
+from PyQt5.QtWidgets import QApplication, QMessageBox
 
 logger = get_logger(__name__)
 

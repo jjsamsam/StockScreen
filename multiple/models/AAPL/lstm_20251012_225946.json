@@ -1,0 +1,14 @@
+{
+  "ticker": "AAPL",
+  "model_type": "lstm",
+  "version": "20251012_225946",
+  "saved_at": "2025-10-12T22:59:46.563373",
+  "framework": "tensorflow/keras",
+  "file_path": "models\\AAPL\\lstm_20251012_225946.keras",
+  "train_loss": 0.0016550840809941292,
+  "val_loss": 0.0133674256503582,
+  "epochs_trained": 28,
+  "sequence_length": 60,
+  "units": 128,
+  "data_size": 1256
+}
