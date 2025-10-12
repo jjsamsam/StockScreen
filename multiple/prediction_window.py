@@ -450,12 +450,7 @@ pip install scikit-learn xgboost lightgbm statsmodels
         ai_layout.addWidget(self.train_period_combo)
 
         # 강제 재학습 옵션
-        self.force_retrain = False
-        self.force_retrain_checkbox = QCheckBox("강제 재학습")
-        self.force_retrain_checkbox.setToolTip("기존 저장 모델이 있어도 다시 학습합니다")
-        self.force_retrain_checkbox.stateChanged.connect(lambda s: setattr(self, 'force_retrain', s == 2))
-        self.force_retrain_checkbox.setEnabled(DEEP_LEARNING_AVAILABLE)
-        ai_layout.addWidget(self.force_retrain_checkbox)
+        # (중복 제거) 강제 재학습 체크박스는 위에서 한 번만 추가
 
         self.optimization_checkbox = QCheckBox("Bayesian 최적화")
         self.optimization_checkbox.setChecked(self.use_optimization)
