@@ -181,6 +181,130 @@ except ImportError:
     logger.warning("scikit-optimize 설치 권장: pip install scikit-optimize")
     HYPEROPT_AVAILABLE = False
 
+
+class MarketDataFetcher:
+    """외부 시장 데이터(거시지표, 섹터 ETF 등)를 가져오는 클래스"""
+
+    # 주요 섹터 ETF 심볼
+    SECTOR_ETFS = {
+        'technology': 'XLK',      # Technology Select Sector
+        'financial': 'XLF',       # Financial Select Sector
+        'healthcare': 'XLV',      # Healthcare Select Sector
+        'energy': 'XLE',          # Energy Select Sector
+        'consumer_disc': 'XLY',   # Consumer Discretionary
+        'consumer_staples': 'XLP', # Consumer Staples
+        'industrial': 'XLI',      # Industrial Select Sector
+        'materials': 'XLB',       # Materials Select Sector
+        'utilities': 'XLU',       # Utilities Select Sector
+        'real_estate': 'XLRE',    # Real Estate Select Sector
+    }
+
+    # 주요 거시지표 심볼 (yfinance로 접근 가능한 것들)
+    MACRO_INDICATORS = {
+        'vix': '^VIX',           # Volatility Index
+        'sp500': '^GSPC',        # S&P 500
+        'nasdaq': '^IXIC',       # NASDAQ
+        'dxy': 'DX-Y.NYB',       # US Dollar Index
+        'treasury_10y': '^TNX',  # 10-Year Treasury Yield
+        'treasury_2y': '^IRX',   # 2-Year Treasury Yield (추가)
+        'oil': 'CL=F',           # Crude Oil
+        'gold': 'GC=F',          # Gold
+    }
+
+    @staticmethod
+    def fetch_sector_etf(sector, period='1y', interval='1d'):
+        """
+        섹터 ETF 데이터 가져오기
+
+        Args:
+            sector: 섹터 이름 (예: 'technology', 'financial')
+            period: 기간
+            interval: 간격
+
+        Returns:
+            DataFrame with ETF data or None
+        """
+        if sector not in MarketDataFetcher.SECTOR_ETFS:
+            logger.warning(f"Unknown sector: {sector}")
+            return None
+
+        symbol = MarketDataFetcher.SECTOR_ETFS[sector]
+        try:
+            data = get_stock_data(symbol, period=period, interval=interval, validate_cache=False)
+            if data is not None and not data.empty:
+                logger.debug(f"Fetched {sector} sector ETF ({symbol}): {len(data)} data points")
+                return data
+        except Exception as e:
+            logger.error(f"Error fetching sector ETF {sector} ({symbol}): {e}")
+
+        return None
+
+    @staticmethod
+    def fetch_macro_indicator(indicator, period='1y', interval='1d'):
+        """
+        거시지표 데이터 가져오기
+
+        Args:
+            indicator: 지표 이름 (예: 'vix', 'sp500', 'treasury_10y')
+            period: 기간
+            interval: 간격
+
+        Returns:
+            DataFrame with indicator data or None
+        """
+        if indicator not in MarketDataFetcher.MACRO_INDICATORS:
+            logger.warning(f"Unknown indicator: {indicator}")
+            return None
+
+        symbol = MarketDataFetcher.MACRO_INDICATORS[indicator]
+        try:
+            data = get_stock_data(symbol, period=period, interval=interval, validate_cache=False)
+            if data is not None and not data.empty:
+                logger.debug(f"Fetched {indicator} ({symbol}): {len(data)} data points")
+                return data
+        except Exception as e:
+            logger.error(f"Error fetching macro indicator {indicator} ({symbol}): {e}")
+
+        return None
+
+    @staticmethod
+    def align_and_merge(primary_data, auxiliary_data, prefix='aux'):
+        """
+        주요 데이터와 보조 데이터를 날짜 기준으로 정렬 및 병합
+
+        Args:
+            primary_data: 주요 주가 데이터 (DataFrame)
+            auxiliary_data: 보조 데이터 (DataFrame)
+            prefix: 보조 데이터 컬럼 접두사
+
+        Returns:
+            Merged DataFrame
+        """
+        if auxiliary_data is None or auxiliary_data.empty:
+            return primary_data
+
+        try:
+            # 보조 데이터의 Close 가격만 사용 (상대 변화율 계산용)
+            aux_close = auxiliary_data[['Close']].copy()
+            aux_close.columns = [f'{prefix}_close']
+
+            # 날짜 인덱스 기준으로 병합 (forward fill로 누락 데이터 채우기)
+            merged = primary_data.join(aux_close, how='left')
+            merged[f'{prefix}_close'] = merged[f'{prefix}_close'].fillna(method='ffill')
+
+            # 보조 데이터의 변화율 계산
+            merged[f'{prefix}_return'] = merged[f'{prefix}_close'].pct_change()
+            merged[f'{prefix}_ma5'] = merged[f'{prefix}_close'].rolling(5).mean()
+            merged[f'{prefix}_ma20'] = merged[f'{prefix}_close'].rolling(20).mean()
+
+            logger.debug(f"Merged auxiliary data with prefix '{prefix}': {len(merged)} data points")
+            return merged
+
+        except Exception as e:
+            logger.error(f"Error merging auxiliary data: {e}")
+            return primary_data
+
+
 class KalmanFilterPredictor:
     """
     순수 NumPy로 구현한 Kalman Filter를 사용한 주가 예측
@@ -270,12 +394,40 @@ class KalmanFilterPredictor:
 class HyperparameterOptimizer:
     """Bayesian Optimization을 사용한 하이퍼파라미터 최적화"""
 
+    # 최적화 결과 캐시 (ticker별로 저장)
+    _optimization_cache = {}
+
     @staticmethod
-    def optimize_xgboost(X_train, y_train, n_iter=20):
+    def get_cached_params(ticker, model_type):
+        """캐시된 최적 파라미터 가져오기"""
+        cache_key = f"{ticker}_{model_type}"
+        if cache_key in HyperparameterOptimizer._optimization_cache:
+            params, timestamp = HyperparameterOptimizer._optimization_cache[cache_key]
+            # 캐시가 7일 이내면 재사용
+            if (datetime.now() - timestamp).days < 7:
+                logger.info(f"Using cached hyperparameters for {ticker} {model_type}")
+                return params
+        return None
+
+    @staticmethod
+    def cache_params(ticker, model_type, params):
+        """최적 파라미터를 캐시에 저장"""
+        cache_key = f"{ticker}_{model_type}"
+        HyperparameterOptimizer._optimization_cache[cache_key] = (params, datetime.now())
+        logger.debug(f"Cached hyperparameters for {ticker} {model_type}")
+
+    @staticmethod
+    def optimize_xgboost(X_train, y_train, n_iter=20, ticker=None):
         """XGBoost 하이퍼파라미터 최적화"""
         if not HYPEROPT_AVAILABLE or not XGBOOST_AVAILABLE:
             logger.warning("Bayesian Optimization 불가 - 기본 파라미터 사용")
             return None
+
+        # 캐시된 파라미터 확인
+        if ticker:
+            cached_params = HyperparameterOptimizer.get_cached_params(ticker, 'xgboost')
+            if cached_params:
+                return xgb.XGBRegressor(**cached_params, random_state=42, verbosity=0)
 
         search_spaces = {
             'n_estimators': Integer(100, 500),
@@ -302,14 +454,24 @@ class HyperparameterOptimizer:
         bayes_cv.fit(X_train, y_train)
         logger.info(f"XGBoost 최적 파라미터: {bayes_cv.best_params_}")
 
+        # 최적 파라미터 캐싱
+        if ticker:
+            HyperparameterOptimizer.cache_params(ticker, 'xgboost', bayes_cv.best_params_)
+
         return bayes_cv.best_estimator_
 
     @staticmethod
-    def optimize_lightgbm(X_train, y_train, n_iter=20):
+    def optimize_lightgbm(X_train, y_train, n_iter=20, ticker=None):
         """LightGBM 하이퍼파라미터 최적화"""
         if not HYPEROPT_AVAILABLE or not LIGHTGBM_AVAILABLE:
             logger.warning("Bayesian Optimization 불가 - 기본 파라미터 사용")
             return None
+
+        # 캐시된 파라미터 확인
+        if ticker:
+            cached_params = HyperparameterOptimizer.get_cached_params(ticker, 'lightgbm')
+            if cached_params:
+                return lgb.LGBMRegressor(**cached_params, random_state=42, verbosity=-1)
 
         search_spaces = {
             'n_estimators': Integer(100, 500),
@@ -336,14 +498,24 @@ class HyperparameterOptimizer:
         bayes_cv.fit(X_train, y_train)
         logger.info(f"LightGBM 최적 파라미터: {bayes_cv.best_params_}")
 
+        # 최적 파라미터 캐싱
+        if ticker:
+            HyperparameterOptimizer.cache_params(ticker, 'lightgbm', bayes_cv.best_params_)
+
         return bayes_cv.best_estimator_
 
     @staticmethod
-    def optimize_random_forest(X_train, y_train, n_iter=20):
+    def optimize_random_forest(X_train, y_train, n_iter=20, ticker=None):
         """Random Forest 하이퍼파라미터 최적화"""
         if not HYPEROPT_AVAILABLE or not SKLEARN_AVAILABLE:
             logger.warning("Bayesian Optimization 불가 - 기본 파라미터 사용")
             return None
+
+        # 캐시된 파라미터 확인
+        if ticker:
+            cached_params = HyperparameterOptimizer.get_cached_params(ticker, 'random_forest')
+            if cached_params:
+                return RandomForestRegressor(**cached_params, random_state=42, n_jobs=-1)
 
         search_spaces = {
             'n_estimators': Integer(100, 500),
@@ -366,6 +538,10 @@ class HyperparameterOptimizer:
         bayes_cv.fit(X_train, y_train)
         logger.info(f"Random Forest 최적 파라미터: {bayes_cv.best_params_}")
 
+        # 최적 파라미터 캐싱
+        if ticker:
+            HyperparameterOptimizer.cache_params(ticker, 'random_forest', bayes_cv.best_params_)
+
         return bayes_cv.best_estimator_
 
 
@@ -374,7 +550,7 @@ class AdvancedMLPredictor:
     XGBoost, LightGBM, Random Forest를 사용한 고급 머신러닝 예측기
     """
 
-    def __init__(self, sequence_length=30, use_optimization=False, ticker=None, auto_load=True):
+    def __init__(self, sequence_length=30, use_optimization=True, ticker=None, auto_load=True):
         self.sequence_length = sequence_length
         self.scaler = RobustScaler()  # StandardScaler -> RobustScaler (이상치에 강함)
         self.models = {}
@@ -566,6 +742,70 @@ class AdvancedMLPredictor:
         mfi = 100 - (100 / (1 + positive_mf / negative_mf))
         df['mfi'] = mfi
 
+        # === 비선형 조합 지표 (고급 피처 엔지니어링) ===
+        # ADX × RSI: 추세 강도와 모멘텀의 결합 (강한 추세에서 과매수/과매도 감지)
+        df['adx_rsi'] = df['adx'] * df['rsi'] / 100
+
+        # Bollinger Width × Volatility: 변동성의 변화율 (장세 전환 감지)
+        df['bb_vol_product'] = df['bb_width'] * df['volatility']
+
+        # RSI × Stochastic: 이중 오실레이터 결합 (더 강력한 과매수/과매도 신호)
+        df['rsi_stoch'] = df['rsi'] * df['stoch_k'] / 100
+
+        # MACD Histogram × ADX: 추세 강도를 고려한 MACD 신호
+        df['macd_adx'] = df['macd_hist'] * df['adx'] / 100
+
+        # Bollinger Band Position: 가격이 밴드 내 어디에 위치하는지 (0~1)
+        df['bb_position'] = (df['close'] - df['bb_lower']) / (df['bb_upper'] - df['bb_lower'] + 1e-10)
+
+        # Trend Strength: 단기/장기 이평선 비율 (추세 방향성)
+        df['ma_ratio_short'] = df['ma5'] / (df['ma20'] + 1e-10)
+        df['ma_ratio_long'] = df['ma20'] / (df['ma50'] + 1e-10)
+
+        # Volatility Ratio: 현재 변동성 / 과거 평균 변동성
+        df['volatility_ratio'] = df['volatility'] / (df['volatility'].rolling(50).mean() + 1e-10)
+
+        # Price Distance from MA: 가격이 이평선에서 얼마나 떨어져 있는지
+        df['price_vs_ma20'] = (df['close'] - df['ma20']) / (df['ma20'] + 1e-10)
+        df['price_vs_ma50'] = (df['close'] - df['ma50']) / (df['ma50'] + 1e-10)
+
+        # Momentum Acceleration: RSI의 변화율 (모멘텀의 가속/감속)
+        df['rsi_momentum'] = df['rsi'].diff()
+
+        # Volume-Price Trend: 거래량과 가격 변화의 관계
+        df['vpt'] = df['volume'] * df['pct_change_1']
+        df['vpt_ma'] = df['vpt'].rolling(20).mean()
+
+        # === 다중 타임프레임 통계 (주간/월간 요약) ===
+        # 주간 통계 (5일 기준)
+        df['weekly_return'] = df['close'].pct_change(5)  # 주간 수익률
+        df['weekly_high'] = df['high'].rolling(5).max()   # 주간 최고가
+        df['weekly_low'] = df['low'].rolling(5).min()     # 주간 최저가
+        df['weekly_volatility'] = df['close'].rolling(5).std()  # 주간 변동성
+        df['weekly_volume_avg'] = df['volume'].rolling(5).mean()  # 주간 평균 거래량
+
+        # 월간 통계 (20일 기준)
+        df['monthly_return'] = df['close'].pct_change(20)  # 월간 수익률
+        df['monthly_high'] = df['high'].rolling(20).max()   # 월간 최고가
+        df['monthly_low'] = df['low'].rolling(20).min()     # 월간 최저가
+        df['monthly_volatility'] = df['close'].rolling(20).std()  # 월간 변동성
+        df['monthly_volume_avg'] = df['volume'].rolling(20).mean()  # 월간 평균 거래량
+
+        # 3개월 통계 (60일 기준)
+        df['quarterly_return'] = df['close'].pct_change(60)  # 분기 수익률
+        df['quarterly_volatility'] = df['close'].rolling(60).std()  # 분기 변동성
+
+        # 현재 가격의 주간/월간 레인지 내 위치 (0~1)
+        df['weekly_position'] = (df['close'] - df['weekly_low']) / (df['weekly_high'] - df['weekly_low'] + 1e-10)
+        df['monthly_position'] = (df['close'] - df['monthly_low']) / (df['monthly_high'] - df['monthly_low'] + 1e-10)
+
+        # 거래량 비율 (현재 거래량 / 평균 거래량)
+        df['volume_ratio_weekly'] = df['volume'] / (df['weekly_volume_avg'] + 1e-10)
+        df['volume_ratio_monthly'] = df['volume'] / (df['monthly_volume_avg'] + 1e-10)
+
+        # 변동성 추세 (단기 변동성 / 장기 변동성)
+        df['volatility_trend'] = df['weekly_volatility'] / (df['monthly_volatility'] + 1e-10)
+
         return df
     
     def prepare_data(self, prices):
@@ -601,7 +841,16 @@ class AdvancedMLPredictor:
             'atr', 'adx', 'plus_di', 'minus_di',
             'stoch_k', 'stoch_d',
             'obv_ma', 'williams_r', 'cci', 'roc', 'mfi',
-            'tenkan_sen', 'kijun_sen'
+            'tenkan_sen', 'kijun_sen',
+            # 비선형 조합 지표
+            'adx_rsi', 'bb_vol_product', 'rsi_stoch', 'macd_adx',
+            'bb_position', 'ma_ratio_short', 'ma_ratio_long',
+            'volatility_ratio', 'price_vs_ma20', 'price_vs_ma50',
+            'rsi_momentum', 'vpt_ma',
+            # 다중 타임프레임 통계
+            'weekly_return', 'weekly_volatility', 'weekly_position', 'volume_ratio_weekly',
+            'monthly_return', 'monthly_volatility', 'monthly_position', 'volume_ratio_monthly',
+            'quarterly_return', 'quarterly_volatility', 'volatility_trend'
         ]
         
         # 시퀀스 데이터 생성
@@ -624,20 +873,53 @@ class AdvancedMLPredictor:
 
         return np.array(X), np.array(y)
     
+    def _expanding_window_cv(self, X, y, n_splits=5):
+        """
+        Expanding Window 교차검증 생성기
+        최근 구간에 더 많은 가중치를 두는 방식
+
+        Args:
+            X: 입력 데이터
+            y: 타겟 데이터
+            n_splits: 분할 개수
+
+        Yields:
+            (train_idx, val_idx) 튜플
+        """
+        n_samples = len(X)
+        # 최소 훈련 데이터 크기 (전체의 40%)
+        min_train_size = int(n_samples * 0.4)
+
+        # 검증 세트 크기 (전체의 10%)
+        test_size = max(int(n_samples * 0.1), 1)
+
+        for i in range(n_splits):
+            # Expanding window: 훈련 세트가 점점 커짐
+            split_point = min_train_size + int((n_samples - min_train_size - test_size) * i / (n_splits - 1))
+            train_end = split_point
+            val_start = split_point
+            val_end = min(split_point + test_size, n_samples)
+
+            train_idx = np.arange(0, train_end)
+            val_idx = np.arange(val_start, val_end)
+
+            if len(val_idx) > 0:
+                yield train_idx, val_idx
+
     def train_models_with_cv(self, X, y):
-        """Time Series Cross-Validation을 사용한 모델 훈련"""
+        """Expanding Window Cross-Validation을 사용한 모델 훈련 (최근 구간 가중)"""
         if not SKLEARN_AVAILABLE:
             return
 
-        # Time Series Split 설정
-        tscv = TimeSeriesSplit(n_splits=5)
+        # Expanding Window CV 사용 (최근 데이터에 더 많은 가중치)
+        cv_splits = list(self._expanding_window_cv(X, y, n_splits=5))
 
         # 1. Random Forest with CV
         if self.progress_callback:
             self.progress_callback('ml', 'Random Forest 학습 중 (1/3)...')
 
         rf_scores = []
-        for train_idx, val_idx in tscv.split(X):
+        for train_idx, val_idx in cv_splits:
             X_train, X_val = X[train_idx], X[val_idx]
             y_train, y_val = y[train_idx], y[val_idx]
 
@@ -682,7 +964,7 @@ class AdvancedMLPredictor:
                 self.progress_callback('ml', 'XGBoost 학습 중 (2/3)...')
 
             xgb_scores = []
-            for train_idx, val_idx in tscv.split(X):
+            for train_idx, val_idx in cv_splits:
                 X_train, X_val = X[train_idx], X[val_idx]
                 y_train, y_val = y[train_idx], y[val_idx]
 
@@ -734,7 +1016,7 @@ class AdvancedMLPredictor:
                 self.progress_callback('ml', 'LightGBM 학습 중 (3/3)...')
 
             lgb_scores = []
-            for train_idx, val_idx in tscv.split(X):
+            for train_idx, val_idx in cv_splits:
                 X_train, X_val = X[train_idx], X[val_idx]
                 y_train, y_val = y[train_idx], y[val_idx]
 
@@ -1614,13 +1896,13 @@ class InstitutionalFlowAnalyzer:
 
 
 class MarketRegimeDetector:
-    """시장 상황(상승장/하락장/횡보장) 감지 시스템"""
+    """시장 상황(상승장/하락장/횡보장) 감지 시스템 - VIX, 금리 등 외부 지표 포함"""
 
     @staticmethod
-    def detect_regime(prices, window=50):
+    def detect_regime(prices, window=50, use_external_indicators=True):
         """
-        시장 상황 감지
-        Returns: 'bull' (상승장), 'bear' (하락장), 'sideways' (횡보장)
+        시장 상황 감지 (기본 버전 + 외부 지표)
+        Returns: 'bull' (상승장), 'bear' (하락장), 'sideways' (횡보장), 'high_volatility' (고변동성)
         """
         if len(prices) < window:
             return 'sideways'
@@ -1641,17 +1923,123 @@ class MarketRegimeDetector:
         down_days = np.sum(price_changes < 0)
         up_ratio = up_days / len(price_changes) if len(price_changes) > 0 else 0.5
 
-        # 시장 상황 판단
+        # 기본 시장 상황 판단
+        regime_score = 0  # -1: bear, 0: sideways, 1: bull
+
+        # 추세 점수
         if trend_pct > 0.5 and up_ratio > 0.55:
-            regime = 'bull'  # 상승장
+            regime_score += 1
         elif trend_pct < -0.5 and up_ratio < 0.45:
-            regime = 'bear'  # 하락장
+            regime_score -= 1
+
+        # 외부 지표 추가 (VIX, SP500, Treasury 등)
+        if use_external_indicators:
+            try:
+                external_score = MarketRegimeDetector._get_external_regime_score()
+                regime_score += external_score
+                logger.debug(f"External regime score: {external_score}")
+            except Exception as e:
+                logger.debug(f"External indicators not available: {e}")
+
+        # 최종 레짐 결정
+        if volatility > 0.05:  # 5% 이상 변동성
+            regime = 'high_volatility'
+        elif regime_score >= 1:
+            regime = 'bull'
+        elif regime_score <= -1:
+            regime = 'bear'
         else:
-            regime = 'sideways'  # 횡보장
+            regime = 'sideways'
 
         logger.info(f"시장 상황: {regime} (추세: {trend_pct:.2f}%, 변동성: {volatility:.2%}, 상승비율: {up_ratio:.1%})")
 
         return regime
+
+    @staticmethod
+    def _get_external_regime_score():
+        """
+        외부 시장 지표를 기반으로 레짐 점수 계산
+        Returns: -1 (bearish), 0 (neutral), 1 (bullish)
+        """
+        score = 0
+
+        try:
+            # VIX 데이터 가져오기 (변동성 지수)
+            vix_data = MarketDataFetcher.fetch_macro_indicator('vix', period='3mo', interval='1d')
+            if vix_data is not None and not vix_data.empty:
+                recent_vix = vix_data['Close'].iloc[-1]
+                avg_vix = vix_data['Close'].mean()
+
+                # VIX가 평균보다 낮으면 안정적 (bullish), 높으면 불안정 (bearish)
+                if recent_vix < avg_vix * 0.9:
+                    score += 0.5  # VIX 낮음 -> 긍정적
+                elif recent_vix > avg_vix * 1.2:
+                    score -= 0.5  # VIX 높음 -> 부정적
+
+                logger.debug(f"VIX: {recent_vix:.2f} (avg: {avg_vix:.2f})")
+
+            # S&P 500 추세 확인
+            sp500_data = MarketDataFetcher.fetch_macro_indicator('sp500', period='3mo', interval='1d')
+            if sp500_data is not None and not sp500_data.empty:
+                sp500_prices = sp500_data['Close'].values
+                sp500_return = (sp500_prices[-1] - sp500_prices[0]) / sp500_prices[0]
+
+                # S&P 500 3개월 수익률 기준
+                if sp500_return > 0.05:  # 5% 이상 상승
+                    score += 0.5
+                elif sp500_return < -0.05:  # 5% 이상 하락
+                    score -= 0.5
+
+                logger.debug(f"S&P 500 3-month return: {sp500_return*100:.2f}%")
+
+            # 10년 국채 수익률 추세
+            treasury_data = MarketDataFetcher.fetch_macro_indicator('treasury_10y', period='3mo', interval='1d')
+            if treasury_data is not None and not treasury_data.empty:
+                recent_yield = treasury_data['Close'].iloc[-1]
+                past_yield = treasury_data['Close'].iloc[0] if len(treasury_data) > 0 else recent_yield
+                yield_change = recent_yield - past_yield
+
+                # 금리 상승은 주식에 부정적, 하락은 긍정적 (단순화)
+                if yield_change < -0.2:  # 0.2%p 이상 하락
+                    score += 0.3
+                elif yield_change > 0.3:  # 0.3%p 이상 상승
+                    score -= 0.3
+
+                logger.debug(f"10Y Treasury yield change: {yield_change:.2f}%")
+
+            # 금리 스프레드 (10Y-2Y): 경기 침체 예측 지표
+            treasury_10y = MarketDataFetcher.fetch_macro_indicator('treasury_10y', period='1mo', interval='1d')
+            treasury_2y = MarketDataFetcher.fetch_macro_indicator('treasury_2y', period='1mo', interval='1d')
+
+            if treasury_10y is not None and treasury_2y is not None and not treasury_10y.empty and not treasury_2y.empty:
+                yield_10y = treasury_10y['Close'].iloc[-1]
+                yield_2y = treasury_2y['Close'].iloc[-1]
+                yield_spread = yield_10y - yield_2y
+
+                # 수익률 곡선 역전 (10Y < 2Y): 경기 침체 신호 -> 매우 부정적
+                if yield_spread < -0.1:  # 역전 (inversion)
+                    score -= 0.7  # 강한 bearish 신호
+                    logger.debug(f"⚠️ Yield curve inverted: {yield_spread:.2f}%")
+                elif yield_spread < 0.3:  # 평탄화 (flattening)
+                    score -= 0.3  # 약한 bearish 신호
+                    logger.debug(f"Yield curve flattening: {yield_spread:.2f}%")
+                elif yield_spread > 1.5:  # 가파른 곡선 (steepening) - 경기 회복
+                    score += 0.4  # bullish 신호
+                    logger.debug(f"Yield curve steepening: {yield_spread:.2f}%")
+                else:
+                    logger.debug(f"Yield spread normal: {yield_spread:.2f}%")
+
+        except Exception as e:
+            logger.debug(f"Error fetching external indicators: {e}")
+            return 0
+
+        # 점수를 -1, 0, 1로 정규화
+        if score >= 0.5:
+            return 1
+        elif score <= -0.5:
+            return -1
+        else:
+            return 0
 
     @staticmethod
     def get_regime_weights(regime):
@@ -1677,10 +2065,191 @@ class MarketRegimeDetector:
                 'arima': 0.25,
                 'lstm': 0.15,
                 'transformer': 0.10
+            },
+            'high_volatility': {  # 고변동성: 보수적 모델 강화
+                'kalman': 0.35,
+                'ml_models': 0.20,
+                'arima': 0.30,
+                'lstm': 0.10,
+                'transformer': 0.05
             }
         }
 
         return weights.get(regime, weights['sideways'])
+
+
+class PredictionErrorAnalyzer:
+    """예측 오류 분석 및 리포트 생성 클래스"""
+
+    def __init__(self):
+        self.error_history = []
+        self.feature_importance_cache = {}
+
+    def log_prediction_error(self, ticker, model_name, predicted_value, actual_value,
+                            market_regime, features=None, feature_names=None):
+        """
+        예측 오류 로깅
+
+        Args:
+            ticker: 종목 심볼
+            model_name: 모델 이름
+            predicted_value: 예측값
+            actual_value: 실제값
+            market_regime: 시장 상황
+            features: 사용된 피처 값들
+            feature_names: 피처 이름들
+        """
+        error_entry = {
+            'timestamp': datetime.now(),
+            'ticker': ticker,
+            'model': model_name,
+            'predicted': predicted_value,
+            'actual': actual_value,
+            'error': abs(predicted_value - actual_value),
+            'error_pct': abs((predicted_value - actual_value) / actual_value * 100) if actual_value != 0 else 0,
+            'direction_correct': np.sign(predicted_value) == np.sign(actual_value),
+            'market_regime': market_regime,
+            'features': features,
+            'feature_names': feature_names
+        }
+
+        self.error_history.append(error_entry)
+
+        # 최근 1000개만 유지
+        if len(self.error_history) > 1000:
+            self.error_history = self.error_history[-1000:]
+
+    def generate_error_report(self, ticker=None, lookback_days=30):
+        """
+        에러 어트리뷰션 리포트 생성
+
+        Args:
+            ticker: 특정 종목 (None이면 전체)
+            lookback_days: 분석 기간 (일)
+
+        Returns:
+            Dict with error analysis
+        """
+        if len(self.error_history) == 0:
+            return {"error": "No error history available"}
+
+        # 기간 필터링
+        cutoff_time = datetime.now() - timedelta(days=lookback_days)
+        filtered_errors = [e for e in self.error_history
+                          if e['timestamp'] > cutoff_time]
+
+        if ticker:
+            filtered_errors = [e for e in filtered_errors if e['ticker'] == ticker]
+
+        if len(filtered_errors) == 0:
+            return {"error": f"No errors found for ticker {ticker} in last {lookback_days} days"}
+
+        # 모델별 오류 분석
+        model_stats = {}
+        for error in filtered_errors:
+            model = error['model']
+            if model not in model_stats:
+                model_stats[model] = {
+                    'count': 0,
+                    'total_error': 0,
+                    'total_error_pct': 0,
+                    'direction_correct_count': 0,
+                    'regime_errors': {}
+                }
+
+            stats = model_stats[model]
+            stats['count'] += 1
+            stats['total_error'] += error['error']
+            stats['total_error_pct'] += error['error_pct']
+            if error['direction_correct']:
+                stats['direction_correct_count'] += 1
+
+            # 레짐별 오류
+            regime = error['market_regime']
+            if regime not in stats['regime_errors']:
+                stats['regime_errors'][regime] = {'count': 0, 'total_error': 0}
+            stats['regime_errors'][regime]['count'] += 1
+            stats['regime_errors'][regime]['total_error'] += error['error']
+
+        # 통계 계산
+        for model, stats in model_stats.items():
+            stats['avg_error'] = stats['total_error'] / stats['count']
+            stats['avg_error_pct'] = stats['total_error_pct'] / stats['count']
+            stats['direction_accuracy'] = stats['direction_correct_count'] / stats['count'] * 100
+
+            # 레짐별 평균 오류
+            for regime, regime_stats in stats['regime_errors'].items():
+                regime_stats['avg_error'] = regime_stats['total_error'] / regime_stats['count']
+
+        report = {
+            'period': f'Last {lookback_days} days',
+            'ticker': ticker or 'All',
+            'total_predictions': len(filtered_errors),
+            'model_statistics': model_stats,
+            'worst_performing_model': max(model_stats.items(),
+                                         key=lambda x: x[1]['avg_error'])[0] if model_stats else None,
+            'best_performing_model': min(model_stats.items(),
+                                        key=lambda x: x[1]['avg_error'])[0] if model_stats else None
+        }
+
+        return report
+
+    def save_error_report(self, ticker=None, lookback_days=30, filepath=None):
+        """에러 리포트 파일로 저장"""
+        import json
+        report = self.generate_error_report(ticker, lookback_days)
+
+        if 'error' in report:
+            logger.warning(f"Error Report: {report['error']}")
+            return None
+
+        if filepath is None:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            ticker_str = ticker or 'all'
+            filepath = f"error_reports/error_report_{ticker_str}_{timestamp}.json"
+
+        # 디렉토리 생성
+        import os
+        os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else 'error_reports', exist_ok=True)
+
+        # JSON으로 저장
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(report, f, indent=2, default=str)
+
+        logger.info(f"📊 에러 어트리뷰션 리포트 저장: {filepath}")
+        return filepath
+
+    def print_error_report(self, ticker=None, lookback_days=30):
+        """에러 리포트 출력"""
+        report = self.generate_error_report(ticker, lookback_days)
+
+        if 'error' in report:
+            logger.info(f"Error Report: {report['error']}")
+            return
+
+        logger.info(f"\n{'='*60}")
+        logger.info(f"PREDICTION ERROR ANALYSIS REPORT")
+        logger.info(f"{'='*60}")
+        logger.info(f"Period: {report['period']}")
+        logger.info(f"Ticker: {report['ticker']}")
+        logger.info(f"Total Predictions: {report['total_predictions']}")
+        logger.info(f"\nBest Model: {report['best_performing_model']}")
+        logger.info(f"Worst Model: {report['worst_performing_model']}")
+
+        logger.info(f"\n{'Model Performance Details':-^60}")
+        for model, stats in report['model_statistics'].items():
+            logger.info(f"\n{model.upper()}:")
+            logger.info(f"  Predictions: {stats['count']}")
+            logger.info(f"  Avg Error: {stats['avg_error']:.2f}")
+            logger.info(f"  Avg Error %: {stats['avg_error_pct']:.2f}%")
+            logger.info(f"  Direction Accuracy: {stats['direction_accuracy']:.1f}%")
+
+            if stats['regime_errors']:
+                logger.info(f"  Regime Performance:")
+                for regime, regime_stats in stats['regime_errors'].items():
+                    logger.info(f"    {regime}: {regime_stats['avg_error']:.2f} (n={regime_stats['count']})")
+
+        logger.info(f"\n{'='*60}\n")
 
 
 class EnsemblePredictor:
@@ -1726,32 +2295,146 @@ class EnsemblePredictor:
         # 시장 상황
         self.current_regime = 'sideways'
 
-    def update_weights_dynamically(self, validation_errors):
-        """검증 오류를 기반으로 가중치 동적 조정"""
-        # 역오류 가중치: 오류가 작을수록 높은 가중치
-        inverse_errors = {}
-        total_inverse = 0
+        # 에러 분석기
+        self.error_analyzer = PredictionErrorAnalyzer()
 
+    def update_weights_dynamically(self, validation_errors, validation_predictions=None, validation_targets=None):
+        """
+        검증 오류를 기반으로 가중치 동적 조정 (고도화: Sharpe Ratio 추가)
+
+        Args:
+            validation_errors: 각 모델의 MAE 오류
+            validation_predictions: 각 모델의 검증 예측값 (방향성 및 Sharpe Ratio 평가용)
+            validation_targets: 검증 타겟 값 (방향성 및 Sharpe Ratio 평가용)
+        """
+        # 1. 역오류 점수 (MAE 기반)
+        inverse_error_scores = {}
         for model_name, error in validation_errors.items():
             if error > 0:
-                inverse_errors[model_name] = 1.0 / error
-                total_inverse += inverse_errors[model_name]
+                inverse_error_scores[model_name] = 1.0 / error
 
-        # 정규화하여 가중치 계산
-        if total_inverse > 0:
-            for model_name in self.weights.keys():
-                if model_name in inverse_errors:
-                    self.weights[model_name] = inverse_errors[model_name] / total_inverse
+        # 2. 방향성 점수 (예측 방향이 실제와 일치하는지)
+        direction_scores = {}
+        if validation_predictions and validation_targets is not None:
+            for model_name, predictions in validation_predictions.items():
+                if len(predictions) > 0 and len(validation_targets) > 0:
+                    # 방향 일치율 계산
+                    pred_directions = np.sign(np.diff(predictions))
+                    target_directions = np.sign(np.diff(validation_targets))
+
+                    if len(pred_directions) > 0:
+                        direction_match = np.sum(pred_directions == target_directions) / len(pred_directions)
+                        direction_scores[model_name] = direction_match
+                    else:
+                        direction_scores[model_name] = 0.5  # 중립
                 else:
-                    self.weights[model_name] = 0
+                    direction_scores[model_name] = 0.5  # 중립
+
+        # 2-1. Sharpe Ratio 점수 (위험 대비 수익률)
+        sharpe_scores = {}
+        if validation_predictions and validation_targets is not None:
+            try:
+                # validation_targets 길이 체크 (NumPy 배열 또는 리스트)
+                targets_len = len(validation_targets)
+            except:
+                targets_len = 0
+
+            if targets_len > 0:
+                for model_name, predictions in validation_predictions.items():
+                    if len(predictions) > 0:
+                        try:
+                            # 예측 기반 수익률 계산
+                            pred_returns = np.diff(predictions) / predictions[:-1]
+
+                            # Sharpe Ratio = (평균 수익률 - 무위험 수익률) / 수익률 표준편차
+                            # 간단히 무위험 수익률은 0으로 가정
+                            mean_return = np.mean(pred_returns)
+                            std_return = np.std(pred_returns)
+
+                            if std_return > 0:
+                                sharpe = mean_return / std_return
+                                # Sharpe를 0~1 범위로 정규화 (sigmoid 적용)
+                                sharpe_scores[model_name] = 1 / (1 + np.exp(-sharpe))
+                            else:
+                                sharpe_scores[model_name] = 0.5  # 변동성 없음
+                        except Exception as e:
+                            logger.debug(f"Sharpe ratio 계산 실패 ({model_name}): {e}")
+                            sharpe_scores[model_name] = 0.5
+                    else:
+                        sharpe_scores[model_name] = 0.5
+
+        # 3. 성능 이력 추적 (최근 성능에 더 많은 가중치)
+        for model_name, error in validation_errors.items():
+            self.performance_history[model_name].append(error)
+            # 최근 10개만 유지
+            if len(self.performance_history[model_name]) > 10:
+                self.performance_history[model_name] = self.performance_history[model_name][-10:]
+
+        # 4. 최근 성능 추세 점수
+        trend_scores = {}
+        for model_name, history in self.performance_history.items():
+            if len(history) >= 2:
+                # 최근 오류가 감소 추세면 높은 점수
+                recent_avg = np.mean(history[-3:]) if len(history) >= 3 else history[-1]
+                older_avg = np.mean(history[-6:-3]) if len(history) >= 6 else np.mean(history[:-3])
+
+                # 오류가 감소하면 점수 향상
+                if older_avg > 0:
+                    trend_scores[model_name] = max(0.5, 1.0 - (recent_avg / older_avg))
+                else:
+                    trend_scores[model_name] = 0.5
+            else:
+                trend_scores[model_name] = 0.5  # 중립
+
+        # 5. 종합 점수 계산 (가중 평균)
+        # - MAE 역수: 40%
+        # - 방향성: 25%
+        # - Sharpe Ratio: 20%
+        # - 추세: 15%
+        combined_scores = {}
+        for model_name in self.weights.keys():
+            score = 0.0
+
+            # MAE 역수 점수 (정규화)
+            if model_name in inverse_error_scores:
+                total_inverse = sum(inverse_error_scores.values())
+                if total_inverse > 0:
+                    score += 0.40 * (inverse_error_scores[model_name] / total_inverse)
+
+            # 방향성 점수
+            if model_name in direction_scores:
+                score += 0.25 * direction_scores[model_name]
+
+            # Sharpe Ratio 점수
+            if model_name in sharpe_scores:
+                score += 0.20 * sharpe_scores[model_name]
+
+            # 추세 점수
+            if model_name in trend_scores:
+                score += 0.15 * trend_scores[model_name]
+
+            combined_scores[model_name] = score
+
+        # 6. 정규화하여 최종 가중치 계산
+        total_score = sum(combined_scores.values())
+        if total_score > 0:
+            for model_name in self.weights.keys():
+                self.weights[model_name] = combined_scores[model_name] / total_score
 
         logger.info(f"동적 가중치 업데이트: {self.weights}")
+        if direction_scores:
+            logger.debug(f"방향성 일치율: {direction_scores}")
+        if sharpe_scores:
+            logger.debug(f"Sharpe Ratio 점수: {sharpe_scores}")
+        if trend_scores:
+            logger.debug(f"성능 추세 점수: {trend_scores}")
     
     def fit_predict(self, prices, forecast_days=5):
         """앙상블 예측 실행 - 동적 가중치 + 시장 상황 인식"""
         results = {}
         predictions = []
         validation_errors = {}
+        validation_predictions = {}  # ✅ 검증 예측값 저장 (Sharpe Ratio용)
 
         logger.info("앙상블 예측 시작...")
 
@@ -1778,9 +2461,11 @@ class EnsemblePredictor:
             logger.info(f"Kalman 예측: 1일차={kalman_preds[0]:.2f} ({(kalman_preds[0]-prices[-1])/prices[-1]*100:+.2f}%), "
                        f"최종={kalman_preds[-1]:.2f} ({(kalman_preds[-1]-prices[-1])/prices[-1]*100:+.2f}%)")
 
-            # 검증 오류 계산
-            kalman_val_error = np.mean(np.abs(kalman_result['future_predictions'][:len(val_prices)] - val_prices))
+            # 검증 오류 및 예측값 저장
+            kalman_val_preds = kalman_result['future_predictions'][:len(val_prices)]
+            kalman_val_error = np.mean(np.abs(kalman_val_preds - val_prices))
             validation_errors['kalman'] = kalman_val_error
+            validation_predictions['kalman'] = kalman_val_preds
             logger.debug(f"Kalman 검증 MAE: {kalman_val_error:.2f}")
         except Exception as e:
             logger.warning(f"Kalman 실패: {e}")
@@ -1811,9 +2496,11 @@ class EnsemblePredictor:
                 logger.info(f"ML 앙상블 예측: 1일차={ml_preds[0]:.2f} ({(ml_preds[0]-prices[-1])/prices[-1]*100:+.2f}%), "
                            f"최종={ml_preds[-1]:.2f} ({(ml_preds[-1]-prices[-1])/prices[-1]*100:+.2f}%)")
 
-                # 검증 오류 계산
-                ml_val_error = np.mean(np.abs(ml_val_result['future_predictions'][:len(val_prices)] - val_prices))
+                # 검증 오류 및 예측값 저장
+                ml_val_preds = ml_val_result['future_predictions'][:len(val_prices)]
+                ml_val_error = np.mean(np.abs(ml_val_preds - val_prices))
                 validation_errors['ml_models'] = ml_val_error
+                validation_predictions['ml_models'] = ml_val_preds
                 logger.debug(f"ML 검증 MAE: {ml_val_error:.2f}")
             except Exception as e:
                 logger.warning(f"ML 모델 실패: {e}")
@@ -1834,9 +2521,11 @@ class EnsemblePredictor:
             logger.info(f"ARIMA 예측: 1일차={arima_preds[0]:.2f} ({(arima_preds[0]-prices[-1])/prices[-1]*100:+.2f}%), "
                        f"최종={arima_preds[-1]:.2f} ({(arima_preds[-1]-prices[-1])/prices[-1]*100:+.2f}%)")
 
-            # 검증 오류 계산
-            arima_val_error = np.mean(np.abs(arima_val_result['future_predictions'][:len(val_prices)] - val_prices))
+            # 검증 오류 및 예측값 저장
+            arima_val_preds = arima_val_result['future_predictions'][:len(val_prices)]
+            arima_val_error = np.mean(np.abs(arima_val_preds - val_prices))
             validation_errors['arima'] = arima_val_error
+            validation_predictions['arima'] = arima_val_preds
             logger.debug(f"ARIMA 검증 MAE: {arima_val_error:.2f}")
         except Exception as e:
             logger.warning(f"ARIMA 실패: {e}")
@@ -1884,8 +2573,9 @@ class EnsemblePredictor:
 
         valid_errors = {k: v for k, v in validation_errors.items() if v != float('inf')}
         if valid_errors:
-            # 성능 기반 동적 가중치
-            self.update_weights_dynamically(valid_errors)
+            # 성능 기반 동적 가중치 (검증 예측값 포함)
+            valid_predictions = {k: v for k, v in validation_predictions.items() if k in valid_errors}
+            self.update_weights_dynamically(valid_errors, valid_predictions, val_prices)
 
             # 시장 상황 가중치와 혼합 (70% 성능, 30% 시장상황)
             for model_name in self.weights.keys():
@@ -1951,7 +2641,8 @@ class EnsemblePredictor:
             'model_weights': self.weights,
             'prediction_variance': np.var(predictions, axis=0) if len(predictions) > 1 else np.zeros(forecast_days),
             'validation_errors': validation_errors,
-            'market_regime': self.current_regime
+            'market_regime': self.current_regime,
+            'training_samples': len(train_prices)
         }
 
 class StockPredictor:
@@ -1980,13 +2671,14 @@ class StockPredictor:
         if self.ensemble:
             self.ensemble.progress_callback = callback
     
-    def get_stock_data(self, symbol, period=None):
+    def get_stock_data(self, symbol, period=None, force_refresh=False):
         """
         주식 데이터 가져오기 - 동적 기간 설정
 
         Args:
             symbol: 주식 티커
             period: 기간 (None이면 자동 결정)
+            force_refresh: 캐시 무시하고 최신 데이터 강제 로드 (모델 재학습 시 권장)
         """
         try:
             # 기간 자동 결정
@@ -1999,7 +2691,9 @@ class StockPredictor:
                     period = "3y"  # 기본값: 3년 (2y → 3y 개선)
                     logger.debug(f"기본 훈련 기간 사용: {period}")
 
-            data = get_stock_data(symbol, period=period)
+            data = get_stock_data(symbol, period=period, force_refresh=force_refresh)
+            if force_refresh:
+                logger.info(f"🔄 {symbol} 최신 데이터 강제 새로고침 완료")
             return data
         except Exception as e:
             logger.error(f"데이터 가져오기 실패: {e}")
@@ -2082,7 +2776,10 @@ class StockPredictor:
             'market_correlations': market_correlations,
             'sector_performance': sector_info,
             'institutional_flow': institutional_flow,
-            'market_regime': result.get('market_regime', 'unknown')
+            'market_regime': result.get('market_regime', 'unknown'),
+            # 데이터 및 학습 정보
+            'data_points': len(prices),
+            'training_samples': result.get('training_samples', 'N/A')
         }
         
         # 5. 그래프 표시

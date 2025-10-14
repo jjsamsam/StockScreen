@@ -36,6 +36,9 @@ cache/
 *.log
 logs/
 
+# Error reports
+error_reports/
+
 # Database
 *.db
 *.sqlite

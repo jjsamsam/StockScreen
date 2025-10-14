@@ -311,12 +311,25 @@ class StockChartWindow(QMainWindow):
             display_start_date = end_date - timedelta(days=display_days)
             import pandas as pd
             display_start_timestamp = pd.Timestamp(display_start_date)
+
+            logger.info(f"📅 기간 필터링: {display_days}일 표시 (전체 데이터: {len(data)}개)")
+            logger.info(f"   시작일: {display_start_timestamp}, 종료일: {end_date}")
+            logger.info(f"   데이터 첫날: {data.index[0]}, 마지막날: {data.index[-1]}")
+
             display_data = data[data.index >= display_start_timestamp]
-            
+
+            logger.info(f"   필터링 후: {len(display_data)}개 데이터")
+
             if display_data.empty:
                 display_rows = min(display_days, len(data))
                 display_data = data.tail(display_rows)
                 logger.warning(f"날짜 필터링 실패, 최근 {display_rows}개 데이터 사용")
+            elif len(display_data) < display_days * 0.5:  # 예상보다 너무 적으면
+                logger.warning(f"⚠️ 필터링된 데이터가 예상보다 적음: {len(display_data)}개 (예상: ~{display_days}개)")
+                # 개수 기준으로 다시 필터링
+                display_rows = min(display_days, len(data))
+                display_data = data.tail(display_rows)
+                logger.info(f"   → 최근 {display_rows}개 데이터로 전환")
 
             # 데이터 저장 (신호 감지용)
             self.data = data  # 전체 데이터 (기술적 지표 포함)
@@ -334,18 +347,37 @@ class StockChartWindow(QMainWindow):
     def fetch_stock_data_with_retry(self, symbol, start_date, end_date):
         """여러 방법으로 주식 데이터 시도 (캐싱 사용)"""
 
-        # 1차 시도: 원래 심볼 그대로 (캐싱 사용)
+        # 1차 시도: 원래 심볼 그대로 (표준 period 사용)
         try:
             logger.info(f"데이터 로딩 시도 1: {symbol}")
-            # 기간 계산
-            days_diff = (end_date - start_date).days + 10
-            period_str = f"{days_diff}d"
+            # 기간 계산 - yfinance 표준 period 사용
+            days_diff = (end_date - start_date).days
 
-            data = get_stock_data(symbol, period=period_str)
+            # yfinance period 매핑
+            if days_diff <= 7:
+                period_str = "5d"
+            elif days_diff <= 30:
+                period_str = "1mo"
+            elif days_diff <= 90:
+                period_str = "3mo"
+            elif days_diff <= 180:
+                period_str = "6mo"
+            elif days_diff <= 365:
+                period_str = "1y"
+            elif days_diff <= 730:
+                period_str = "2y"
+            else:
+                period_str = "5y"
 
-            if data is not None and not data.empty:
-                logger.info(f"성공: {symbol} - {len(data)}개 데이터")
+            logger.info(f"   기간: {days_diff}일 → {period_str}")
+            # 차트용 데이터는 검증 비활성화
+            data = get_stock_data(symbol, period=period_str, validate_cache=False)
+
+            if data is not None and not data.empty and len(data) > 15:
+                logger.info(f"✅ 성공: {symbol} - {len(data)}개 데이터")
                 return data
+            else:
+                logger.warning(f"1차 시도 데이터 부족: {len(data) if data is not None else 0}개")
         except Exception as e:
             logger.error(f"1차 시도 실패: {e}")
 
@@ -354,13 +386,22 @@ class StockChartWindow(QMainWindow):
             try:
                 alt_symbol = symbol.replace('.KQ', '.KS')
                 logger.info(f"데이터 로딩 시도 2: {alt_symbol} (.KQ → .KS)")
-                days_diff = (end_date - start_date).days + 10
-                period_str = f"{days_diff}d"
 
-                data = get_stock_data(alt_symbol, period=period_str)
+                # 동일한 period 매핑 로직
+                days_diff = (end_date - start_date).days
+                if days_diff <= 180:
+                    period_str = "6mo"
+                elif days_diff <= 365:
+                    period_str = "1y"
+                elif days_diff <= 730:
+                    period_str = "2y"
+                else:
+                    period_str = "5y"
 
-                if data is not None and not data.empty:
-                    logger.info(f"성공: {alt_symbol} - {len(data)}개 데이터")
+                data = get_stock_data(alt_symbol, period=period_str, validate_cache=False)
+
+                if data is not None and not data.empty and len(data) > 15:
+                    logger.info(f"✅ 성공: {alt_symbol} - {len(data)}개 데이터")
                     return data
             except Exception as e:
                 logger.error(f"2차 시도 실패: {e}")
@@ -369,32 +410,41 @@ class StockChartWindow(QMainWindow):
             try:
                 alt_symbol = symbol.replace('.KS', '.KQ')
                 logger.info(f"데이터 로딩 시도 2: {alt_symbol} (.KS → .KQ)")
-                days_diff = (end_date - start_date).days + 10
-                period_str = f"{days_diff}d"
 
-                data = get_stock_data(alt_symbol, period=period_str)
+                # 동일한 period 매핑 로직
+                days_diff = (end_date - start_date).days
+                if days_diff <= 180:
+                    period_str = "6mo"
+                elif days_diff <= 365:
+                    period_str = "1y"
+                elif days_diff <= 730:
+                    period_str = "2y"
+                else:
+                    period_str = "5y"
 
-                if data is not None and not data.empty:
+                data = get_stock_data(alt_symbol, period=period_str, validate_cache=False)
+
+                if data is not None and not data.empty and len(data) > 15:
                     logger.info(f"성공: {alt_symbol} - {len(data)}개 데이터")
                     return data
             except Exception as e:
                 logger.error(f"2차 시도 실패: {e}")
 
-        # 3차 시도: 더 긴 기간으로 시도
+        # 3차 시도: max 기간으로 시도 (validate_cache=False로 검증 완화)
         try:
-            logger.info(f"데이터 로딩 시도 3: {symbol} (기간 확장)")
-            data = get_stock_data(symbol, period="1y")
+            logger.info(f"데이터 로딩 시도 3: {symbol} (max 기간, 검증 비활성화)")
+            data = get_stock_data(symbol, period="max", validate_cache=False)
 
-            if data is not None and not data.empty:
-                logger.info(f"성공 (확장): {symbol} - {len(data)}개 데이터")
+            if data is not None and not data.empty and len(data) > 50:
+                logger.info(f"✅ 성공 (max): {symbol} - {len(data)}개 데이터")
                 return data
         except Exception as e:
             logger.error(f"3차 시도 실패: {e}")
 
-        # 4차 시도: 단기 데이터
+        # 4차 시도: 단기 데이터 (최후의 수단)
         try:
-            logger.info(f"데이터 로딩 시도 4: {symbol} (단기)")
-            data = get_stock_data(symbol, period="1mo")
+            logger.info(f"데이터 로딩 시도 4: {symbol} (단기 1mo)")
+            data = get_stock_data(symbol, period="1mo", validate_cache=False)
 
             if data is not None and not data.empty:
                 logger.info(f"성공 (단기): {symbol} - {len(data)}개 데이터")
