@@ -303,7 +303,26 @@ class StockChartWindow(QMainWindow):
             # 시간대 정보 처리
             if data.index.tz is not None:
                 data.index = data.index.tz_convert('UTC').tz_localize(None)
-            
+
+            # 0원인 가격 데이터 필터링 (장 마감 후 무효 데이터 제거)
+            # Close, Open, High, Low가 모두 0이거나 NaN인 행 제거
+            invalid_mask = (
+                (data['Close'] == 0) | (data['Close'].isna()) |
+                (data['Open'] == 0) | (data['Open'].isna()) |
+                (data['High'] == 0) | (data['High'].isna()) |
+                (data['Low'] == 0) | (data['Low'].isna())
+            )
+
+            if invalid_mask.any():
+                invalid_count = invalid_mask.sum()
+                logger.warning(f"⚠️ 무효 데이터 {invalid_count}개 제거 (가격이 0원 또는 NaN)")
+                data = data[~invalid_mask].copy()
+
+                if data.empty:
+                    error_msg = "❌ 유효한 가격 데이터가 없습니다."
+                    self.info_label.setText(error_msg)
+                    return
+
             # 기술적 지표 계산
             data = self.technical_analyzer.calculate_all_indicators(data)
             
