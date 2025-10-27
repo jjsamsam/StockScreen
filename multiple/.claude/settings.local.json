@@ -4,7 +4,9 @@
       "Bash(find:*)",
       "Bash(python:*)",
       "Bash(if not exist \"models\" mkdir models)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

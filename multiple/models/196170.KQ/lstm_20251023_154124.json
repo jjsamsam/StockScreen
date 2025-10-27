@@ -1,0 +1,14 @@
+{
+  "ticker": "196170.KQ",
+  "model_type": "lstm",
+  "version": "20251023_154124",
+  "saved_at": "2025-10-23T15:41:24.655743",
+  "framework": "tensorflow/keras",
+  "file_path": "models\\196170.KQ\\lstm_20251023_154124.keras",
+  "train_loss": 0.0005738076288253069,
+  "val_loss": 0.005347963888198137,
+  "epochs_trained": 32,
+  "sequence_length": 60,
+  "units": 128,
+  "data_size": 1223
+}

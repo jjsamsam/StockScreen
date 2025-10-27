@@ -2567,13 +2567,39 @@ class PredictionChartDialog(QDialog):
                         predicted_prices.append(predicted_price)
 
                     predicted_prices = np.array(predicted_prices)
-                
+
                 # 고급 차트 스타일
-                ax.plot(historical_dates, historical_prices, 'b-', 
+                ax.plot(historical_dates, historical_prices, 'b-',
                        label='과거 실제 주가', linewidth=2.5, alpha=0.9)
-                
-                ax.plot(future_dates, predicted_prices, 'r-', 
+
+                ax.plot(future_dates, predicted_prices, 'r-',
                        label='AI 예측 주가', linewidth=3, alpha=0.9)
+
+                # ✅ 신뢰구간 표시 (예측 범위)
+                if 'confidence_intervals' in self.result:
+                    confidence_intervals = self.result['confidence_intervals']
+
+                    # 68% 신뢰구간 (진한 음영)
+                    if '68%' in confidence_intervals:
+                        lower_68 = confidence_intervals['68%']['lower']
+                        upper_68 = confidence_intervals['68%']['upper']
+                        ax.fill_between(future_dates, lower_68, upper_68,
+                                       color='orange', alpha=0.3, label='68% 신뢰구간')
+
+                    # 95% 신뢰구간 (연한 음영)
+                    if '95%' in confidence_intervals:
+                        lower_95 = confidence_intervals['95%']['lower']
+                        upper_95 = confidence_intervals['95%']['upper']
+                        ax.fill_between(future_dates, lower_95, upper_95,
+                                       color='orange', alpha=0.15, label='95% 신뢰구간')
+
+                # 신뢰도 정보 텍스트로 표시
+                if 'confidence_score' in self.result:
+                    confidence_pct = self.result['confidence_score'] * 100
+                    ax.text(0.02, 0.98, f"예측 신뢰도: {confidence_pct:.1f}%",
+                           transform=ax.transAxes, fontsize=12, fontweight='bold',
+                           verticalalignment='top',
+                           bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
                 
                 # 더 자세한 꾸미기...
                 

@@ -22,6 +22,16 @@ from matplotlib_optimizer import ChartManager
 from logger_config import get_logger
 logger = get_logger(__name__)
 
+# 🚀 Enhanced Trading System - Walk-Forward 백테스팅
+try:
+    from walkforward_backtest import WalkForwardBacktest
+    from expectancy_calculator import ExpectancyCalculator
+    WALKFORWARD_AVAILABLE = True
+    logger.info("✅ Walk-Forward 백테스팅 활성화")
+except ImportError as e:
+    logger.debug(f"Walk-Forward modules not available: {e}")
+    WALKFORWARD_AVAILABLE = False
+
 
 class RecommendationBacktestingEngine:
     """추천도 기반 백테스팅 엔진 - 특정 시점에서 최고 추천도 종목 선택"""
@@ -30,6 +40,13 @@ class RecommendationBacktestingEngine:
         self.technical_analyzer = technical_analyzer
         self.results = []
         self.debug_mode = debug_mode
+
+        # 🚀 Enhanced Trading System - Expectancy 계산기
+        if WALKFORWARD_AVAILABLE:
+            self.expectancy_calc = ExpectancyCalculator()
+            logger.debug("Expectancy calculator 활성화")
+        else:
+            self.expectancy_calc = None
     
     def run_recommendation_backtest(self, symbols, months_back=6, min_recommendation_score=75, progress_callback=None):
         """

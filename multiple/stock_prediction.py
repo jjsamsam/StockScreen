@@ -27,6 +27,16 @@ logger = get_logger(__name__)
 # 최적화 모듈
 from cache_manager import get_stock_data
 
+# 🚀 Enhanced Trading System - 새로운 모듈들 (조용히 통합)
+try:
+    from regime_detector_enhanced import EnhancedRegimeDetector, fetch_market_data
+    from ensemble_weight_optimizer import EnsembleWeightOptimizer, BrierScoreCalculator
+    ENHANCED_REGIME_AVAILABLE = True
+    logger.info("✅ Enhanced Regime Detection 활성화")
+except ImportError as e:
+    logger.debug(f"Enhanced modules not available: {e}")
+    ENHANCED_REGIME_AVAILABLE = False
+
 # 필요한 라이브러리들
 try:
     from sklearn.linear_model import LinearRegression
@@ -2298,6 +2308,21 @@ class EnsemblePredictor:
         # 에러 분석기
         self.error_analyzer = PredictionErrorAnalyzer()
 
+        # 🚀 Enhanced Trading System - 새로운 기능 (조용히 추가)
+        if ENHANCED_REGIME_AVAILABLE:
+            self.enhanced_regime_detector = EnhancedRegimeDetector(use_ml=False)
+            self.weight_optimizer = EnsembleWeightOptimizer(method='adaptive')
+            self.use_enhanced_regime = True
+            logger.debug("Enhanced regime detection & weight optimization 활성화")
+        else:
+            self.enhanced_regime_detector = None
+            self.weight_optimizer = None
+            self.use_enhanced_regime = False
+
+        # Brier Score 추적 (딥러닝 모델용)
+        self.lstm_brier_history = []
+        self.transformer_brier_history = []
+
     def update_weights_dynamically(self, validation_errors, validation_predictions=None, validation_targets=None):
         """
         검증 오류를 기반으로 가중치 동적 조정 (고도화: Sharpe Ratio 추가)
@@ -2438,8 +2463,26 @@ class EnsemblePredictor:
 
         logger.info("앙상블 예측 시작...")
 
-        # 시장 상황 감지
-        self.current_regime = MarketRegimeDetector.detect_regime(prices)
+        # 🚀 시장 상황 감지 (Enhanced 버전 사용 가능 시)
+        regime_features = {}  # 피처 저장용
+        if self.use_enhanced_regime and self.enhanced_regime_detector:
+            try:
+                # Enhanced regime detection with more features
+                market_data = fetch_market_data()
+                regime, regime_probs, regime_features = self.enhanced_regime_detector.detect_regime(
+                    prices, volumes=None, market_data=market_data, window=50
+                )
+                self.current_regime = regime
+                logger.info(f"Enhanced 레짐 감지: {regime} (확률: {regime_probs})")
+                logger.debug(f"주요 피처: volatility={regime_features.get('volatility', 0):.3f}, "
+                           f"trend={regime_features.get('trend_pct', 0):.2f}%")
+            except Exception as e:
+                logger.warning(f"Enhanced regime detection 실패, 기본 방식 사용: {e}")
+                self.current_regime = MarketRegimeDetector.detect_regime(prices)
+        else:
+            # 기존 방식
+            self.current_regime = MarketRegimeDetector.detect_regime(prices)
+
         regime_weights = MarketRegimeDetector.get_regime_weights(self.current_regime)
 
         # 검증 세트 분리 (마지막 10% 사용)
@@ -2577,6 +2620,34 @@ class EnsemblePredictor:
             valid_predictions = {k: v for k, v in validation_predictions.items() if k in valid_errors}
             self.update_weights_dynamically(valid_errors, valid_predictions, val_prices)
 
+            # 🚀 Enhanced Weight Optimization (딥러닝 모델에만 적용)
+            if self.use_enhanced_regime and self.weight_optimizer and self.use_deep_learning:
+                if 'lstm' in valid_errors and 'transformer' in valid_errors:
+                    try:
+                        # Brier Score 계산 (더미 - 실제로는 확률 예측 필요)
+                        lstm_brier = valid_errors['lstm'] / np.mean(prices[-30:])  # 정규화
+                        transformer_brier = valid_errors['transformer'] / np.mean(prices[-30:])
+
+                        # 변동성 계산 (regime_features에서 가져오거나 직접 계산)
+                        volatility = regime_features.get('volatility', np.std(prices[-50:]) / np.mean(prices[-50:]))
+
+                        # Enhanced 가중치 계산
+                        w_lstm, w_transformer = self.weight_optimizer.get_weights(
+                            regime=self.current_regime,
+                            volatility=volatility,
+                            lstm_brier=lstm_brier,
+                            transformer_brier=transformer_brier
+                        )
+
+                        # 전체 가중치에서 LSTM/Transformer 비율 조정
+                        dl_total_weight = self.weights['lstm'] + self.weights['transformer']
+                        if dl_total_weight > 0:
+                            self.weights['lstm'] = dl_total_weight * w_lstm
+                            self.weights['transformer'] = dl_total_weight * w_transformer
+                            logger.info(f"✨ Enhanced 가중치 적용: LSTM={w_lstm:.3f}, Transformer={w_transformer:.3f}")
+                    except Exception as e:
+                        logger.debug(f"Enhanced weight optimization 실패: {e}")
+
             # 시장 상황 가중치와 혼합 (70% 성능, 30% 시장상황)
             for model_name in self.weights.keys():
                 if model_name in regime_weights:
@@ -2634,6 +2705,49 @@ class EnsemblePredictor:
             confidence_score = 0.5
             logger.warning("검증 오류 정보 없음, 기본 신뢰도 50% 적용")
 
+        # ✅ 변동성 기반 예측 범위 계산 (신뢰구간)
+        # 최근 60일 변동성 (표준편차) 사용
+        recent_volatility = np.std(prices[-60:]) if len(prices) >= 60 else np.std(prices[-20:])
+
+        # 모델 예측 분산 (여러 모델 예측값의 차이)
+        model_variance = np.std(predictions, axis=0) if len(predictions) > 1 else np.zeros(forecast_days)
+
+        # 종합 불확실성: 역사적 변동성 + 모델 불일치 + 예측 기간에 따른 증가
+        prediction_uncertainty = np.zeros(forecast_days)
+        for day in range(forecast_days):
+            # 기본 불확실성 = 역사적 변동성
+            base_uncertainty = recent_volatility
+
+            # 모델 불일치도
+            model_disagreement = model_variance[day] if len(predictions) > 1 else recent_volatility * 0.3
+
+            # 예측 기간에 따른 불확실성 증가 (제곱근으로 증가)
+            time_factor = np.sqrt(day + 1) / np.sqrt(forecast_days)
+
+            # 신뢰도에 따른 조정 (신뢰도 낮으면 불확실성 증가)
+            confidence_factor = 2.0 - confidence_score  # 0.5 ~ 2.0
+
+            # 최종 불확실성
+            prediction_uncertainty[day] = (base_uncertainty * 0.5 + model_disagreement * 0.5) * time_factor * confidence_factor
+
+        # 신뢰구간 계산 (68% = 1σ, 95% = 2σ)
+        confidence_intervals = {
+            '68%': {  # 1 표준편차 (약 68% 신뢰구간)
+                'lower': ensemble_predictions - prediction_uncertainty,
+                'upper': ensemble_predictions + prediction_uncertainty
+            },
+            '95%': {  # 2 표준편차 (약 95% 신뢰구간)
+                'lower': ensemble_predictions - 2 * prediction_uncertainty,
+                'upper': ensemble_predictions + 2 * prediction_uncertainty
+            }
+        }
+
+        # 예측 범위 로그 출력
+        logger.info(f"📊 예측 범위 (1일차):")
+        logger.info(f"   68% 신뢰구간: ${confidence_intervals['68%']['lower'][0]:.2f} ~ ${confidence_intervals['68%']['upper'][0]:.2f}")
+        logger.info(f"   95% 신뢰구간: ${confidence_intervals['95%']['lower'][0]:.2f} ~ ${confidence_intervals['95%']['upper'][0]:.2f}")
+        logger.info(f"   예측값: ${ensemble_predictions[0]:.2f}")
+
         return {
             'ensemble_predictions': ensemble_predictions,
             'individual_results': results,
@@ -2642,7 +2756,11 @@ class EnsemblePredictor:
             'prediction_variance': np.var(predictions, axis=0) if len(predictions) > 1 else np.zeros(forecast_days),
             'validation_errors': validation_errors,
             'market_regime': self.current_regime,
-            'training_samples': len(train_prices)
+            'training_samples': len(train_prices),
+            # 새로 추가된 예측 범위 정보
+            'confidence_intervals': confidence_intervals,
+            'prediction_uncertainty': prediction_uncertainty,
+            'recent_volatility': recent_volatility
         }
 
 class StockPredictor:
@@ -3134,6 +3252,65 @@ class StockPredictor:
 
             logger.debug(f"최종 model_accuracies: {model_accuracies}")
 
+            # ✅ 수익률 기반 성능 평가 추가
+            # 가상 트레이딩 시뮬레이션: 예측을 믿고 매매했을 때 수익률
+            initial_capital = 10000.0  # 초기 자본
+            current_capital = initial_capital
+
+            # 전략 1: 예측 방향에 따른 단순 매매
+            for r in results:
+                # 예측이 상승이면 매수, 하락이면 공매도
+                if r['predicted_return'] > 0:
+                    # 매수 전략: 실제 수익률만큼 자본 증가
+                    current_capital *= (1 + r['actual_return'] / 100)
+                else:
+                    # 공매도 전략: 실제 하락률만큼 자본 증가 (반대 방향)
+                    current_capital *= (1 - r['actual_return'] / 100)
+
+            total_return_pct = ((current_capital - initial_capital) / initial_capital) * 100
+
+            # 전략 2: 방향이 맞았을 때만 수익
+            correct_capital = initial_capital
+            for r in results:
+                if r['direction_match']:
+                    # 방향이 맞았을 때만 실제 수익률만큼 증가
+                    correct_capital *= (1 + abs(r['actual_return']) / 100)
+
+            correct_only_return_pct = ((correct_capital - initial_capital) / initial_capital) * 100
+
+            # 최대 낙폭 (Maximum Drawdown) 계산
+            capital_history = [initial_capital]
+            current_capital_track = initial_capital
+            for r in results:
+                if r['predicted_return'] > 0:
+                    current_capital_track *= (1 + r['actual_return'] / 100)
+                else:
+                    current_capital_track *= (1 - r['actual_return'] / 100)
+                capital_history.append(current_capital_track)
+
+            running_max = initial_capital
+            max_drawdown = 0
+            for cap in capital_history:
+                if cap > running_max:
+                    running_max = cap
+                drawdown = ((running_max - cap) / running_max) * 100
+                if drawdown > max_drawdown:
+                    max_drawdown = drawdown
+
+            # Sharpe Ratio (위험 대비 수익)
+            # 수익률의 평균 / 표준편차 (간단한 버전)
+            returns_array = np.array([r['actual_return'] for r in results])
+            if np.std(returns_array) > 0:
+                sharpe_ratio = np.mean(returns_array) / np.std(returns_array)
+            else:
+                sharpe_ratio = 0
+
+            logger.info(f"💰 수익률 시뮬레이션:")
+            logger.info(f"   - 예측 기반 매매: {total_return_pct:+.2f}%")
+            logger.info(f"   - 정답만 매매: {correct_only_return_pct:+.2f}%")
+            logger.info(f"   - 최대 낙폭: {max_drawdown:.2f}%")
+            logger.info(f"   - Sharpe Ratio: {sharpe_ratio:.3f}")
+
             summary = {
                 'ticker': ticker,
                 'test_periods': len(results),
@@ -3155,7 +3332,13 @@ class StockPredictor:
                 'pred_bull': pred_bull,
                 'pred_bear': pred_bear,
                 # 모델별 성능
-                'model_accuracies': model_accuracies
+                'model_accuracies': model_accuracies,
+                # 수익률 기반 성능 평가
+                'trading_return': total_return_pct,
+                'correct_only_return': correct_only_return_pct,
+                'max_drawdown': max_drawdown,
+                'sharpe_ratio': sharpe_ratio,
+                'capital_history': capital_history
             }
 
             return summary, None

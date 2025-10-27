@@ -11,6 +11,7 @@ import pickle
 import os
 from pathlib import Path
 import hashlib
+import pytz
 from logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -83,6 +84,9 @@ class StockDataCache:
             data = ticker.history(period=period, interval=interval)
 
             if data is not None and not data.empty:
+                # Remove today's incomplete data if market hasn't closed yet
+                data = self._remove_incomplete_today_data(data, symbol)
+
                 # Validate fresh data
                 if validate_cache and not self._validate_data_quality(data, symbol):
                     logger.error(f"Fresh data for {symbol} failed validation")
@@ -210,6 +214,156 @@ class StockDataCache:
         """Generate hash for cache key to use as filename"""
         return hashlib.md5(key.encode()).hexdigest()
 
+    def _remove_incomplete_today_data(self, data, symbol):
+        """
+        Remove today's data if the market hasn't closed yet to avoid incomplete/incorrect data
+
+        Args:
+            data: DataFrame with stock data
+            symbol: Stock ticker symbol
+
+        Returns:
+            DataFrame with incomplete today's data removed if necessary
+        """
+        if data is None or data.empty:
+            return data
+
+        try:
+            # Get market info from symbol suffix
+            market_info = self._get_market_info(symbol)
+            timezone = market_info['timezone']
+            close_hour = market_info['close_hour']
+            close_minute = market_info['close_minute']
+
+            # Get current time in market's timezone
+            tz = pytz.timezone(timezone)
+            now_market_time = datetime.now(tz)
+
+            # Get today's market close time
+            today_close = now_market_time.replace(
+                hour=close_hour,
+                minute=close_minute,
+                second=0,
+                microsecond=0
+            )
+
+            # Check if market has closed today
+            market_closed = now_market_time >= today_close
+
+            # Get the last data point's date
+            if len(data) > 0:
+                last_date = data.index[-1]
+
+                # Convert to market timezone for comparison
+                if last_date.tzinfo is None:
+                    last_date = tz.localize(last_date)
+                else:
+                    last_date = last_date.astimezone(tz)
+
+                # Check if last data point is from today
+                is_today = last_date.date() == now_market_time.date()
+
+                if is_today and not market_closed:
+                    # Market hasn't closed yet, remove today's incomplete data
+                    logger.warning(f"🕐 Market not closed yet for {symbol}. Removing incomplete today's data.")
+                    logger.info(f"   Current time: {now_market_time.strftime('%Y-%m-%d %H:%M %Z')}")
+                    logger.info(f"   Market closes: {today_close.strftime('%H:%M %Z')}")
+                    logger.info(f"   Last data date: {last_date.strftime('%Y-%m-%d %H:%M')}")
+
+                    # Log the data being removed for debugging
+                    today_data = data.iloc[-1]
+                    logger.debug(f"   Removing: O={today_data['Open']:.2f} H={today_data['High']:.2f} "
+                               f"L={today_data['Low']:.2f} C={today_data['Close']:.2f}")
+
+                    # Remove the last row (today's incomplete data)
+                    data = data.iloc[:-1]
+
+                    if len(data) > 0:
+                        logger.info(f"   ✅ Using data up to: {data.index[-1].strftime('%Y-%m-%d')}")
+                    else:
+                        logger.warning(f"   ⚠️ No data remaining after removing today's data")
+                elif is_today and market_closed:
+                    logger.debug(f"✅ Market closed for {symbol}. Today's data is complete.")
+                else:
+                    logger.debug(f"✅ Last data is from {last_date.strftime('%Y-%m-%d')}, not today. Data is complete.")
+
+            return data
+
+        except Exception as e:
+            logger.warning(f"Error checking market close time for {symbol}: {e}. Using data as-is.")
+            return data
+
+    def _get_market_info(self, symbol):
+        """
+        Get market timezone and closing time based on symbol suffix
+
+        Args:
+            symbol: Stock ticker symbol
+
+        Returns:
+            Dictionary with timezone and close time
+        """
+        # Default to US market
+        market_info = {
+            'timezone': 'America/New_York',
+            'close_hour': 16,
+            'close_minute': 0
+        }
+
+        # Korean markets (.KS, .KQ)
+        if symbol.endswith('.KS') or symbol.endswith('.KQ'):
+            market_info = {
+                'timezone': 'Asia/Seoul',
+                'close_hour': 15,
+                'close_minute': 30
+            }
+        # Japanese market (.T)
+        elif symbol.endswith('.T'):
+            market_info = {
+                'timezone': 'Asia/Tokyo',
+                'close_hour': 15,
+                'close_minute': 0
+            }
+        # Hong Kong market (.HK)
+        elif symbol.endswith('.HK'):
+            market_info = {
+                'timezone': 'Asia/Hong_Kong',
+                'close_hour': 16,
+                'close_minute': 0
+            }
+        # London market (.L)
+        elif symbol.endswith('.L'):
+            market_info = {
+                'timezone': 'Europe/London',
+                'close_hour': 16,
+                'close_minute': 30
+            }
+        # German market (.DE)
+        elif symbol.endswith('.DE'):
+            market_info = {
+                'timezone': 'Europe/Berlin',
+                'close_hour': 17,
+                'close_minute': 30
+            }
+        # Shanghai market (.SS)
+        elif symbol.endswith('.SS'):
+            market_info = {
+                'timezone': 'Asia/Shanghai',
+                'close_hour': 15,
+                'close_minute': 0
+            }
+        # Shenzhen market (.SZ)
+        elif symbol.endswith('.SZ'):
+            market_info = {
+                'timezone': 'Asia/Shanghai',
+                'close_hour': 15,
+                'close_minute': 0
+            }
+        # US markets (default - NASDAQ, NYSE, etc.)
+        # No suffix or common US suffixes
+
+        return market_info
+
     def _validate_data_quality(self, data, symbol):
         """
         Validate data quality to detect anomalies, splits, or data corruption
@@ -266,10 +420,48 @@ class StockDataCache:
                 logger.warning(f"Data validation failed for {symbol}: High < Low detected")
                 return False
 
-            # Check for Close outside High-Low range
-            if ((data['Close'] > data['High']) | (data['Close'] < data['Low'])).any():
-                logger.warning(f"Data validation failed for {symbol}: Close outside High-Low range")
-                return False
+            # Check for Close outside High-Low range (with small tolerance for rounding errors)
+            # Allow 0.1% tolerance for floating point precision issues
+            tolerance = 0.001
+            close_too_high = data['Close'] > data['High'] * (1 + tolerance)
+            close_too_low = data['Close'] < data['Low'] * (1 - tolerance)
+
+            if (close_too_high | close_too_low).any():
+                # Log which rows have issues
+                problem_rows = data[close_too_high | close_too_low]
+                logger.warning(f"Data validation issue for {symbol}: Close outside High-Low range")
+                logger.warning(f"Problem dates: {problem_rows.index.tolist()}")
+
+                # Try to fix small discrepancies (< 1%)
+                for idx in problem_rows.index:
+                    close_val = data.loc[idx, 'Close']
+                    high_val = data.loc[idx, 'High']
+                    low_val = data.loc[idx, 'Low']
+
+                    deviation_high = (close_val - high_val) / high_val if high_val > 0 else 0
+                    deviation_low = (low_val - close_val) / low_val if low_val > 0 else 0
+
+                    # If deviation is small (< 1%), adjust High/Low instead of failing
+                    if abs(deviation_high) < 0.01 or abs(deviation_low) < 0.01:
+                        if close_val > high_val:
+                            data.loc[idx, 'High'] = close_val
+                            logger.info(f"Fixed {symbol} on {idx}: Adjusted High from {high_val} to {close_val}")
+                        if close_val < low_val:
+                            data.loc[idx, 'Low'] = close_val
+                            logger.info(f"Fixed {symbol} on {idx}: Adjusted Low from {low_val} to {close_val}")
+                    else:
+                        # Large deviation - this is a real data problem
+                        logger.error(f"Cannot fix {symbol} on {idx}: Close={close_val}, High={high_val}, Low={low_val}")
+                        return False
+
+                # Re-check after fixes
+                close_too_high = data['Close'] > data['High'] * (1 + tolerance)
+                close_too_low = data['Close'] < data['Low'] * (1 - tolerance)
+                if (close_too_high | close_too_low).any():
+                    logger.error(f"Data validation failed for {symbol}: Close outside High-Low range even after fixes")
+                    return False
+                else:
+                    logger.info(f"Successfully fixed data validation issues for {symbol}")
 
             # Check for minimum data points
             if len(data) < 5:

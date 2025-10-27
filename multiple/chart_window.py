@@ -1167,8 +1167,9 @@ class StockChartWindow(QMainWindow):
                             break
 
             # 조건 2: 볼린저밴드 하단 터치 + RSI < 35 (25점)
-            if 'BB_lower' in current and 'RSI' in current:
-                if current['Close'] <= current['BB_lower'] * 1.02 and current['RSI'] < 35:
+            # BB_Lower (대문자) 사용
+            if 'BB_Lower' in current and 'RSI' in current:
+                if current['Close'] <= current['BB_Lower'] * 1.02 and current['RSI'] < 35:
                     strength += 25
 
             # 조건 3: MACD 골든 크로스 + 거래량 증가 (25점)
@@ -1219,8 +1220,9 @@ class StockChartWindow(QMainWindow):
                     strength += 25
 
             # 조건 3: 볼린저 상단 + RSI > 70 (25점)
-            if 'BB_upper' in current and 'RSI' in current:
-                if current['Close'] >= current['BB_upper'] * 0.98 and current['RSI'] > 70:
+            # BB_Upper (대문자) 사용
+            if 'BB_Upper' in current and 'RSI' in current:
+                if current['Close'] >= current['BB_Upper'] * 0.98 and current['RSI'] > 70:
                     strength += 25
 
             # 조건 4: 거래량 급감 + 모멘텀 약화 (25점)

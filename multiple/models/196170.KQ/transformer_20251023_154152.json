@@ -1,0 +1,16 @@
+{
+  "ticker": "196170.KQ",
+  "model_type": "transformer",
+  "version": "20251023_154152",
+  "saved_at": "2025-10-23T15:41:52.281741",
+  "framework": "tensorflow/keras",
+  "file_path": "models\\196170.KQ\\transformer_20251023_154152.keras",
+  "train_loss": 0.0027833799831569195,
+  "val_loss": 0.020759865641593933,
+  "epochs_trained": 32,
+  "sequence_length": 60,
+  "d_model": 64,
+  "num_heads": 4,
+  "num_layers": 2,
+  "data_size": 1223
+}
