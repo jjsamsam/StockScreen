@@ -6,7 +6,9 @@
       "Bash(if not exist \"models\" mkdir models)",
       "Bash(mkdir:*)",
       "Bash(dir:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(timeout:*)",
+      "Bash(del debug_data.py test_fix.py)"
     ],
     "deny": [],
     "ask": []

@@ -22,6 +22,9 @@ import unicodedata
 from cache_manager import get_stock_data
 from matplotlib_optimizer import ChartManager
 
+# 스마트 신호 생성기
+from smart_signal_generator import SmartSignalGenerator
+
 # 로거 설정
 from logger_config import get_logger
 logger = get_logger(__name__)
@@ -88,6 +91,7 @@ class StockChartWindow(QMainWindow):
         self.symbol = symbol
         self.name = name
         self.technical_analyzer = TechnicalAnalysis()
+        self.smart_signal_generator = SmartSignalGenerator()
 
         # 차트 메모리 관리자
         self.chart_manager = ChartManager()
@@ -116,17 +120,20 @@ class StockChartWindow(QMainWindow):
         self.load_chart_data()
     
     def setup_ui(self):
-        """UI 설정 - 정보 패널 높이 증가"""
+        """UI 설정 - 정보 패널을 스플리터로 개선"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-        layout = QVBoxLayout(central_widget)
-        
+        main_layout = QVBoxLayout(central_widget)
+
         # 상단 컨트롤 패널 (높이 고정)
         control_panel = self.create_control_panel()
         control_panel.setMaximumHeight(80)
-        layout.addWidget(control_panel)
-        
-        # 차트 영역 (확장 가능)
+        main_layout.addWidget(control_panel)
+
+        # 스플리터로 차트와 정보 패널 구분 (사용자가 크기 조절 가능)
+        splitter = QSplitter(Qt.Vertical)
+
+        # 차트 영역
         self.figure = Figure(figsize=(16, 12))
         self.canvas = FigureCanvas(self.figure)
 
@@ -134,12 +141,20 @@ class StockChartWindow(QMainWindow):
         self.canvas.mpl_connect('button_press_event', self.on_mouse_press)
         self.canvas.mpl_connect('button_release_event', self.on_mouse_release)
 
-        layout.addWidget(self.canvas, stretch=3)  # 차트가 더 많은 공간 차지
-        
-        # 하단 정보 패널 (높이 증가 + 스크롤)
+        splitter.addWidget(self.canvas)
+
+        # 하단 정보 패널 (스크롤 가능, 최소 높이만 설정)
         info_panel = self.create_info_panel()
-        info_panel.setMaximumHeight(200)  # 150 → 200으로 증가
-        layout.addWidget(info_panel, stretch=1)   # 정보 패널도 약간의 확장성
+        info_panel.setMinimumHeight(150)  # 최소 높이만 설정
+        # setMaximumHeight 제거 - 사용자가 자유롭게 조절 가능
+        splitter.addWidget(info_panel)
+
+        # 초기 비율: 차트 70%, 정보 30%
+        splitter.setSizes([700, 300])
+        splitter.setStretchFactor(0, 7)  # 차트가 더 많은 공간
+        splitter.setStretchFactor(1, 3)  # 정보 패널
+
+        main_layout.addWidget(splitter)
 
     def create_control_panel(self):
         """컨트롤 패널 생성 - 차트 레이아웃 옵션 추가"""
@@ -188,55 +203,93 @@ class StockChartWindow(QMainWindow):
         return group
 
     def create_info_panel(self):
-        """정보 패널 생성 - 스크롤 가능한 버전"""
+        """정보 패널 생성 - 스크롤 가능 + 폰트 크기 조절"""
         group = QGroupBox("📊 Technical Indicators Info")
-        layout = QVBoxLayout()
-        
+        main_layout = QVBoxLayout()
+
+        # 상단: 폰트 크기 조절 버튼
+        font_control_layout = QHBoxLayout()
+        font_control_layout.addWidget(QLabel("폰트 크기:"))
+
+        # 초기 폰트 크기 저장
+        self.current_font_size = 11  # 10 → 11로 증가
+
+        decrease_font_btn = QPushButton("🔻 작게")
+        decrease_font_btn.setMaximumWidth(80)
+        decrease_font_btn.clicked.connect(lambda: self.adjust_font_size(-1))
+        font_control_layout.addWidget(decrease_font_btn)
+
+        increase_font_btn = QPushButton("🔺 크게")
+        increase_font_btn.setMaximumWidth(80)
+        increase_font_btn.clicked.connect(lambda: self.adjust_font_size(+1))
+        font_control_layout.addWidget(increase_font_btn)
+
+        reset_font_btn = QPushButton("↩️ 초기화")
+        reset_font_btn.setMaximumWidth(80)
+        reset_font_btn.clicked.connect(lambda: self.adjust_font_size(0, reset=True))
+        font_control_layout.addWidget(reset_font_btn)
+
+        font_control_layout.addStretch()
+        main_layout.addLayout(font_control_layout)
+
         # 스크롤 영역 생성
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)  # 내용에 맞춰 크기 조정
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)    # 필요시 세로 스크롤바
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)  # 필요시 가로 스크롤바
-        
+
         # 스크롤 가능한 위젯 생성
         scroll_widget = QWidget()
         scroll_layout = QVBoxLayout(scroll_widget)
-        
+
         # 정보 표시용 라벨
         self.info_label = QLabel("Loading chart data...")
         self.info_label.setWordWrap(True)           # 자동 줄바꿈
         self.info_label.setAlignment(Qt.AlignTop)   # 상단 정렬
         self.info_label.setTextInteractionFlags(Qt.TextSelectableByMouse)  # 마우스로 텍스트 선택 가능
-        
+
         # 폰트 설정 (더 읽기 쉽게)
         font = self.info_label.font()
         font.setFamily("Consolas")  # 고정폭 폰트 (숫자 정렬이 깔끔)
-        font.setPointSize(10)       # 적당한 크기
+        font.setPointSize(self.current_font_size)  # 크기 증가
         self.info_label.setFont(font)
-        
+
         # 배경색과 패딩 설정
         self.info_label.setStyleSheet("""
             QLabel {
                 background-color: #f8f9fa;
                 border: 1px solid #e9ecef;
                 border-radius: 4px;
-                padding: 10px;
+                padding: 15px;
                 color: #212529;
             }
         """)
-        
+
         # 스크롤 위젯에 라벨 추가
         scroll_layout.addWidget(self.info_label)
         scroll_layout.addStretch()  # 남은 공간 채우기
-        
+
         # 스크롤 영역에 위젯 설정
         scroll_area.setWidget(scroll_widget)
-        
+
         # 그룹박스에 스크롤 영역 추가
-        layout.addWidget(scroll_area)
-        group.setLayout(layout)
-        
+        main_layout.addWidget(scroll_area)
+        group.setLayout(main_layout)
+
         return group
+
+    def adjust_font_size(self, delta, reset=False):
+        """폰트 크기 조절"""
+        if reset:
+            self.current_font_size = 11  # 초기값
+        else:
+            self.current_font_size = max(8, min(20, self.current_font_size + delta))
+
+        font = self.info_label.font()
+        font.setPointSize(self.current_font_size)
+        self.info_label.setFont(font)
+
+        logger.info(f"폰트 크기 변경: {self.current_font_size}pt")
 
     def toggle_fullscreen(self):
         """전체화면 토글"""
@@ -886,10 +939,10 @@ class StockChartWindow(QMainWindow):
         else:
             vol_desc = "📉 낮은 거래량 (관심 부족)"
 
-        # 종합 투자 의견
+        # 종합 투자 의견 (기존 방식 - 호환성 유지)
         bullish_points = 0
         bearish_points = 0
-        
+
         # 점수 계산
         if macd_cross_up or (macd_now > macd_sig_now): bullish_points += 1
         if rsi_now < 30: bullish_points += 1
@@ -916,6 +969,52 @@ class StockChartWindow(QMainWindow):
         else:
             overall = "⚪ 중립/관망 구간"
 
+        # 🚀 스마트 신호 생성 (새로운 시스템)
+        try:
+            smart_signal = self.smart_signal_generator.generate_signal(data)
+        except Exception as e:
+            logger.warning(f"스마트 신호 생성 실패: {e}")
+            smart_signal = None
+
+        # ADX 및 ATR 정보 추가
+        adx_value = float(current.get('ADX', 0))
+        atr_value = float(current.get('ATR', 0))
+        plus_di = float(current.get('+DI', 0))
+        minus_di = float(current.get('-DI', 0))
+
+        # 스마트 신호 섹션 구성
+        if smart_signal:
+            smart_section = f"""
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    🤖 AI 스마트 신호 분석 (NEW!)
+    시장 환경: {smart_signal['regime_kr']} (ADX: {smart_signal['adx']:.1f})
+    신호: {smart_signal['signal']} | 신뢰도: {smart_signal['confidence']:.0f}%
+    종합 의견: {smart_signal['recommendation']}
+
+    📊 점수:
+    • 매수 점수: {smart_signal['bullish_score']:.1f}점
+    • 매도 점수: {smart_signal['bearish_score']:.1f}점
+
+    📍 리스크 관리 제안:
+    • 손절가: {smart_signal['stop_loss']:.2f} (ATR 2배)
+    • 목표가: {smart_signal['take_profit']:.2f} (ATR 3배)
+    • 손익비: 1:{smart_signal['risk_reward_ratio']:.1f}
+    """
+        else:
+            smart_section = ""
+
+        # 추세 강도 섹션
+        adx_section = f"""
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    📊 추세 강도 분석 (NEW!)
+    ADX: {adx_value:.1f} {"🔥 강한 추세" if adx_value > 25 else "💤 약한 추세 (횡보)"}
+    +DI: {plus_di:.1f} | -DI: {minus_di:.1f}
+    {"→ 상승 우세" if plus_di > minus_di else "→ 하락 우세"}
+
+    ATR (변동성): {atr_value:.2f}
+    → {"높은 변동성" if atr_value > current['Close'] * 0.03 else "낮은 변동성"}
+    """
+
         # 최종 정보 텍스트 구성 (더 상세하고 구조화)
         info_text = f"""
     📊 {self.symbol} ({self.name}) - 현재 상황
@@ -925,14 +1024,15 @@ class StockChartWindow(QMainWindow):
     현재가: {current['Close']:.2f}
     전일대비: {price_change:+.2f} ({price_change_pct:+.2f}%)
     고가: {current['High']:.2f} | 저가: {current['Low']:.2f}
-
+{smart_section}
+{adx_section}
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     📈 기술적 지표 분석
     RSI: {rsi_now:.1f} → {rsi_desc}
-    
+
     MACD: {macd_now:.4f} | Signal: {macd_sig_now:.4f}
     → {macd_desc}
-    
+
     볼린저밴드: {bb_signal}
     → 현재 위치: {bb_position:.1%} (하단 0% ← → 100% 상단)
 
@@ -951,10 +1051,10 @@ class StockChartWindow(QMainWindow):
     → {vol_desc}
 
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    💡 종합 투자 의견
+    💡 기존 투자 의견 (참고용)
     매수 신호: {bullish_points}개
     매도 신호: {bearish_points}개
-    
+
     → {overall}
 
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

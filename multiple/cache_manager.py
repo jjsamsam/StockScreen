@@ -429,10 +429,11 @@ class StockDataCache:
             if (close_too_high | close_too_low).any():
                 # Log which rows have issues
                 problem_rows = data[close_too_high | close_too_low]
-                logger.warning(f"Data validation issue for {symbol}: Close outside High-Low range")
-                logger.warning(f"Problem dates: {problem_rows.index.tolist()}")
+                logger.debug(f"Data validation issue for {symbol}: Close outside High-Low range")
+                logger.debug(f"Problem dates: {problem_rows.index.tolist()}")
 
                 # Try to fix small discrepancies (< 1%)
+                fixed_count = 0
                 for idx in problem_rows.index:
                     close_val = data.loc[idx, 'Close']
                     high_val = data.loc[idx, 'High']
@@ -441,27 +442,33 @@ class StockDataCache:
                     deviation_high = (close_val - high_val) / high_val if high_val > 0 else 0
                     deviation_low = (low_val - close_val) / low_val if low_val > 0 else 0
 
-                    # If deviation is small (< 1%), adjust High/Low instead of failing
-                    if abs(deviation_high) < 0.01 or abs(deviation_low) < 0.01:
+                    # If deviation is small (< 3%), adjust High/Low instead of failing
+                    # This handles yfinance adjusted price calculation issues after stock splits
+                    if abs(deviation_high) < 0.03 or abs(deviation_low) < 0.03:
                         if close_val > high_val:
                             data.loc[idx, 'High'] = close_val
-                            logger.info(f"Fixed {symbol} on {idx}: Adjusted High from {high_val} to {close_val}")
+                            logger.debug(f"Fixed {symbol} on {idx}: Adjusted High from {high_val:.2f} to {close_val:.2f} (deviation: {deviation_high*100:.2f}%)")
+                            fixed_count += 1
                         if close_val < low_val:
                             data.loc[idx, 'Low'] = close_val
-                            logger.info(f"Fixed {symbol} on {idx}: Adjusted Low from {low_val} to {close_val}")
+                            logger.debug(f"Fixed {symbol} on {idx}: Adjusted Low from {low_val:.2f} to {close_val:.2f} (deviation: {deviation_low*100:.2f}%)")
+                            fixed_count += 1
                     else:
-                        # Large deviation - this is a real data problem
-                        logger.error(f"Cannot fix {symbol} on {idx}: Close={close_val}, High={high_val}, Low={low_val}")
+                        # Large deviation (> 3%) - this is a real data problem
+                        logger.debug(f"Cannot fix {symbol} on {idx}: Close={close_val:.2f}, High={high_val:.2f}, Low={low_val:.2f}")
+                        logger.info(f"⚠️ Skipping {symbol}: Data quality issue (Close/High/Low mismatch > 3%)")
                         return False
 
                 # Re-check after fixes
                 close_too_high = data['Close'] > data['High'] * (1 + tolerance)
                 close_too_low = data['Close'] < data['Low'] * (1 - tolerance)
                 if (close_too_high | close_too_low).any():
-                    logger.error(f"Data validation failed for {symbol}: Close outside High-Low range even after fixes")
+                    logger.debug(f"Data validation failed for {symbol}: Close outside High-Low range even after fixes")
+                    logger.info(f"⚠️ Skipping {symbol}: Data quality issue (unfixable)")
                     return False
                 else:
-                    logger.info(f"Successfully fixed data validation issues for {symbol}")
+                    if fixed_count > 0:
+                        logger.debug(f"Successfully fixed {fixed_count} data validation issues for {symbol}")
 
             # Check for minimum data points
             if len(data) < 5:

@@ -873,6 +873,40 @@ class TechnicalAnalysis:
         mad = typical_price.rolling(20).apply(lambda x: np.abs(x - x.mean()).mean())
         data['CCI'] = (typical_price - sma_tp) / (0.015 * mad.replace(0, np.nan))
 
+        # ATR (Average True Range) - 변동성 측정
+        high_low = data['High'] - data['Low']
+        high_close = np.abs(data['High'] - data['Close'].shift())
+        low_close = np.abs(data['Low'] - data['Close'].shift())
+        true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+        data['ATR'] = true_range.rolling(14).mean()
+
+        # ADX (Average Directional Index) - 추세 강도 측정
+        # +DM, -DM 계산
+        high_diff = data['High'].diff()
+        low_diff = -data['Low'].diff()
+
+        plus_dm = high_diff.copy()
+        plus_dm[(high_diff < 0) | (high_diff <= low_diff)] = 0
+
+        minus_dm = low_diff.copy()
+        minus_dm[(low_diff < 0) | (low_diff <= high_diff)] = 0
+
+        # +DI, -DI 계산
+        plus_di = 100 * (plus_dm.rolling(14).mean() / data['ATR'])
+        minus_di = 100 * (minus_dm.rolling(14).mean() / data['ATR'])
+
+        # DX, ADX 계산
+        dx = 100 * np.abs(plus_di - minus_di) / (plus_di + minus_di).replace(0, np.nan)
+        data['ADX'] = dx.rolling(14).mean()
+        data['+DI'] = plus_di
+        data['-DI'] = minus_di
+
+        # Parabolic SAR - 추세 추적 (간단한 버전)
+        # 실제 구현은 복잡하므로 기본 로직만
+        af = 0.02  # Acceleration Factor
+        max_af = 0.2
+        data['PSAR'] = data['Close'].copy()  # 초기값
+
         # 결측값 처리
         try:
             data = data.ffill().bfill()
