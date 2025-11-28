@@ -5,6 +5,7 @@ chart_window.py
 
 import yfinance as yf
 import numpy as np
+import pandas as pd
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -14,6 +15,7 @@ from matplotlib.figure import Figure
 import matplotlib.dates as mdates
 from datetime import datetime, timedelta
 import platform
+import pytz
 
 from utils import TechnicalAnalysis
 import unicodedata
@@ -118,6 +120,96 @@ class StockChartWindow(QMainWindow):
 
         self.setup_ui()
         self.load_chart_data()
+    
+    def _get_market_session_info(self):
+        """심볼에 따라 시장 마감 시간을 반환"""
+        default_info = {
+            'timezone': 'America/New_York',
+            'close_hour': 16,
+            'close_minute': 0
+        }
+
+        market_map = [
+            ('.KS', {'timezone': 'Asia/Seoul', 'close_hour': 15, 'close_minute': 30}),
+            ('.KQ', {'timezone': 'Asia/Seoul', 'close_hour': 15, 'close_minute': 30}),
+            ('.K', {'timezone': 'Asia/Seoul', 'close_hour': 15, 'close_minute': 30}),
+            ('.T', {'timezone': 'Asia/Tokyo', 'close_hour': 15, 'close_minute': 0}),
+            ('.HK', {'timezone': 'Asia/Hong_Kong', 'close_hour': 16, 'close_minute': 0}),
+            ('.L', {'timezone': 'Europe/London', 'close_hour': 16, 'close_minute': 30}),
+            ('.ST', {'timezone': 'Europe/Stockholm', 'close_hour': 17, 'close_minute': 30}),
+            ('.TO', {'timezone': 'America/Toronto', 'close_hour': 16, 'close_minute': 0}),
+            ('.V', {'timezone': 'America/Toronto', 'close_hour': 16, 'close_minute': 0}),
+            ('.AX', {'timezone': 'Australia/Sydney', 'close_hour': 16, 'close_minute': 10})
+        ]
+
+        for suffix, info in market_map:
+            if self.symbol.endswith(suffix):
+                return info
+
+        return default_info
+
+    def _convert_timestamp_to_market_time(self, timestamp, tz):
+        """UTC 타임스탬프를 시장 타임존 시간으로 변환"""
+        ts = pd.Timestamp(timestamp)
+        if ts.tzinfo is None:
+            ts = pytz.utc.localize(ts)
+        else:
+            ts = ts.astimezone(pytz.utc)
+        return ts.astimezone(tz)
+
+    def _is_price_row_complete(self, row):
+        """OHLC 값이 모두 존재하는지 확인"""
+        required_cols = ['Open', 'High', 'Low', 'Close']
+        for col in required_cols:
+            if col not in row:
+                return False
+            value = row[col]
+            if value is None or pd.isna(value):
+                return False
+        return row['High'] >= row['Low']
+
+    def _filter_incomplete_today_data(self, data):
+        """
+        오늘 데이터가 확정되지 않았으면 제외한다.
+
+        Returns:
+            (DataFrame, status, reason)
+        """
+        if data is None or data.empty:
+            return data, 'no_data', None
+
+        try:
+            market_info = self._get_market_session_info()
+            tz = pytz.timezone(market_info['timezone'])
+            now_market_time = datetime.now(tz)
+            market_close = now_market_time.replace(
+                hour=market_info['close_hour'],
+                minute=market_info['close_minute'],
+                second=0,
+                microsecond=0
+            )
+
+            last_timestamp = data.index[-1]
+            last_market_time = self._convert_timestamp_to_market_time(last_timestamp, tz)
+            is_today = last_market_time.date() == now_market_time.date()
+
+            if not is_today:
+                return data, 'not_today', None
+
+            last_row = data.iloc[-1]
+            if not self._is_price_row_complete(last_row):
+                trimmed = data.iloc[:-1].copy()
+                return trimmed, 'dropped', 'Invalid OHLC values for today'
+
+            if now_market_time < market_close:
+                trimmed = data.iloc[:-1].copy()
+                return trimmed, 'dropped', 'Market not closed yet'
+
+            return data, 'kept', None
+
+        except Exception as e:
+            logger.warning(f"오늘 데이터 검증 중 오류 발생: {e}")
+            return data, 'error', str(e)
     
     def setup_ui(self):
         """UI 설정 - 정보 패널을 스플리터로 개선"""
@@ -376,12 +468,22 @@ class StockChartWindow(QMainWindow):
                     self.info_label.setText(error_msg)
                     return
 
+            # 오늘 데이터 신뢰도 점검
+            data, today_status, today_reason = self._filter_incomplete_today_data(data)
+            if today_status == 'dropped' and today_reason:
+                logger.info(f"오늘 데이터 제외: {today_reason}")
+            elif today_status == 'error' and today_reason:
+                logger.warning(f"오늘 데이터 검증 실패: {today_reason}")
+
+            if data is None or data.empty:
+                self.info_label.setText("차트에 표시할 유효한 데이터가 없습니다.")
+                return
+
             # 기술적 지표 계산
             data = self.technical_analyzer.calculate_all_indicators(data)
             
             # 표시할 기간 필터링
             display_start_date = end_date - timedelta(days=display_days)
-            import pandas as pd
             display_start_timestamp = pd.Timestamp(display_start_date)
 
             logger.info(f"📅 기간 필터링: {display_days}일 표시 (전체 데이터: {len(data)}개)")

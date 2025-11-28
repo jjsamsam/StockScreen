@@ -556,18 +556,18 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
     def add_csv_search_features(self):
         """CSV 검색 기능을 UI에 추가"""
         # 검색 패널에 "고급 검색" 버튼 추가
-        if hasattr(self, 'search_btn'):
+        if hasattr(self, 'search_stock_btn'):
             # 기존 검색 버튼을 향상된 검색으로 변경
-            self.search_btn.setText("🔍 고급검색")
-            self.search_btn.setToolTip("Yahoo Finance API + CSV 통합 검색")
+            self.search_stock_btn.setText("🔍 고급검색")
+            self.search_stock_btn.setToolTip("Yahoo Finance API + CSV 통합 검색")
             
             # 기존 연결을 새로운 함수로 변경
             try:
-                self.search_btn.clicked.disconnect()  # 기존 연결 해제
+                self.search_stock_btn.clicked.disconnect()  # 기존 연결 해제
             except:
                 pass
             
-            self.search_btn.clicked.connect(self.search_and_show_chart_enhanced)
+            self.search_stock_btn.clicked.connect(self.search_and_show_chart_enhanced)
 
         # 추가 기능 버튼들을 search panel에 추가
         if hasattr(self, 'search_help_btn'):
@@ -3775,10 +3775,10 @@ class StockScreener(StockScreener):  # 위에서 정의된 클래스를 상속
         search_layout.addWidget(self.search_input)
         
         # 버튼들 (크기 축소)
-        self.search_btn = QPushButton("🔍Search")
-        self.search_btn.clicked.connect(self.search_and_show_chart)
-        self.search_btn.setMaximumWidth(120)
-        search_layout.addWidget(self.search_btn)
+        self.search_stock_btn = QPushButton("🔍Search")
+        self.search_stock_btn.clicked.connect(self.search_and_show_chart)
+        self.search_stock_btn.setMaximumWidth(120)
+        search_layout.addWidget(self.search_stock_btn)
         
         self.random_stock_btn = QPushButton("🎲Random")
         self.random_stock_btn.clicked.connect(self.show_random_stock_chart)
