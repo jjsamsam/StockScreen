@@ -164,7 +164,7 @@ function PredictionPanel({ language }: PredictionPanelProps) {
                             ))}
                         </div>
                     )}
-                    <small>{language === 'ko' ? '미국: AAPL, 한국: 005930, 스웨덴: VOLV-B.ST' : 'USA: AAPL, KR: 005930, SE: VOLV-B.ST'}</small>
+                    <small>{language === 'ko' ? '미국: AAPL, 한국: Samsung, 스웨덴: Volvo' : 'USA: Apple, KR: Samsung, SE: Volvo'}</small>
                 </div>
 
                 <div className="input-group">
