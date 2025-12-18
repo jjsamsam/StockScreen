@@ -82,6 +82,32 @@ function PredictionPanel() {
         return 'var(--warning)'
     }
 
+    const downloadCSV = () => {
+        if (!result) return
+
+        const headers = ['Ticker', 'Current Price', 'Predicted Price', 'Expected Return', 'Confidence', 'Recommendation', 'Forecast Days']
+        const row = [
+            result.ticker,
+            result.current_price,
+            result.predicted_price,
+            `${(result.expected_return * 100).toFixed(2)}%`,
+            `${(result.confidence * 100).toFixed(1)}%`,
+            `"${result.recommendation}"`,
+            result.forecast_days
+        ]
+
+        const csvContent = [headers.join(','), row.join(',')].join('\n')
+        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.setAttribute('href', url)
+        link.setAttribute('download', `prediction_${result.ticker}_${new Date().toISOString().slice(0, 10)}.csv`)
+        link.style.visibility = 'hidden'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+    }
+
     return (
         <div className="prediction-panel">
             <h2>🤖 AI 주가 예측</h2>
@@ -196,6 +222,12 @@ function PredictionPanel() {
                                 background: result.confidence > 0.6 ? 'var(--success)' : 'var(--warning)'
                             }}
                         />
+                    </div>
+
+                    <div className="result-actions">
+                        <button className="download-btn-compact" onClick={downloadCSV}>
+                            📥 결과 CSV 저장
+                        </button>
                     </div>
                 </div>
             )}

@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
-import { createChart, ColorType, CandlestickSeries, LineSeries } from 'lightweight-charts'
+import { createChart, ColorType, CandlestickSeries, LineSeries, HistogramSeries } from 'lightweight-charts'
 import './ChartView.css'
 
 interface ChartViewProps {
@@ -79,6 +79,19 @@ function ChartView({ symbol, onClose }: ChartViewProps) {
         value: data.bb_lower[index],
       })).filter((d: any) => d.value && d.value !== 0)
 
+      // 거래량 데이터
+      const volumeData = data.dates.map((date: string, index: number) => ({
+        time: date,
+        value: data.volume[index],
+        color: data.close[index] >= data.open[index] ? '#10b98188' : '#ef444488',
+      }))
+
+      // RSI 데이터
+      const rsiData = data.dates.map((date: string, index: number) => ({
+        time: date,
+        value: data.rsi[index],
+      })).filter((d: any) => d.value && d.value !== 0)
+
       // 차트 생성
       if (chartContainerRef.current) {
         // 기존 차트 제거
@@ -97,71 +110,107 @@ function ChartView({ symbol, onClose }: ChartViewProps) {
             textColor: '#cbd5e1',
           },
           grid: {
-            vertLines: { color: '#475569' },
-            horzLines: { color: '#475569' },
+            vertLines: { visible: false },
+            horzLines: { color: '#334155' },
           },
           width: chartContainerRef.current.clientWidth || 800,
-          height: isFullScreen ? window.innerHeight - 250 : 500,
+          height: isFullScreen ? window.innerHeight - 250 : 600,
         })
 
         chartRef.current = chart
 
-        // 캔들스틱 시리즈 (v5 API)
+        // 1. 가격/이동평균선/볼린저밴드 영역
         const candlestickSeries = chart.addSeries(CandlestickSeries, {
           upColor: '#10b981',
           downColor: '#ef4444',
           borderVisible: false,
           wickUpColor: '#10b981',
           wickDownColor: '#ef4444',
+          priceScaleId: 'right',
         })
         candlestickSeries.setData(candlestickData)
 
         // 볼린저 밴드
         const bbUpperSeries = chart.addSeries(LineSeries, {
-          color: '#8b5cf6',
+          color: '#a855f7',
           lineWidth: 1,
           lineStyle: 2,
+          priceScaleId: 'right',
         })
         bbUpperSeries.setData(bbUpperData)
 
         const bbMiddleSeries = chart.addSeries(LineSeries, {
-          color: '#8b5cf6',
+          color: '#a855f7',
           lineWidth: 1,
-          lineStyle: 2,
+          lineStyle: 1,
+          priceScaleId: 'right',
         })
         bbMiddleSeries.setData(bbMiddleData)
 
         const bbLowerSeries = chart.addSeries(LineSeries, {
-          color: '#8b5cf6',
+          color: '#a855f7',
           lineWidth: 1,
           lineStyle: 2,
+          priceScaleId: 'right',
         })
         bbLowerSeries.setData(bbLowerData)
 
         // 이동평균선
-        const ma20Series = chart.addSeries(LineSeries, {
-          color: '#f59e0b',
-          lineWidth: 2,
-        })
+        const ma20Series = chart.addSeries(LineSeries, { color: '#f59e0b', lineWidth: 2, priceScaleId: 'right' })
         ma20Series.setData(ma20Data)
 
-        const ma60Series = chart.addSeries(LineSeries, {
-          color: '#6366f1',
-          lineWidth: 2,
-        })
+        const ma60Series = chart.addSeries(LineSeries, { color: '#6366f1', lineWidth: 2, priceScaleId: 'right' })
         ma60Series.setData(ma60Data)
 
-        const ma120Series = chart.addSeries(LineSeries, {
-          color: '#ec4899',
-          lineWidth: 2,
-        })
+        const ma120Series = chart.addSeries(LineSeries, { color: '#ec4899', lineWidth: 2, priceScaleId: 'right' })
         ma120Series.setData(ma120Data)
 
-        const ma240Series = chart.addSeries(LineSeries, {
-          color: '#14b8a6',
-          lineWidth: 2,
-        })
+        const ma240Series = chart.addSeries(LineSeries, { color: '#14b8a6', lineWidth: 2, priceScaleId: 'right' })
         ma240Series.setData(ma240Data)
+
+        // 2. 거래량 영역
+        const volumeSeries = chart.addSeries(HistogramSeries, {
+          color: '#26a69a',
+          priceFormat: { type: 'volume' },
+          priceScaleId: 'volume',
+        })
+        volumeSeries.setData(volumeData)
+
+        chart.priceScale('volume').applyOptions({
+          scaleMargins: { top: 0.75, bottom: 0.05 },
+        })
+
+        // 3. RSI 영역
+        const rsiSeries = chart.addSeries(LineSeries, {
+          color: '#facc15',
+          lineWidth: 2,
+          priceScaleId: 'rsi',
+        })
+        rsiSeries.setData(rsiData)
+
+        // RSI 기준선 (70, 30)
+        rsiSeries.createPriceLine({
+          price: 70,
+          color: '#ef4444',
+          lineWidth: 1,
+          lineStyle: 3,
+          axisLabelVisible: true,
+          title: 'Overbought',
+        });
+        rsiSeries.createPriceLine({
+          price: 30,
+          color: '#10b981',
+          lineWidth: 1,
+          lineStyle: 3,
+          axisLabelVisible: true,
+          title: 'Oversold',
+        });
+
+        chart.priceScale('rsi').applyOptions({
+          scaleMargins: { top: 0.85, bottom: 0.05 },
+          visible: true,
+          borderVisible: true,
+        })
 
         chart.timeScale().fitContent()
       }
@@ -265,7 +314,9 @@ function ChartView({ symbol, onClose }: ChartViewProps) {
               <span style={{ color: '#6366f1' }}>━ MA60</span>
               <span style={{ color: '#ec4899' }}>━ MA120</span>
               <span style={{ color: '#14b8a6' }}>━ MA240</span>
-              <span style={{ color: '#8b5cf6' }}>┉ 볼린저밴드</span>
+              <span style={{ color: '#a855f7' }}>┉ 볼린저밴드</span>
+              <span style={{ color: '#26a69a' }}>■ 거래량</span>
+              <span style={{ color: '#facc15' }}>━ RSI</span>
             </div>
           )}
         </div>

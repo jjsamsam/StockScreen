@@ -14,21 +14,67 @@ function ResultsTable({ results }: ResultsTableProps) {
     const { buy_signals = [], sell_signals = [], total_screened = 0 } = results
     const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null)
 
+    const downloadCSV = () => {
+        const headers = ['Symbol', 'Name', 'Price', 'Volume', 'Conditions', 'Type']
+        const rows = [
+            ...buy_signals.map(s => [
+                s.symbol,
+                `"${s.name.replace(/"/g, '""')}"`,
+                s.current_price,
+                s.volume,
+                `"${s.matched_conditions.join(', ')}"`,
+                'BUY'
+            ]),
+            ...sell_signals.map(s => [
+                s.symbol,
+                `"${s.name.replace(/"/g, '""')}"`,
+                s.current_price,
+                s.volume,
+                `"${s.matched_conditions.join(', ')}"`,
+                'SELL'
+            ])
+        ]
+
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.join(','))
+        ].join('\n')
+
+        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.setAttribute('href', url)
+        link.setAttribute('download', `screening_results_${new Date().toISOString().slice(0, 10)}.csv`)
+        link.style.visibility = 'hidden'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+    }
+
     return (
         <div className="results-table">
             <div className="results-header">
-                <h2>📊 스크리닝 결과</h2>
-                <div className="stats">
-                    <span className="stat">
-                        전체: <strong>{total_screened}</strong>
-                    </span>
-                    <span className="stat buy">
-                        매수: <strong>{buy_signals.length}</strong>
-                    </span>
-                    <span className="stat sell">
-                        매도: <strong>{sell_signals.length}</strong>
-                    </span>
+                <div className="header-left">
+                    <h2>📊 스크리닝 결과</h2>
+                    <div className="stats">
+                        <span className="stat">
+                            전체: <strong>{total_screened}</strong>
+                        </span>
+                        <span className="stat buy">
+                            매수: <strong>{buy_signals.length}</strong>
+                        </span>
+                        <span className="stat sell">
+                            매도: <strong>{sell_signals.length}</strong>
+                        </span>
+                    </div>
                 </div>
+                <button
+                    className="download-btn"
+                    onClick={downloadCSV}
+                    disabled={buy_signals.length === 0 && sell_signals.length === 0}
+                >
+                    📥 CSV 다운로드
+                </button>
             </div>
 
             {buy_signals.length > 0 && (
@@ -52,11 +98,21 @@ function ResultsTable({ results }: ResultsTableProps) {
                                         style={{ cursor: 'pointer' }}
                                         title="클릭하여 차트 보기"
                                     >
-                                        <td className="symbol">{signal.symbol}</td>
+                                        <td className="symbol-cell">
+                                            <div className="stock-name">{signal.name}</div>
+                                            <div className="stock-ticker">{signal.symbol}</div>
+                                        </td>
                                         <td className="price">${signal.current_price.toFixed(2)}</td>
                                         <td className="volume">{signal.volume.toLocaleString()}</td>
                                         <td className="conditions">
-                                            {signal.matched_conditions.join(', ')}
+                                            <div className="condition-wrapper">
+                                                <span className="condition-count">{signal.matched_conditions.length}</span>
+                                                <div className="condition-list">
+                                                    {signal.matched_conditions.map((cond: string, i: number) => (
+                                                        <span key={i} className="condition-badge">{cond}</span>
+                                                    ))}
+                                                </div>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -87,11 +143,21 @@ function ResultsTable({ results }: ResultsTableProps) {
                                         style={{ cursor: 'pointer' }}
                                         title="클릭하여 차트 보기"
                                     >
-                                        <td className="symbol">{signal.symbol}</td>
+                                        <td className="symbol-cell">
+                                            <div className="stock-name">{signal.name}</div>
+                                            <div className="stock-ticker">{signal.symbol}</div>
+                                        </td>
                                         <td className="price">${signal.current_price.toFixed(2)}</td>
                                         <td className="volume">{signal.volume.toLocaleString()}</td>
                                         <td className="conditions">
-                                            {signal.matched_conditions.join(', ')}
+                                            <div className="condition-wrapper">
+                                                <span className="condition-count">{signal.matched_conditions.length}</span>
+                                                <div className="condition-list">
+                                                    {signal.matched_conditions.map((cond: string, i: number) => (
+                                                        <span key={i} className="condition-badge">{cond}</span>
+                                                    ))}
+                                                </div>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

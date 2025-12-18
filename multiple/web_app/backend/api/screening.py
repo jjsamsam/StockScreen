@@ -27,6 +27,7 @@ class ScreeningRequest(BaseModel):
     buy_conditions: Optional[List[str]] = None
     sell_conditions: Optional[List[str]] = None
     period: Optional[str] = "1y"
+    match_mode: Optional[str] = "any"  # 'all' (AND) 또는 'any' (OR)
 
 
 @router.post("/screen")
@@ -47,7 +48,8 @@ async def screen_stocks(request: ScreeningRequest):
         symbols=request.symbols,
         buy_conditions=request.buy_conditions,
         sell_conditions=request.sell_conditions,
-        period=request.period
+        period=request.period,
+        match_mode=request.match_mode
     )
     
     if not result['success']:
@@ -61,12 +63,18 @@ async def get_available_conditions():
     """사용 가능한 스크리닝 조건 목록"""
     return {
         "buy_conditions": [
-            "golden_cross",
-            "rsi_oversold",
-            "volume_surge"
+            {"id": "golden_cross", "name": "골든 크로스"},
+            {"id": "rsi_oversold", "name": "RSI 과매도"},
+            {"id": "volume_surge", "name": "거래량 급증"},
+            {"id": "enhanced_ma_buy", "name": "강화된 MA 매수"},
+            {"id": "enhanced_bb_rsi_buy", "name": "강화된 BB+RSI 매수"},
+            {"id": "enhanced_macd_volume_buy", "name": "강화된 MACD+거래량"},
+            {"id": "enhanced_momentum_buy", "name": "강화된 모멘텀 매수"}
         ],
         "sell_conditions": [
-            "death_cross",
-            "rsi_overbought"
+            {"id": "death_cross", "name": "데드 크로스"},
+            {"id": "rsi_overbought", "name": "RSI 과매수"},
+            {"id": "enhanced_technical_sell", "name": "강화된 기술적 매도"},
+            {"id": "enhanced_bb_rsi_sell", "name": "강화된 BB+RSI 매도"}
         ]
     }

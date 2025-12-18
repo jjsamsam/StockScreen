@@ -114,7 +114,9 @@ class DataService:
                 }
             
             # ✅ 기술적 지표 계산
-            # 이동평균선 (MA20, MA60, MA120, MA240)
+            # 이동평균선
+            data['MA5'] = data['Close'].rolling(window=5).mean()
+            data['MA10'] = data['Close'].rolling(window=10).mean()
             data['MA20'] = data['Close'].rolling(window=20).mean()
             data['MA60'] = data['Close'].rolling(window=60).mean()
             data['MA120'] = data['Close'].rolling(window=120).mean()
@@ -125,6 +127,13 @@ class DataService:
             bb_std = data['Close'].rolling(window=20).std()
             data['BB_Upper'] = data['BB_Middle'] + (bb_std * 2)
             data['BB_Lower'] = data['BB_Middle'] - (bb_std * 2)
+
+            # RSI (14일 기준)
+            delta = data['Close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+            rs = gain / loss
+            data['RSI'] = 100 - (100 / (1 + rs))
             
             # DataFrame을 JSON 형식으로 변환
             data_dict = {
@@ -135,6 +144,8 @@ class DataService:
                 'close': data['Close'].tolist(),
                 'volume': data['Volume'].tolist(),
                 # 기술적 지표
+                'ma5': data['MA5'].fillna(0).tolist(),
+                'ma10': data['MA10'].fillna(0).tolist(),
                 'ma20': data['MA20'].fillna(0).tolist(),
                 'ma60': data['MA60'].fillna(0).tolist(),
                 'ma120': data['MA120'].fillna(0).tolist(),
@@ -142,6 +153,7 @@ class DataService:
                 'bb_upper': data['BB_Upper'].fillna(0).tolist(),
                 'bb_middle': data['BB_Middle'].fillna(0).tolist(),
                 'bb_lower': data['BB_Lower'].fillna(0).tolist(),
+                'rsi': data['RSI'].fillna(0).tolist(),
             }
             
             return {

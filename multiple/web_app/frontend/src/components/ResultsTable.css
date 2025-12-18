@@ -9,10 +9,42 @@
 .results-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-end;
     margin-bottom: 25px;
     padding-bottom: 15px;
     border-bottom: 2px solid var(--border);
+}
+
+.header-left {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.download-btn {
+    padding: 10px 18px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.download-btn:hover:not(:disabled) {
+    background: var(--bg-primary);
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.download-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .results-header h2 {
@@ -115,10 +147,22 @@ td {
     color: var(--text-primary);
 }
 
-.symbol {
+.symbol-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.stock-name {
     font-weight: 700;
-    font-size: 16px;
+    font-size: 15px;
+    color: var(--text-primary);
+}
+
+.stock-ticker {
+    font-size: 12px;
     color: var(--primary);
+    font-weight: 600;
 }
 
 .price {
@@ -166,4 +210,51 @@ td {
     .symbol {
         font-size: 14px;
     }
+}
+
+/* 조건 표시 강화 */
+.condition-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.condition-count {
+    background: var(--primary);
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.condition-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.condition-badge {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.signal-section.buy .condition-badge {
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.signal-section.sell .condition-badge {
+    border-color: rgba(239, 68, 68, 0.3);
 }
