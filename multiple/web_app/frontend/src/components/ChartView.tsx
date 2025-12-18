@@ -3,18 +3,22 @@ import axios from 'axios'
 import { createChart, ColorType, CandlestickSeries, LineSeries, HistogramSeries } from 'lightweight-charts'
 import './ChartView.css'
 
+import { Language, translations } from '../translations'
+
 interface ChartViewProps {
   symbol: string
   onClose: () => void
+  language: Language
 }
 
-function ChartView({ symbol, onClose }: ChartViewProps) {
+function ChartView({ symbol, onClose, language }: ChartViewProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [period, setPeriod] = useState('1y')
   const [isFullScreen, setIsFullScreen] = useState(false)
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<any>(null)
+  const t = translations[language];
 
   const loadChartData = async (selectedPeriod: string) => {
     setLoading(true)
@@ -26,7 +30,7 @@ function ChartView({ symbol, onClose }: ChartViewProps) {
       })
 
       if (!response.data.success) {
-        setError(response.data.error || '데이터를 불러올 수 없습니다')
+        setError(response.data.error || (language === 'ko' ? '데이터를 불러올 수 없습니다' : 'Could not load data'))
         setLoading(false)
         return
       }
@@ -218,7 +222,7 @@ function ChartView({ symbol, onClose }: ChartViewProps) {
       setLoading(false)
     } catch (err: any) {
       console.error('차트 로드 실패:', err)
-      setError(err.response?.data?.detail || '차트 데이터를 불러올 수 없습니다')
+      setError(err.response?.data?.detail || (language === 'ko' ? '차트 데이터를 불러올 수 없습니다' : 'Could not fetch chart data'))
       setLoading(false)
     }
   }
@@ -274,16 +278,26 @@ function ChartView({ symbol, onClose }: ChartViewProps) {
     setIsFullScreen(!isFullScreen)
   }
 
+  const getPeriodLabel = (p: string) => {
+    if (p === '1mo') return t.period1M;
+    if (p === '3mo') return t.period3M;
+    if (p === '6mo') return t.period6M;
+    if (p === '1y') return t.period1Y;
+    if (p === '2y') return language === 'ko' ? '2년' : '2Y';
+    if (p === '5y') return language === 'ko' ? '5년' : '5Y';
+    return p;
+  };
+
   return (
     <div className={`chart-overlay ${isFullScreen ? 'full-screen-mode' : ''}`} onClick={onClose}>
       <div className={`chart-modal ${isFullScreen ? 'is-full' : ''}`} onClick={(e) => e.stopPropagation()}>
         <div className="chart-header">
           <h2>📈 {symbol}</h2>
           <div className="header-actions">
-            <button className="maximize-btn" onClick={toggleFullScreen} title={isFullScreen ? "축소" : "확대"}>
+            <button className="maximize-btn" onClick={toggleFullScreen} title={isFullScreen ? (language === 'ko' ? "축소" : "Minimize") : (language === 'ko' ? "확대" : "Maximize")}>
               {isFullScreen ? '🔳' : '⬜'}
             </button>
-            <button className="close-btn" onClick={onClose}>✕</button>
+            <button className="close-btn" onClick={onClose} title={t.close}>✕</button>
           </div>
         </div>
 
@@ -294,7 +308,7 @@ function ChartView({ symbol, onClose }: ChartViewProps) {
               className={`period-btn ${period === p ? 'active' : ''}`}
               onClick={() => handlePeriodChange(p)}
             >
-              {p}
+              {getPeriodLabel(p)}
             </button>
           ))}
         </div>
@@ -306,7 +320,7 @@ function ChartView({ symbol, onClose }: ChartViewProps) {
           position: 'relative',
           height: isFullScreen ? 'calc(100vh - 200px)' : 'auto'
         }}>
-          {loading && <div className="chart-loading-overlay">차트 로딩 중...</div>}
+          {loading && <div className="chart-loading-overlay">{language === 'ko' ? '차트 로딩 중...' : 'Loading chart...'}</div>}
           <div ref={chartContainerRef} style={{ width: '100%', height: isFullScreen ? '100%' : '500px' }} />
           {!error && (
             <div className="chart-legend">
@@ -314,8 +328,8 @@ function ChartView({ symbol, onClose }: ChartViewProps) {
               <span style={{ color: '#6366f1' }}>━ MA60</span>
               <span style={{ color: '#ec4899' }}>━ MA120</span>
               <span style={{ color: '#14b8a6' }}>━ MA240</span>
-              <span style={{ color: '#a855f7' }}>┉ 볼린저밴드</span>
-              <span style={{ color: '#26a69a' }}>■ 거래량</span>
+              <span style={{ color: '#a855f7' }}>┉ {language === 'ko' ? '볼린저밴드' : 'BB'}</span>
+              <span style={{ color: '#26a69a' }}>■ {language === 'ko' ? '거래량' : 'Volume'}</span>
               <span style={{ color: '#facc15' }}>━ RSI</span>
             </div>
           )}

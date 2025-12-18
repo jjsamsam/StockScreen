@@ -6,15 +6,19 @@ import ScreeningPanel from './components/ScreeningPanel'
 import PredictionPanel from './components/PredictionPanel'
 import StockSearch from './components/StockSearch'
 import ResultsTable from './components/ResultsTable'
+import { Language, translations } from './translations'
 
 function App() {
     const [activeTab, setActiveTab] = useState<'screening' | 'prediction' | 'chart'>('screening')
     const [selectedMarket, setSelectedMarket] = useState<string>('korea')
     const [screeningResults, setScreeningResults] = useState<any>(null)
+    const [language, setLanguage] = useState<Language>('ko')
+
+    const t = translations[language];
 
     return (
         <div className="app">
-            <Header />
+            <Header language={language} setLanguage={setLanguage} />
 
             <div className="container">
                 <div className="tabs">
@@ -22,19 +26,19 @@ function App() {
                         className={`tab ${activeTab === 'screening' ? 'active' : ''}`}
                         onClick={() => setActiveTab('screening')}
                     >
-                        📊 스크리닝
+                        {t.tabScreening}
                     </button>
                     <button
                         className={`tab ${activeTab === 'prediction' ? 'active' : ''}`}
                         onClick={() => setActiveTab('prediction')}
                     >
-                        🤖 AI 예측
+                        {t.tabPrediction}
                     </button>
                     <button
                         className={`tab ${activeTab === 'chart' ? 'active' : ''}`}
                         onClick={() => setActiveTab('chart')}
                     >
-                        📈 차트 보기
+                        {t.tabChart}
                     </button>
                 </div>
 
@@ -44,19 +48,21 @@ function App() {
                             <MarketSelector
                                 selectedMarket={selectedMarket}
                                 onMarketChange={setSelectedMarket}
+                                language={language}
                             />
                             <ScreeningPanel
                                 market={selectedMarket}
                                 onResults={setScreeningResults}
+                                language={language}
                             />
                             {screeningResults && (
-                                <ResultsTable results={screeningResults} />
+                                <ResultsTable results={screeningResults} language={language} />
                             )}
                         </>
                     ) : activeTab === 'prediction' ? (
-                        <PredictionPanel />
+                        <PredictionPanel language={language} />
                     ) : (
-                        <StockSearch />
+                        <StockSearch language={language} />
                     )}
                 </div>
             </div>

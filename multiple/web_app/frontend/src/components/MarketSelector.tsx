@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react'
 import axios from 'axios'
 import './MarketSelector.css'
+import { Language, translations } from '../translations'
 
 interface MarketSelectorProps {
     selectedMarket: string
     onMarketChange: (market: string) => void
+    language: Language
 }
 
-function MarketSelector({ selectedMarket, onMarketChange }: MarketSelectorProps) {
+function MarketSelector({ selectedMarket, onMarketChange, language }: MarketSelectorProps) {
     const [markets, setMarkets] = useState<string[]>([])
     const [loading, setLoading] = useState(true)
+    const t = translations[language];
 
     useEffect(() => {
         fetchMarkets()
@@ -28,18 +31,18 @@ function MarketSelector({ selectedMarket, onMarketChange }: MarketSelectorProps)
     }
 
     const marketNames: Record<string, string> = {
-        korea: '🇰🇷 한국',
-        usa: '🇺🇸 미국',
-        sweden: '🇸🇪 스웨덴'
+        korea: `🇰🇷 ${t.marketKorea}`,
+        usa: `🇺🇸 ${t.marketUsa}`,
+        sweden: `🇸🇪 ${t.marketSweden}`
     }
 
     if (loading) {
-        return <div className="market-selector loading">로딩 중...</div>
+        return <div className="market-selector loading">{language === 'ko' ? '로딩 중...' : 'Loading...'}</div>
     }
 
     return (
         <div className="market-selector">
-            <label>시장 선택</label>
+            <label>{t.marketSelection}</label>
             <div className="market-buttons">
                 {markets.map(market => (
                     <button

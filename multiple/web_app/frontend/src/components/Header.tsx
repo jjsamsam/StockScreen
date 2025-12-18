@@ -1,6 +1,14 @@
+import { Language, translations } from '../translations'
 import './Header.css'
 
-function Header() {
+interface HeaderProps {
+    language: Language;
+    setLanguage: (lang: Language) => void;
+}
+
+function Header({ language, setLanguage }: HeaderProps) {
+    const t = translations[language];
+
     return (
         <header className="header">
             <div className="header-content">
@@ -8,8 +16,24 @@ function Header() {
                     <span className="logo-icon">📈</span>
                     <h1>Stock Screener</h1>
                 </div>
-                <div className="subtitle">
-                    AI 기반 주식 스크리닝 & 예측 시스템
+                <div className="header-right">
+                    <div className="subtitle">
+                        {t.headerSubtitle}
+                    </div>
+                    <div className="lang-selector">
+                        <button
+                            className={`lang-btn ${language === 'ko' ? 'active' : ''}`}
+                            onClick={() => setLanguage('ko')}
+                        >
+                            KO
+                        </button>
+                        <button
+                            className={`lang-btn ${language === 'en' ? 'active' : ''}`}
+                            onClick={() => setLanguage('en')}
+                        >
+                            EN
+                        </button>
+                    </div>
                 </div>
             </div>
         </header>

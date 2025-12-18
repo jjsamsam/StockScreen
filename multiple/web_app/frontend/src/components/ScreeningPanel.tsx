@@ -1,34 +1,37 @@
 import { useState } from 'react'
 import axios from 'axios'
 import './ScreeningPanel.css'
+import { Language, translations } from '../translations'
 
 interface ScreeningPanelProps {
     market: string
     onResults: (results: any) => void
+    language: Language
 }
 
-function ScreeningPanel({ market, onResults }: ScreeningPanelProps) {
+function ScreeningPanel({ market, onResults, language }: ScreeningPanelProps) {
     const [buyConditions, setBuyConditions] = useState<string[]>([])
     const [sellConditions, setSellConditions] = useState<string[]>([])
     const [loading, setLoading] = useState(false)
     const [stockLimit, setStockLimit] = useState(100)
     const [matchMode, setMatchMode] = useState<'all' | 'any'>('any')
+    const t = translations[language];
 
     const availableConditions = {
         buy: [
-            { id: 'golden_cross', label: '골든 크로스' },
-            { id: 'rsi_oversold', label: 'RSI 과매도' },
-            { id: 'volume_surge', label: '거래량 급증' },
-            { id: 'enhanced_ma_buy', label: '강화된 MA 매수' },
-            { id: 'enhanced_bb_rsi_buy', label: '강화된 BB+RSI 매수' },
-            { id: 'enhanced_macd_volume_buy', label: '강화된 MACD+거래량' },
-            { id: 'enhanced_momentum_buy', label: '강화된 모멘텀 매수' }
+            { id: 'golden_cross', label: t.cond_golden_cross },
+            { id: 'rsi_oversold', label: t.cond_rsi_oversold },
+            { id: 'volume_surge', label: t.cond_volume_surge },
+            { id: 'enhanced_ma_buy', label: t.cond_enhanced_ma_buy },
+            { id: 'enhanced_bb_rsi_buy', label: t.cond_enhanced_bb_rsi_buy },
+            { id: 'enhanced_macd_volume_buy', label: t.cond_enhanced_macd_volume_buy },
+            { id: 'enhanced_momentum_buy', label: t.cond_enhanced_momentum_buy }
         ],
         sell: [
-            { id: 'death_cross', label: '데드 크로스' },
-            { id: 'rsi_overbought', label: 'RSI 과매수' },
-            { id: 'enhanced_technical_sell', label: '강화된 기술적 매도' },
-            { id: 'enhanced_bb_rsi_sell', label: '강화된 BB+RSI 매도' }
+            { id: 'death_cross', label: t.cond_death_cross },
+            { id: 'rsi_overbought', label: t.cond_rsi_overbought },
+            { id: 'enhanced_technical_sell', label: t.cond_enhanced_technical_sell },
+            { id: 'enhanced_bb_rsi_sell', label: t.cond_enhanced_bb_rsi_sell }
         ]
     }
 
@@ -50,7 +53,7 @@ function ScreeningPanel({ market, onResults }: ScreeningPanelProps) {
 
     const handleScreen = async () => {
         if (buyConditions.length === 0 && sellConditions.length === 0) {
-            alert('최소 하나의 조건을 선택해주세요')
+            alert(language === 'ko' ? '최소 하나의 조건을 선택해주세요' : 'Please select at least one condition')
             return
         }
 
@@ -65,7 +68,7 @@ function ScreeningPanel({ market, onResults }: ScreeningPanelProps) {
 
             // ✅ 응답 구조 확인 및 수정
             if (!stocksResponse.data.success || !stocksResponse.data.stocks) {
-                alert('종목 데이터를 가져올 수 없습니다')
+                alert(language === 'ko' ? '종목 데이터를 가져올 수 없습니다' : 'Could not fetch stock data')
                 return
             }
 
@@ -102,7 +105,7 @@ function ScreeningPanel({ market, onResults }: ScreeningPanelProps) {
             console.error('Error response:', error.response?.data)
 
             // ✅ 에러 메시지 개선
-            let errorMessage = '스크리닝 중 오류가 발생했습니다'
+            let errorMessage = language === 'ko' ? '스크리닝 중 오류가 발생했습니다' : 'An error occurred during screening'
             if (error.response?.data?.detail) {
                 if (Array.isArray(error.response.data.detail)) {
                     errorMessage = error.response.data.detail.map((e: any) =>
@@ -120,11 +123,11 @@ function ScreeningPanel({ market, onResults }: ScreeningPanelProps) {
 
     return (
         <div className="screening-panel">
-            <h2>📊 스크리닝 조건 설정</h2>
+            <h2>{t.screeningSettings}</h2>
 
             <div className="settings-row">
                 <div className="setting-item">
-                    <label>종목 수 제한</label>
+                    <label>{t.stockLimit}</label>
                     <div className="limit-input-group">
                         <input
                             type="number"
@@ -138,34 +141,34 @@ function ScreeningPanel({ market, onResults }: ScreeningPanelProps) {
                             className={`limit-all-btn ${stockLimit >= 10000 ? 'active' : ''}`}
                             onClick={() => setStockLimit(10000)}
                         >
-                            전체
+                            {t.limitAll}
                         </button>
                     </div>
                 </div>
 
                 <div className="setting-item">
-                    <label>매칭 방식</label>
+                    <label>{t.matchMode}</label>
                     <div className="match-mode-selector">
                         <button
                             className={`mode-btn ${matchMode === 'any' ? 'active' : ''}`}
                             onClick={() => setMatchMode('any')}
-                            title="선택한 조건 중 하나라도 맞으면 추출"
+                            title={language === 'ko' ? '선택한 조건 중 하나라도 맞으면 추출' : 'Extract if any of the selected conditions match'}
                         >
-                            하나라도 만족 (OR)
+                            {t.matchAny}
                         </button>
                         <button
                             className={`mode-btn ${matchMode === 'all' ? 'active' : ''}`}
                             onClick={() => setMatchMode('all')}
-                            title="선택한 모든 조건이 맞아야 추출"
+                            title={language === 'ko' ? '선택한 모든 조건이 맞아야 추출' : 'Extract only if all selected conditions match'}
                         >
-                            전부 만족 (AND)
+                            {t.matchAll}
                         </button>
                     </div>
                 </div>
             </div>
 
             <div className="conditions-section">
-                <h3>🚀 매수 조건</h3>
+                <h3>{t.buyConditions}</h3>
                 <div className="condition-grid">
                     {availableConditions.buy.map(cond => (
                         <button
@@ -180,7 +183,7 @@ function ScreeningPanel({ market, onResults }: ScreeningPanelProps) {
             </div>
 
             <div className="conditions-section">
-                <h3>📉 매도 조건</h3>
+                <h3>{t.sellConditions}</h3>
                 <div className="condition-grid">
                     {availableConditions.sell.map(cond => (
                         <button
@@ -199,7 +202,7 @@ function ScreeningPanel({ market, onResults }: ScreeningPanelProps) {
                 onClick={handleScreen}
                 disabled={loading}
             >
-                {loading ? '스크리닝 중...' : '🔍 스크리닝 시작'}
+                {loading ? t.screeningInProgress : `🔍 ${t.startScreening}`}
             </button>
         </div>
     )

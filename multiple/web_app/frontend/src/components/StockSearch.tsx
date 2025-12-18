@@ -2,12 +2,18 @@ import { useState } from 'react'
 import axios from 'axios'
 import './StockSearch.css'
 import ChartView from './ChartView'
+import { Language, translations } from '../translations'
 
-function StockSearch() {
+interface StockSearchProps {
+    language: Language
+}
+
+function StockSearch({ language }: StockSearchProps) {
     const [query, setQuery] = useState('')
     const [results, setResults] = useState<any[]>([])
     const [loading, setLoading] = useState(false)
     const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null)
+    const t = translations[language];
 
     const handleSearch = async () => {
         if (!query.trim()) {
@@ -44,7 +50,7 @@ function StockSearch() {
 
     return (
         <div className="stock-search">
-            <h2>🔍 종목 검색</h2>
+            <h2>🔍 {t.searchAndCharts}</h2>
 
             <div className="search-box">
                 <input
@@ -52,17 +58,27 @@ function StockSearch() {
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     onKeyPress={handleKeyPress}
-                    placeholder="종목 코드 또는 영문 이름 입력 (예: AAPL, Samsung, 005930.KS)"
+                    placeholder={t.enterTickerOrName}
                 />
                 <button onClick={handleSearch} disabled={loading}>
-                    {loading ? '검색 중...' : '검색'}
+                    {loading ? (language === 'ko' ? '검색 중...' : 'Searching...') : t.search}
                 </button>
             </div>
 
             <div className="search-hint">
-                💡 팁: 한국 종목은 영문 이름(Samsung) 또는 티커 코드(005930.KS)로 검색하세요
-                <br />
-                📌 티커 코드를 정확히 알고 있다면 바로 입력 후 "직접 입력" 버튼을 클릭하세요
+                {language === 'ko' ? (
+                    <>
+                        💡 팁: 한국 종목은 영문 이름(Samsung) 또는 티커 코드(005930.KS)로 검색하세요
+                        <br />
+                        📌 티커 코드를 정확히 알고 있다면 바로 입력 후 "직접 입력" 버튼을 클릭하세요
+                    </>
+                ) : (
+                    <>
+                        💡 Tip: Search for Korean stocks using English names (Samsung) or Ticker (005930.KS)
+                        <br />
+                        📌 If you know the ticker, enter it and click "Direct Input" to view the chart
+                    </>
+                )}
             </div>
 
             <div className="direct-input-section">
@@ -71,13 +87,13 @@ function StockSearch() {
                     onClick={handleDirectInput}
                     disabled={!query.trim()}
                 >
-                    🎯 "{query}" 직접 입력하여 차트 보기
+                    🎯 "{query}" {language === 'ko' ? '직접 입력하여 차트 보기' : 'Direct Input (View Chart)'}
                 </button>
             </div>
 
             {results.length > 0 && (
                 <div className="search-results">
-                    <h3>검색 결과 ({results.length}개)</h3>
+                    <h3>{language === 'ko' ? `검색 결과 (${results.length}개)` : `Search Results (${results.length})`}</h3>
                     <div className="results-grid">
                         {results.map((stock, index) => (
                             <div
@@ -96,7 +112,7 @@ function StockSearch() {
 
             {!loading && query && results.length === 0 && (
                 <div className="no-results">
-                    검색 결과가 없습니다. "직접 입력" 버튼을 사용해보세요.
+                    {language === 'ko' ? '검색 결과가 없습니다. "직접 입력" 버튼을 사용해보세요.' : 'No results found. Try the "Direct Input" button.'}
                 </div>
             )}
 
@@ -104,6 +120,7 @@ function StockSearch() {
                 <ChartView
                     symbol={selectedSymbol}
                     onClose={() => setSelectedSymbol(null)}
+                    language={language}
                 />
             )}
         </div>

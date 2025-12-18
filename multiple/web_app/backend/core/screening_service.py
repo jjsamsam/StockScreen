@@ -118,7 +118,8 @@ class ScreeningService:
                                 'name': stock_name,
                                 'current_price': float(data['Close'].iloc[-1]),
                                 'volume': int(data['Volume'].iloc[-1]),
-                                'matched_conditions': readable_conditions
+                                'matched_conditions': readable_conditions,
+                                'matched_ids': matched
                             })
                     
                     # 매도 조건 체크
@@ -131,7 +132,8 @@ class ScreeningService:
                                 'name': stock_name,
                                 'current_price': float(data['Close'].iloc[-1]),
                                 'volume': int(data['Volume'].iloc[-1]),
-                                'matched_conditions': readable_conditions
+                                'matched_conditions': readable_conditions,
+                                'matched_ids': matched
                             })
                 
                 except Exception as e:
@@ -180,18 +182,18 @@ class ScreeningService:
             logger.info(f"⚠️ {symbol}: 지표 계산을 위한 데이터 부족 (누락: {missing_cols}). {len(data)}일치의 데이터만 있음.")
             return None
 
-        matched_details = []
+        matched_ids = []
         for condition in conditions:
             is_matched, detail = self._check_single_condition_enhanced(data, latest, prev, condition)
             if is_matched:
-                matched_details.append(detail or condition)
+                matched_ids.append(condition)
             elif match_mode == 'all':
                 # '모두 만족' 모드에서 하나라도 실패하면 바로 종료
                 return None
         
-        if matched_details:
-             logger.info(f"✨ {symbol} 조건 만족: {matched_details}")
-             return matched_details
+        if matched_ids:
+             logger.info(f"✨ {symbol} 조건 만족: {matched_ids}")
+             return matched_ids
         
         return None
     
