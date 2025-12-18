@@ -1,4 +1,5 @@
 import { Language, translations } from '../translations'
+import BackendStatus from './BackendStatus'
 import './Header.css'
 
 interface HeaderProps {
@@ -12,9 +13,12 @@ function Header({ language, setLanguage }: HeaderProps) {
     return (
         <header className="header">
             <div className="header-content">
-                <div className="logo">
-                    <span className="logo-icon">📈</span>
-                    <h1>Stock Screener</h1>
+                <div className="logo-group">
+                    <div className="logo">
+                        <span className="logo-icon">📈</span>
+                        <h1>Stock Screener</h1>
+                    </div>
+                    <BackendStatus language={language} />
                 </div>
                 <div className="header-right">
                     <div className="subtitle">

@@ -47,11 +47,17 @@
     color: var(--text-primary);
 }
 
+.logo-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
 .logo {
     display: flex;
     align-items: center;
     gap: 15px;
-    margin-bottom: 8px;
+    margin-bottom: 0;
 }
 
 .logo-icon {

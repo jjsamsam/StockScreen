@@ -7,8 +7,12 @@ export const translations = {
         tabPrediction: '🤖 AI 예측',
         tabChart: '📈 차트 보기',
 
-        // Header
         headerSubtitle: 'AI 기반 주식 스크리닝 & 예측 시스템',
+
+        // Backend Status
+        backendStatus: '서버 상태',
+        backendOnline: '정상',
+        backendOffline: '연결 안됨',
 
         // MarketSelector
         marketSelection: '시장 선택',
@@ -101,8 +105,12 @@ export const translations = {
         tabPrediction: '🤖 AI Prediction',
         tabChart: '📈 Chart View',
 
-        // Header
         headerSubtitle: 'AI-Powered Stock Screening & Prediction System',
+
+        // Backend Status
+        backendStatus: 'Backend Status',
+        backendOnline: 'Online',
+        backendOffline: 'Offline',
 
         // MarketSelector
         marketSelection: 'Select Market',
