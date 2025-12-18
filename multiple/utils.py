@@ -829,6 +829,8 @@ class TechnicalAnalysis:
     def calculate_all_indicators(data: pd.DataFrame) -> pd.DataFrame:
         """모든 기술적 지표 계산 (결측 보정 포함)"""
         # 이동평균선
+        data['MA5'] = data['Close'].rolling(5).mean()
+        data['MA10'] = data['Close'].rolling(10).mean()
         data['MA20'] = data['Close'].rolling(20).mean()
         data['MA60'] = data['Close'].rolling(60).mean()
         data['MA120'] = data['Close'].rolling(120).mean()

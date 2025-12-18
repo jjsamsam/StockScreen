@@ -62,4 +62,10 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # 현재 디렉토리(backend)를 Python 경로에 추가하여 reload 시 api_server 모듈을 찾을 수 있게 합니다.
+    if current_dir not in sys.path:
+        sys.path.insert(0, current_dir)
+    
+    # 개발 편의를 위해 reload=True 설정 (코드가 수정되면 서버가 자동 재시작됩니다)
+    # 단, reload=True일 때는 '파일명:앱객체' 문자열 형태로 전달해야 합니다.
+    uvicorn.run("api_server:app", host="0.0.0.0", port=8000, reload=True)

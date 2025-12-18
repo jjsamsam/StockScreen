@@ -14,12 +14,18 @@
 
 .settings-row {
     margin-bottom: 20px;
+    display: flex;
+    gap: 30px;
+    flex-wrap: wrap;
 }
 
-.settings-row label {
+.settings-row .setting-item {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
+}
+
+.settings-row .setting-item label {
     font-size: 14px;
     font-weight: 600;
     color: var(--text-secondary);
@@ -29,14 +35,68 @@
     padding: 10px;
     background: var(--bg-tertiary);
     border: 2px solid var(--border);
-    border-radius: 8px;
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
     color: var(--text-primary);
     font-size: 16px;
-    max-width: 200px;
+    max-width: 100px;
+    border-right: none;
 }
 
-.settings-row input:focus {
+.limit-input-group {
+    display: flex;
+    align-items: stretch;
+}
+
+.limit-all-btn {
+    padding: 0 15px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 2px solid var(--border);
+    border-left: 1px solid var(--border);
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.limit-all-btn:hover {
+    color: var(--primary);
+    background: var(--bg-primary);
+}
+
+.limit-all-btn.active {
+    background: var(--primary);
+    color: white;
     border-color: var(--primary);
+}
+
+.match-mode-selector {
+    display: flex;
+    background: var(--bg-tertiary);
+    padding: 4px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.mode-btn {
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+}
+
+.mode-btn:hover {
+    color: var(--text-primary);
+}
+
+.mode-btn.active {
+    background: var(--primary);
+    color: white;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
 }
 
 .conditions-section {

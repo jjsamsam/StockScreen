@@ -29,7 +29,7 @@ async def get_markets():
 
 
 @router.get("/stocks/{market}")
-async def get_stocks(market: str, limit: Optional[int] = Query(None, ge=1, le=1000)):
+async def get_stocks(market: str, limit: Optional[int] = Query(None, ge=1, le=10000)):
     """
     특정 시장의 종목 리스트
     
