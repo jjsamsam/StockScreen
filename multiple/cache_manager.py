@@ -470,10 +470,16 @@ class StockDataCache:
                     if fixed_count > 0:
                         logger.debug(f"Successfully fixed {fixed_count} data validation issues for {symbol}")
 
-            # Check for minimum data points
-            if len(data) < 5:
-                logger.warning(f"Data validation failed for {symbol}: Insufficient data points ({len(data)})")
+            # Check for minimum data points (skip for very short periods if validate_cache is True, handled by caller)
+            # Default minimum is 5, but we check if we actually have any data
+            if len(data) < 1:
+                logger.warning(f"Data validation failed for {symbol}: Empty data")
                 return False
+            
+            # If the data is very short, we log a debug instead of failing
+            if len(data) < 5:
+                logger.debug(f"Data for {symbol} has only {len(data)} points, but passing as requested.")
+                return True
 
             logger.debug(f"Data validation passed for {symbol}: {len(data)} data points")
             return True

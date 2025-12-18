@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Node
+node_modules/
+dist/
+build/
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 환경 변수
+.env
+.env.local
+
+# Docker
+*.log
+
+# 캐시 및 데이터
+cache/
+models/
+*.h5
+*.pkl

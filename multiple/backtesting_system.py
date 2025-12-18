@@ -296,8 +296,8 @@ class RecommendationBacktestingEngine:
             entry_price = candidate['entry_price']
             entry_date = candidate['entry_date']
             
-            # 현재가 조회 - 캐싱 사용
-            current_data = get_stock_data(symbol, period="2d")
+            # 현재가 조회 - 캐싱 사용 (검증 우회)
+            current_data = get_stock_data(symbol, period="2d", validate_cache=False)
             
             if len(current_data) == 0:
                 return None

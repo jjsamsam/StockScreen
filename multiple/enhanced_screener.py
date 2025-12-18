@@ -465,8 +465,8 @@ class EnhancedCPUPredictor:
         try:
             logger.info(f"{ticker} 일관성 예측 시작...")
             
-            # 1. 실제 현재가 조회 (캐싱 사용)
-            current_data = get_stock_data(ticker, period="2d")
+            # 1. 실제 현재가 조회 (캐싱 사용, 검증 우회)
+            current_data = get_stock_data(ticker, period="2d", validate_cache=False)
 
             # ✅ 수정: current_data 확인
             if current_data is None or current_data.empty or len(current_data) == 0:

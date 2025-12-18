@@ -1,0 +1,116 @@
+.screening-panel {
+    background: var(--bg-secondary);
+    padding: 25px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.screening-panel h2 {
+    font-size: 24px;
+    margin-bottom: 20px;
+    color: var(--text-primary);
+}
+
+.settings-row {
+    margin-bottom: 20px;
+}
+
+.settings-row label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.settings-row input {
+    padding: 10px;
+    background: var(--bg-tertiary);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 16px;
+    max-width: 200px;
+}
+
+.settings-row input:focus {
+    border-color: var(--primary);
+}
+
+.conditions-section {
+    margin-bottom: 25px;
+}
+
+.conditions-section h3 {
+    font-size: 18px;
+    margin-bottom: 12px;
+    color: var(--text-primary);
+}
+
+.condition-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+}
+
+.condition-btn {
+    padding: 12px 16px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.condition-btn:hover {
+    background: var(--bg-primary);
+    border-color: var(--primary);
+    transform: translateY(-2px);
+}
+
+.condition-btn.active {
+    background: var(--success);
+    color: white;
+    border-color: var(--success);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.screen-btn {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+    color: white;
+    border-radius: 8px;
+    font-size: 18px;
+    font-weight: 700;
+    transition: all 0.3s ease;
+    margin-top: 20px;
+}
+
+.screen-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+}
+
+.screen-btn:disabled {
+    background: var(--bg-tertiary);
+    cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+    .screening-panel {
+        padding: 20px;
+    }
+
+    .condition-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .screen-btn {
+        font-size: 16px;
+    }
+}

@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: stock-screener-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../cache:/app/cache
+      - ../models:/app/models
+      - ../stock_data:/app/stock_data
+      - ../master_csv:/app/master_csv
+      - ../*.py:/app/parent/
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app:/app/parent
+    restart: unless-stopped
+    networks:
+      - stock-screener-network
+
+  frontend:
+    build: ./frontend
+    container_name: stock-screener-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - stock-screener-network
+
+networks:
+  stock-screener-network:
+    driver: bridge
+
+volumes:
+  cache:
+  models:
+  stock_data:
+  master_csv:
