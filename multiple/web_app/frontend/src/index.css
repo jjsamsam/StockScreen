@@ -5,6 +5,9 @@
   --success: #10b981;
   --danger: #ef4444;
   --warning: #f59e0b;
+  /* 한국 주식 시장 표준 색상 (상승: 빨강, 하락: 파랑) */
+  --up: #ef4444;
+  --down: #2563eb;
   --bg-primary: #0f172a;
   --bg-secondary: #1e293b;
   --bg-tertiary: #334155;
@@ -67,7 +70,9 @@ button:disabled {
 }
 
 /* 입력 필드 기본 스타일 */
-input, select, textarea {
+input,
+select,
+textarea {
   font-family: inherit;
   outline: none;
 }

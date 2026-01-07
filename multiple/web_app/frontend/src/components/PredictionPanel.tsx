@@ -83,10 +83,11 @@ function PredictionPanel({ language }: PredictionPanelProps) {
     }
 
     const getReturnColor = (returnValue: number) => {
-        if (returnValue > 0.02) return 'var(--success)'
-        if (returnValue < -0.02) return 'var(--danger)'
+        if (returnValue > 0.02) return 'var(--up)'
+        if (returnValue < -0.02) return 'var(--down)'
         return 'var(--warning)'
     }
+
 
     const downloadCSV = () => {
         if (!result) return

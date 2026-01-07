@@ -87,7 +87,8 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
       const volumeData = data.dates.map((date: string, index: number) => ({
         time: date,
         value: data.volume[index],
-        color: data.close[index] >= data.open[index] ? '#10b98188' : '#ef444488',
+        // 한국 표준: 상승(Red), 하락(Blue)
+        color: data.close[index] >= data.open[index] ? '#ef444488' : '#2563eb88',
       }))
 
       // RSI 데이터
@@ -125,11 +126,11 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
 
         // 1. 가격/이동평균선/볼린저밴드 영역
         const candlestickSeries = chart.addSeries(CandlestickSeries, {
-          upColor: '#10b981',
-          downColor: '#ef4444',
+          upColor: '#ef4444',     // 상승: 빨강 (한국 표준)
+          downColor: '#2563eb',   // 하락: 파랑 (한국 표준)
           borderVisible: false,
-          wickUpColor: '#10b981',
-          wickDownColor: '#ef4444',
+          wickUpColor: '#ef4444',
+          wickDownColor: '#2563eb',
           priceScaleId: 'right',
         })
         candlestickSeries.setData(candlestickData)
@@ -203,7 +204,7 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
         });
         rsiSeries.createPriceLine({
           price: 30,
-          color: '#10b981',
+          color: '#2563eb', // 과매수(하락 반전 가능성)와 대비되는 과매도(상승 반전 가능성) 색상
           lineWidth: 1,
           lineStyle: 3,
           axisLabelVisible: true,
@@ -329,7 +330,7 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
               <span style={{ color: '#ec4899' }}>━ MA120</span>
               <span style={{ color: '#14b8a6' }}>━ MA240</span>
               <span style={{ color: '#a855f7' }}>┉ {language === 'ko' ? '볼린저밴드' : 'BB'}</span>
-              <span style={{ color: '#26a69a' }}>■ {language === 'ko' ? '거래량' : 'Volume'}</span>
+              <span style={{ color: '#ef4444' }}>■ {language === 'ko' ? '거래량' : 'Volume'}</span>
               <span style={{ color: '#facc15' }}>━ RSI</span>
             </div>
           )}

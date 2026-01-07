@@ -81,10 +81,10 @@ export const translations = {
         period6M: '6개월',
         period1Y: '1년',
         period3Y: '3년',
-        movingAverages: '이동평균선 (MA5: 적색, MA10: 청색, MA20: 황색)',
-        bollingerBands: '볼린저 밴드 (상단/하단: 회색 점선)',
-        volume: '거래량 (Volume)',
-        rsiTitle: 'RSI 지수 (RSI: 보라색, 70/30: 기준선)',
+        movingAverages: '이동평균선 (MA20: 황색, MA60: 청색, MA120: 분홍, MA240: 청록)',
+        bollingerBands: '볼린저 밴드 (상단/하단: 보라색 점선)',
+        volume: '거래량 (상승: 빨강, 하락: 파랑)',
+        rsiTitle: 'RSI 지수 (RSI: 황색, 70: 빨강, 30: 파랑)',
 
         // Conditions
         cond_golden_cross: '골든 크로스',
@@ -179,10 +179,10 @@ export const translations = {
         period6M: '6M',
         period1Y: '1Y',
         period3Y: '3Y',
-        movingAverages: 'Moving Averages (MA5: Red, MA10: Blue, MA20: Yellow)',
-        bollingerBands: 'Bollinger Bands (Upper/Lower: Dotted)',
-        volume: 'Volume',
-        rsiTitle: 'RSI (RSI: Purple, 70/30: Baseline)',
+        movingAverages: 'Moving Averages (MA20: Yellow, MA60: Blue, MA120: Pink, MA240: Teal)',
+        bollingerBands: 'Bollinger Bands (Upper/Lower: Purple Dotted)',
+        volume: 'Volume (Up: Red, Down: Blue)',
+        rsiTitle: 'RSI (RSI: Yellow, 70: Red, 30: Blue)',
 
         // Conditions
         cond_golden_cross: 'Golden Cross',

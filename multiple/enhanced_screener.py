@@ -20,9 +20,14 @@ import warnings
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from functools import partial
 
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
+# GUI 라이브러리 (데스크톱 버전용, 웹 배포 시에는 무시됨)
+try:
+    from PyQt5.QtWidgets import *
+    from PyQt5.QtCore import *
+    from PyQt5.QtGui import *
+    GUI_AVAILABLE = True
+except ImportError:
+    GUI_AVAILABLE = False
 
 # 로깅 설정
 from logger_config import get_logger

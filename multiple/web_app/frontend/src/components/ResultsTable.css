@@ -69,11 +69,11 @@
 }
 
 .stat.buy strong {
-    color: var(--success);
+    color: var(--up);
 }
 
 .stat.sell strong {
-    color: var(--danger);
+    color: var(--down);
 }
 
 .signal-section {
@@ -93,15 +93,15 @@
 }
 
 .section-title.buy {
-    background: rgba(16, 185, 129, 0.1);
-    color: var(--success);
-    border-left: 4px solid var(--success);
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--up);
+    border-left: 4px solid var(--up);
 }
 
 .section-title.sell {
-    background: rgba(239, 68, 68, 0.1);
-    color: var(--danger);
-    border-left: 4px solid var(--danger);
+    background: rgba(37, 99, 235, 0.1);
+    color: var(--down);
+    border-left: 4px solid var(--down);
 }
 
 .table-container {
@@ -252,9 +252,9 @@ td {
 }
 
 .signal-section.buy .condition-badge {
-    border-color: rgba(16, 185, 129, 0.3);
+    border-color: rgba(239, 68, 68, 0.3);
 }
 
 .signal-section.sell .condition-badge {
-    border-color: rgba(239, 68, 68, 0.3);
+    border-color: rgba(37, 99, 235, 0.3);
 }
