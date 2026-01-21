@@ -18,6 +18,7 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
   const [isFullScreen, setIsFullScreen] = useState(false)
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<any>(null)
+  const legendRef = useRef<HTMLDivElement>(null)
   const t = translations[language];
 
   const loadChartData = async (selectedPeriod: string) => {
@@ -116,22 +117,34 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           },
           grid: {
             vertLines: { visible: false },
-            horzLines: { color: '#334155' },
+            horzLines: { color: '#1e293b', visible: true }, // 배경 그리드 복구 (아주 연하게)
           },
           width: chartContainerRef.current.clientWidth || 800,
           height: isFullScreen ? window.innerHeight - 250 : 600,
+          localization: {
+            locale: language === 'ko' ? 'ko-KR' : 'en-US',
+          },
         })
 
         chartRef.current = chart
 
+        // 0. 메인 차트 영역 (가격) - 아래쪽 40% 공간 확보 (거래량/RSI용)
+        chart.priceScale('right').applyOptions({
+          scaleMargins: { top: 0.05, bottom: 0.40 },
+          visible: true,
+          borderVisible: false,
+        })
+
         // 1. 가격/이동평균선/볼린저밴드 영역
         const candlestickSeries = chart.addSeries(CandlestickSeries, {
-          upColor: '#ef4444',     // 상승: 빨강 (한국 표준)
-          downColor: '#2563eb',   // 하락: 파랑 (한국 표준)
+          upColor: '#ef4444',     // 상승: 빨강
+          downColor: '#2563eb',   // 하락: 파랑
           borderVisible: false,
           wickUpColor: '#ef4444',
           wickDownColor: '#2563eb',
           priceScaleId: 'right',
+          priceLineVisible: false, // 현재가 표시선 제거
+          lastValueVisible: false, // Y축 라벨 숨김
         })
         candlestickSeries.setData(candlestickData)
 
@@ -141,6 +154,8 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           lineWidth: 1,
           lineStyle: 2,
           priceScaleId: 'right',
+          priceLineVisible: false,
+          lastValueVisible: false,
         })
         bbUpperSeries.setData(bbUpperData)
 
@@ -149,6 +164,8 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           lineWidth: 1,
           lineStyle: 1,
           priceScaleId: 'right',
+          priceLineVisible: false,
+          lastValueVisible: false,
         })
         bbMiddleSeries.setData(bbMiddleData)
 
@@ -157,20 +174,46 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           lineWidth: 1,
           lineStyle: 2,
           priceScaleId: 'right',
+          priceLineVisible: false,
+          lastValueVisible: false,
         })
         bbLowerSeries.setData(bbLowerData)
 
         // 이동평균선
-        const ma20Series = chart.addSeries(LineSeries, { color: '#f59e0b', lineWidth: 2, priceScaleId: 'right' })
+        const ma20Series = chart.addSeries(LineSeries, {
+          color: '#f59e0b',
+          lineWidth: 2,
+          priceScaleId: 'right',
+          priceLineVisible: false,
+          lastValueVisible: false,
+        })
         ma20Series.setData(ma20Data)
 
-        const ma60Series = chart.addSeries(LineSeries, { color: '#6366f1', lineWidth: 2, priceScaleId: 'right' })
+        const ma60Series = chart.addSeries(LineSeries, {
+          color: '#0000ff', // 파란색
+          lineWidth: 2,
+          priceScaleId: 'right',
+          priceLineVisible: false,
+          lastValueVisible: false,
+        })
         ma60Series.setData(ma60Data)
 
-        const ma120Series = chart.addSeries(LineSeries, { color: '#ec4899', lineWidth: 2, priceScaleId: 'right' })
+        const ma120Series = chart.addSeries(LineSeries, {
+          color: '#ff0000', // 빨간색
+          lineWidth: 2,
+          priceScaleId: 'right',
+          priceLineVisible: false,
+          lastValueVisible: false,
+        })
         ma120Series.setData(ma120Data)
 
-        const ma240Series = chart.addSeries(LineSeries, { color: '#14b8a6', lineWidth: 2, priceScaleId: 'right' })
+        const ma240Series = chart.addSeries(LineSeries, {
+          color: '#14b8a6',
+          lineWidth: 2,
+          priceScaleId: 'right',
+          priceLineVisible: false,
+          lastValueVisible: false,
+        })
         ma240Series.setData(ma240Data)
 
         // 2. 거래량 영역
@@ -178,11 +221,13 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           color: '#26a69a',
           priceFormat: { type: 'volume' },
           priceScaleId: 'volume',
+          priceLineVisible: false,
+          lastValueVisible: false,
         })
         volumeSeries.setData(volumeData)
 
         chart.priceScale('volume').applyOptions({
-          scaleMargins: { top: 0.75, bottom: 0.05 },
+          scaleMargins: { top: 0.65, bottom: 0.20 },
         })
 
         // 3. RSI 영역
@@ -190,33 +235,102 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           color: '#facc15',
           lineWidth: 2,
           priceScaleId: 'rsi',
+          priceLineVisible: false,
+          lastValueVisible: false,
         })
         rsiSeries.setData(rsiData)
 
-        // RSI 기준선 (70, 30)
-        rsiSeries.createPriceLine({
-          price: 70,
-          color: '#ef4444',
-          lineWidth: 1,
-          lineStyle: 3,
-          axisLabelVisible: true,
-          title: 'Overbought',
-        });
-        rsiSeries.createPriceLine({
-          price: 30,
-          color: '#2563eb', // 과매수(하락 반전 가능성)와 대비되는 과매도(상승 반전 가능성) 색상
-          lineWidth: 1,
-          lineStyle: 3,
-          axisLabelVisible: true,
-          title: 'Oversold',
-        });
+        // RSI 기준선 제거 (사용자 요청)
 
         chart.priceScale('rsi').applyOptions({
           scaleMargins: { top: 0.85, bottom: 0.05 },
           visible: true,
-          borderVisible: true,
+          borderVisible: false,
         })
 
+        // =========================================================
+        // 💫 다이나믹 툴팁 (크로스헤어 핸들러)
+        // =========================================================
+        const updateLegend = (param: any) => {
+          if (!legendRef.current) return;
+
+          const validCrosshairPoint = (
+            param.time &&
+            param.point.x >= 0 &&
+            param.point.x <= chartContainerRef.current!.clientWidth &&
+            param.point.y >= 0 &&
+            param.point.y <= chartContainerRef.current!.clientHeight
+          );
+
+          // 데이터 가져오기
+          const seriesPrices = param.seriesData || new Map();
+
+          // Helper
+          const getVal = (series: any) => {
+            const val = seriesPrices.get(series);
+            return val ? (val.value !== undefined ? val.value : val.close) : null;
+          };
+
+          const candleVal = seriesPrices.get(candlestickSeries);
+
+          // 날짜 포맷팅
+          let dateStr = '';
+          if (param.time) {
+            dateStr = String(param.time); // '2023-01-01'
+          }
+
+          if (candleVal) {
+            const open = candleVal.open;
+            const close = candleVal.close;
+            const high = candleVal.high;
+            const low = candleVal.low;
+            const change = close - open;
+            const changePercent = (change / open) * 100;
+            const color = change >= 0 ? '#ef4444' : '#2563eb';
+            const sign = change > 0 ? '+' : '';
+
+            const vol = getVal(volumeSeries);
+            const rsi = getVal(rsiSeries);
+            const ma20 = getVal(ma20Series);
+            const ma60 = getVal(ma60Series);
+            const ma120 = getVal(ma120Series);
+            const ma240 = getVal(ma240Series);
+            const bbUp = getVal(bbUpperSeries);
+            const bbLow = getVal(bbLowerSeries);
+
+            const volStr = vol ? (vol >= 1000000 ? `${(vol / 1000000).toFixed(1)}M` : (vol >= 1000 ? `${(vol / 1000).toFixed(1)}K` : vol)) : '-';
+
+            legendRef.current.innerHTML = `
+               <div style="font-size: 14px; font-weight: bold; margin-bottom: 6px; color: #e2e8f0; border-bottom: 1px solid #334155; padding-bottom: 4px;">📅 ${dateStr}</div>
+               
+               <div style="display: flex; gap: 12px; align-items: baseline; margin-bottom: 8px;">
+                 <span style="font-size: 20px; font-weight: bold; color: ${color};">${close.toLocaleString()}</span>
+                 <span style="color: ${color}; font-size: 14px;">${sign}${change.toLocaleString()} (${sign}${changePercent.toFixed(2)}%)</span>
+               </div>
+
+               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: x 16px; row-gap: 2px; font-size: 12px; color: #94a3b8; margin-bottom: 8px;">
+                 <div>O: <span style="color: #cbd5e1">${open.toLocaleString()}</span></div>
+                 <div>H: <span style="color: #cbd5e1">${high.toLocaleString()}</span></div>
+                 <div>L: <span style="color: #cbd5e1">${low.toLocaleString()}</span></div>
+                 <div>Vol: <span style="color: #cbd5e1">${volStr}</span></div>
+               </div>
+
+               <div style="margin-top: 8px; border-top: 1px dotted #475569; padding-top: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 12px;">
+                 <div style="color: #f59e0b;">MA20: ${ma20 ? ma20.toFixed(0) : '-'}</div>
+                 <div style="color: #0000ff;">MA60: ${ma60 ? ma60.toFixed(0) : '-'}</div>
+                 <div style="color: #ff0000;">MA120: ${ma120 ? ma120.toFixed(0) : '-'}</div>
+                 <div style="color: #14b8a6;">MA240: ${ma240 ? ma240.toFixed(0) : '-'}</div>
+               </div>
+
+               <div style="margin-top: 4px; display: grid; grid-template-columns: 1fr; gap: 2px; font-size: 12px;">
+                 <div style="color: #a855f7;">BB: ${bbUp ? bbUp.toFixed(0) : '-'} ~ ${bbLow ? bbLow.toFixed(0) : '-'}</div>
+                 <div style="color: #facc15;">RSI: ${rsi ? rsi.toFixed(1) : '-'}</div>
+               </div>
+             `;
+          }
+        };
+
+        chart.subscribeCrosshairMove(updateLegend);
         chart.timeScale().fitContent()
       }
 
@@ -323,15 +437,32 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
         }}>
           {loading && <div className="chart-loading-overlay">{language === 'ko' ? '차트 로딩 중...' : 'Loading chart...'}</div>}
           <div ref={chartContainerRef} style={{ width: '100%', height: isFullScreen ? '100%' : '500px' }} />
+
           {!error && (
-            <div className="chart-legend">
-              <span style={{ color: '#f59e0b' }}>━ MA20</span>
-              <span style={{ color: '#6366f1' }}>━ MA60</span>
-              <span style={{ color: '#ec4899' }}>━ MA120</span>
-              <span style={{ color: '#14b8a6' }}>━ MA240</span>
-              <span style={{ color: '#a855f7' }}>┉ {language === 'ko' ? '볼린저밴드' : 'BB'}</span>
-              <span style={{ color: '#ef4444' }}>■ {language === 'ko' ? '거래량' : 'Volume'}</span>
-              <span style={{ color: '#facc15' }}>━ RSI</span>
+            <div
+              ref={legendRef}
+              className="chart-dynamic-legend"
+              style={{
+                position: 'absolute',
+                top: '10px',
+                left: '10px',
+                zIndex: 20,
+                backgroundColor: 'rgba(15, 23, 42, 0.9)', // 어두운 반투명 배경
+                border: '1px solid #334155',
+                borderRadius: '8px',
+                padding: '12px',
+                color: '#cbd5e1',
+                pointerEvents: 'none', // 마우스 통과 (차트 조작 가능)
+                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
+                minWidth: '200px',
+                backdropFilter: 'blur(4px)',
+                transition: 'opacity 0.1s ease',
+              }}
+            >
+              {/* 초기 안내 메시지 */}
+              <div style={{ fontSize: '12px', color: '#64748b' }}>
+                {language === 'ko' ? '👆 차트를 터치하여 정보 확인' : '👆 Touch chart for details'}
+              </div>
             </div>
           )}
         </div>

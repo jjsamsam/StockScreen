@@ -20,7 +20,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from cache_manager import get_stock_data
-from utils import TechnicalAnalysis
+from technical_analysis import TechnicalAnalysis
 from enhanced_screening_conditions import EnhancedScreeningConditions
 from logger_config import get_logger
 

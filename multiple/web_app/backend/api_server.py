@@ -10,14 +10,22 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)  # web_app
 grandparent_dir = os.path.dirname(parent_dir)  # multiple
 
-# Python 경로에 추가
-if grandparent_dir not in sys.path:
-    sys.path.insert(0, grandparent_dir)
+# Docker 환경 감지 (PYTHONPATH에 /app/parent가 있는지 등으로 확인 가능하지만, 간단히 /app 확인)
+IN_DOCKER = os.path.exists('/app/parent')
 
-# ✅ 작업 디렉토리를 프로젝트 루트로 변경 (CSV 파일 찾기 위해)
-os.chdir(grandparent_dir)
+if IN_DOCKER:
+    # Docker 환경에서는 PYTHONPATH가 이미 설정되어 있으므로 추가 조작 최소화
+    # /app/parent 가 multiple 디렉토리 역할을 함
+    print(f"✅ Running in Docker environment")
+else:
+    # 로컬 개발 환경
+    if grandparent_dir not in sys.path:
+        sys.path.insert(0, grandparent_dir)
+    
+    # 작업 디렉토리 변경 (로컬에서만)
+    os.chdir(grandparent_dir)
+
 print(f"✅ Working directory: {os.getcwd()}")
-print(f"✅ stock_data exists: {os.path.exists('stock_data')}")
 
 # 이제 import
 from fastapi import FastAPI, HTTPException
