@@ -451,7 +451,14 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           height: isFullScreen ? 'calc(100vh - 200px)' : 'auto'
         }}>
           {loading && <div className="chart-loading-overlay">{language === 'ko' ? '차트 로딩 중...' : 'Loading chart...'}</div>}
-          <div ref={chartContainerRef} style={{ width: '100%', height: isFullScreen ? '100%' : '500px' }} />
+          <div ref={chartContainerRef} style={{
+            width: '100%',
+            height: isFullScreen ? '100%' : '500px',
+            touchAction: 'none',        // 스크롤 방지
+            userSelect: 'none',         // 텍스트 선택 방지
+            WebkitUserSelect: 'none',   // iOS 텍스트 선택 방지
+            WebkitTouchCallout: 'none'  // iOS 꾹 누르기 메뉴 방지
+          }} />
 
           {!error && (
             <div
