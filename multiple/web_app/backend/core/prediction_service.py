@@ -33,6 +33,9 @@ project_root = os.path.dirname(webapp_dir)  # multiple
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+
+from logger_config import get_logger
+
 # =======================================================
 # 🚑 Headless 서버용 핫픽스: 가짜 PyQt5 모듈 주입
 # enhanced_screener.py가 GUI 의존성이 강해서 서버에서 import 시 에러나는 것을 방지
@@ -63,7 +66,6 @@ except ImportError:
     logger.warning("⚠️ 서버 환경 감지: GUI 모듈을 Mocking 처리했습니다.")
 
 from enhanced_screener import EnhancedCPUPredictor
-from logger_config import get_logger
 
 logger = get_logger(__name__)
 
