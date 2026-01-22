@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import axios from 'axios'
+import api from '../api'
 import './MarketSelector.css'
 import { Language, translations } from '../translations'
 
@@ -20,7 +20,7 @@ function MarketSelector({ selectedMarket, onMarketChange, language }: MarketSele
 
     const fetchMarkets = async () => {
         try {
-            const response = await axios.get('/api/markets')
+            const response = await api.get('/markets')
             setMarkets(response.data.markets)
         } catch (error) {
             console.error('시장 목록 조회 실패:', error)

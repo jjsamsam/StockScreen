@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import axios from 'axios'
+import api from '../api'
 import './StockSearch.css'
 import ChartView from './ChartView'
 import { Language, translations } from '../translations'
@@ -22,7 +22,7 @@ function StockSearch({ language }: StockSearchProps) {
 
         setLoading(true)
         try {
-            const response = await axios.get('/api/search', {
+            const response = await api.get('/search', {
                 params: { q: query, limit: 20 }
             })
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import axios from 'axios'
+import api from '../api'
 import './ScreeningPanel.css'
 import { Language, translations } from '../translations'
 
@@ -63,7 +63,7 @@ function ScreeningPanel({ market, onResults, language, onProcessStart, onProcess
         if (onProcessStart) onProcessStart()
         try {
             // 먼저 종목 리스트 가져오기
-            const stocksResponse = await axios.get(`/api/stocks/${market}`, {
+            const stocksResponse = await api.get(`/stocks/${market}`, {
                 params: { limit: stockLimit }
             })
 
@@ -99,7 +99,7 @@ function ScreeningPanel({ market, onResults, language, onProcessStart, onProcess
             console.log('Screening request:', requestData)
 
             // 스크리닝 실행
-            const screeningResponse = await axios.post('/api/screen', requestData)
+            const screeningResponse = await api.post('/screen', requestData)
 
             console.log('Screening response:', screeningResponse.data)
             onResults(screeningResponse.data)

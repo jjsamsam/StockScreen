@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useRef } from 'react'
-import axios from 'axios'
+import api from '../api'
 import { createChart, ColorType, CandlestickSeries, LineSeries, HistogramSeries } from 'lightweight-charts'
 import './ChartView.css'
 
@@ -26,7 +26,7 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
     setError('')
 
     try {
-      const response = await axios.get(`/api/chart/${symbol}`, {
+      const response = await api.get(`/chart/${symbol}`, {
         params: { period: selectedPeriod }
       })
 

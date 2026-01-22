@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import axios from 'axios'
+import api from '../api'
 import './PredictionPanel.css'
 import { Language, translations } from '../translations'
 
@@ -39,7 +39,7 @@ function PredictionPanel({ language, onProcessStart, onProcessEnd }: PredictionP
 
         setSearching(true)
         try {
-            const response = await axios.get('/api/search', {
+            const response = await api.get('/search', {
                 params: { q: query, limit: 5 }
             })
             if (response.data.success) {
@@ -71,7 +71,7 @@ function PredictionPanel({ language, onProcessStart, onProcessEnd }: PredictionP
         setSearchResults([])
 
         try {
-            const response = await axios.post('/api/predict', {
+            const response = await api.post('/predict', {
                 ticker: finalTicker.toUpperCase(),
                 forecast_days: forecastDays
             })
