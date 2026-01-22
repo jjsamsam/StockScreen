@@ -256,6 +256,7 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
 
 
 
+
           // 데이터 가져오기
           const seriesPrices = param.seriesData || new Map();
 
@@ -270,7 +271,9 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           // 날짜 포맷팅
           let dateStr = '';
           if (param.time) {
-            dateStr = String(param.time); // '2023-01-01'
+            // param.time이 string일 수도 있고 object일 수도 있음 (lightweight-charts 버전에 따라 다름)
+            dateStr = typeof param.time === 'string' ? param.time :
+              `${param.time.year}-${String(param.time.month).padStart(2, '0')}-${String(param.time.day).padStart(2, '0')}`;
           }
 
           if (candleVal) {
@@ -278,8 +281,26 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
             const close = candleVal.close;
             const high = candleVal.high;
             const low = candleVal.low;
-            const change = close - open;
-            const changePercent = (change / open) * 100;
+
+            // ✅ 전일 종가 대비 등락폭 계산 (Change from Previous Close)
+            // candlestickData 배열에서 현재 날짜의 인덱스를 찾고, 그 전날 데이터를 가져옴
+            let prevClose = open; // 데이터가 없으면 시가를 기준으로 (당일 등락) -> 0%로 시작
+            let change = 0;
+            let changePercent = 0;
+
+            // 현재 데이터의 인덱스 찾기 (시간 기준)
+            const currentIndex = candlestickData.findIndex((d: any) => d.time === param.time);
+
+            if (currentIndex > 0) {
+              prevClose = candlestickData[currentIndex - 1].close;
+              change = close - prevClose;
+              changePercent = (change / prevClose) * 100;
+            } else {
+              // 첫 날인 경우: 시가 기준 등락폭 (오늘 얼마나 움직였나) or 0
+              change = close - open;
+              changePercent = (change / open) * 100;
+            }
+
             const color = change >= 0 ? '#ef4444' : '#2563eb';
             const sign = change > 0 ? '+' : '';
 
