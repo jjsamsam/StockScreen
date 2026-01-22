@@ -16,9 +16,11 @@ interface PredictionResult {
 
 interface PredictionPanelProps {
     language: Language
+    onProcessStart?: () => void
+    onProcessEnd?: () => void
 }
 
-function PredictionPanel({ language }: PredictionPanelProps) {
+function PredictionPanel({ language, onProcessStart, onProcessEnd }: PredictionPanelProps) {
     const [ticker, setTicker] = useState('')
     const [forecastDays, setForecastDays] = useState(7)
     const [loading, setLoading] = useState(false)
@@ -63,6 +65,7 @@ function PredictionPanel({ language }: PredictionPanelProps) {
         }
 
         setLoading(true)
+        if (onProcessStart) onProcessStart()
         setError('')
         setResult(null)
         setSearchResults([])
@@ -79,6 +82,7 @@ function PredictionPanel({ language }: PredictionPanelProps) {
             setError(err.response?.data?.detail || (language === 'ko' ? '예측 중 오류가 발생했습니다' : 'An error occurred during prediction'))
         } finally {
             setLoading(false)
+            if (onProcessEnd) onProcessEnd()
         }
     }
 

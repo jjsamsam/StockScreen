@@ -5,9 +5,10 @@ import './Header.css'
 interface HeaderProps {
     language: Language;
     setLanguage: (lang: Language) => void;
+    isProcessing?: boolean;
 }
 
-function Header({ language, setLanguage }: HeaderProps) {
+function Header({ language, setLanguage, isProcessing }: HeaderProps) {
     const t = translations[language];
 
     return (
@@ -18,7 +19,7 @@ function Header({ language, setLanguage }: HeaderProps) {
                         <span className="logo-icon">📈</span>
                         <h1>Stock Screener</h1>
                     </div>
-                    <BackendStatus language={language} />
+                    <BackendStatus language={language} isProcessing={isProcessing} />
                 </div>
                 <div className="header-right">
                     <div className="subtitle">

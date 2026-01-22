@@ -7,9 +7,11 @@ interface ScreeningPanelProps {
     market: string
     onResults: (results: any) => void
     language: Language
+    onProcessStart?: () => void
+    onProcessEnd?: () => void
 }
 
-function ScreeningPanel({ market, onResults, language }: ScreeningPanelProps) {
+function ScreeningPanel({ market, onResults, language, onProcessStart, onProcessEnd }: ScreeningPanelProps) {
     const [buyConditions, setBuyConditions] = useState<string[]>([])
     const [sellConditions, setSellConditions] = useState<string[]>([])
     const [loading, setLoading] = useState(false)
@@ -58,6 +60,7 @@ function ScreeningPanel({ market, onResults, language }: ScreeningPanelProps) {
         }
 
         setLoading(true)
+        if (onProcessStart) onProcessStart()
         try {
             // 먼저 종목 리스트 가져오기
             const stocksResponse = await axios.get(`/api/stocks/${market}`, {
@@ -118,6 +121,7 @@ function ScreeningPanel({ market, onResults, language }: ScreeningPanelProps) {
             alert(errorMessage)
         } finally {
             setLoading(false)
+            if (onProcessEnd) onProcessEnd()
         }
     }
 

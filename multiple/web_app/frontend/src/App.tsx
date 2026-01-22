@@ -13,12 +13,13 @@ function App() {
     const [selectedMarket, setSelectedMarket] = useState<string>('korea')
     const [screeningResults, setScreeningResults] = useState<any>(null)
     const [language, setLanguage] = useState<Language>('ko')
+    const [isProcessing, setIsProcessing] = useState<boolean>(false)
 
     const t = translations[language];
 
     return (
         <div className="app">
-            <Header language={language} setLanguage={setLanguage} />
+            <Header language={language} setLanguage={setLanguage} isProcessing={isProcessing} />
 
             <div className="container">
                 <div className="tabs">
@@ -54,13 +55,19 @@ function App() {
                                 market={selectedMarket}
                                 onResults={setScreeningResults}
                                 language={language}
+                                onProcessStart={() => setIsProcessing(true)}
+                                onProcessEnd={() => setIsProcessing(false)}
                             />
                             {screeningResults && (
                                 <ResultsTable results={screeningResults} language={language} />
                             )}
                         </>
                     ) : activeTab === 'prediction' ? (
-                        <PredictionPanel language={language} />
+                        <PredictionPanel
+                            language={language}
+                            onProcessStart={() => setIsProcessing(true)}
+                            onProcessEnd={() => setIsProcessing(false)}
+                        />
                     ) : (
                         <StockSearch language={language} />
                     )}
