@@ -254,13 +254,7 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
         const updateLegend = (param: any) => {
           if (!legendRef.current) return;
 
-          const validCrosshairPoint = (
-            param.time &&
-            param.point.x >= 0 &&
-            param.point.x <= chartContainerRef.current!.clientWidth &&
-            param.point.y >= 0 &&
-            param.point.y <= chartContainerRef.current!.clientHeight
-          );
+
 
           // 데이터 가져오기
           const seriesPrices = param.seriesData || new Map();

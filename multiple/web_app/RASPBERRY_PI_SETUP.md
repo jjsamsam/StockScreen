@@ -29,6 +29,7 @@
    sudo apt update && sudo apt upgrade -y
    ```
 
+
 ### 2. Docker 설치
 
 ```bash
@@ -36,15 +37,17 @@
 curl -fsSL https://get.docker.com -o get-docker.sh
 sudo sh get-docker.sh
 
-# 현재 사용자를 docker 그룹에 추가
+# 현재 사용자를 docker 그룹에 추가 (로그아웃 후 다시 로그인 필요)
 sudo usermod -aG docker $USER
 
-# Docker Compose 설치
-sudo apt install -y docker-compose
+# *중요*: 최신 Docker에는 'Docker Compose'가 플러그인으로 포함되어 있습니다.
+# 별도의 설치(apt install docker-compose)는 필요하지 않으며, 오히려 충돌을 일으킵니다.
 
-# 재부팅
-sudo reboot
+# 설치 확인
+docker compose version
 ```
+
+> **참고**: 그룹 변경 사항을 적용하려면 SSH 연결을 끊었다가 다시 접속하거나 `newgrp docker` 명령어를 입력하세요.
 
 ### 3. 애플리케이션 배포
 
@@ -54,19 +57,23 @@ cd ~
 git clone https://github.com/YOUR_USERNAME/StockScreen.git
 cd StockScreen/multiple/web_app
 
-# Docker 이미지 빌드 및 실행
-docker-compose up -d
+# Docker 이미지 빌드 및 실행 (하이픈(-) 없이 띄어쓰기 사용)
+docker compose up -d
 
 # 로그 확인
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ### 4. 방화벽 및 포트 설정
 
 ```bash
-# 포트 80 (프론트엔드) 및 8000 (백엔드) 열기
-sudo ufw allow 80/tcp
-sudo ufw allow 8000/tcp
+# 1. ufw 설치
+sudo apt install -y ufw
+# 2. 포트 열기 (SSH 접속 안 끊기게 주의!)
+sudo ufw allow 22/tcp    # SSH (필수!!)
+sudo ufw allow 80/tcp    # 웹 프론트엔드
+sudo ufw allow 8000/tcp  # 백엔드 API (필요시)
+# 3. 방화벽 활성화
 sudo ufw enable
 ```
 
@@ -88,8 +95,8 @@ After=docker.service
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/home/pi/StockScreen/multiple/web_app
-ExecStart=/usr/bin/docker-compose up -d
-ExecStop=/usr/bin/docker-compose down
+ExecStart=/usr/bin/docker compose up -d
+ExecStop=/usr/bin/docker compose down
 User=pi
 
 [Install]
@@ -189,19 +196,19 @@ services:
 ### 컨테이너 재시작
 ```bash
 cd ~/StockScreen/multiple/web_app
-docker-compose restart
+docker compose restart
 ```
 
 ### 로그 확인
 ```bash
 # 전체 로그
-docker-compose logs
+docker compose logs
 
 # 백엔드만
-docker-compose logs backend
+docker compose logs backend
 
 # 실시간 로그
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ## 📊 모니터링
@@ -227,9 +234,9 @@ vcgencmd measure_temp
 ```bash
 cd ~/StockScreen/multiple/web_app
 git pull
-docker-compose down
-docker-compose build --no-cache
-docker-compose up -d
+docker compose down
+docker compose build --no-cache
+docker compose up -d
 ```
 
 ## 💡 팁

@@ -33,6 +33,35 @@ project_root = os.path.dirname(webapp_dir)  # multiple
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+# =======================================================
+# 🚑 Headless 서버용 핫픽스: 가짜 PyQt5 모듈 주입
+# enhanced_screener.py가 GUI 의존성이 강해서 서버에서 import 시 에러나는 것을 방지
+# =======================================================
+try:
+    import PyQt5
+except ImportError:
+    # PyQt5가 없는 환경(서버)에서는 Mock 객체로 대체
+    import sys
+    from unittest.mock import MagicMock
+    import builtins
+
+    sys.modules['PyQt5'] = MagicMock()
+    sys.modules['PyQt5.QtWidgets'] = MagicMock()
+    sys.modules['PyQt5.QtCore'] = MagicMock()
+    sys.modules['PyQt5.QtGui'] = MagicMock()
+    
+    # QDialog 등 상속 클래스용 가짜 클래스 주입
+    class MockGUIClass: 
+        def __init__(self, *args, **kwargs): pass
+        def exec_(self): return 0
+    
+    builtins.QDialog = MockGUIClass
+    builtins.QMainWindow = MockGUIClass
+    builtins.QWidget = MockGUIClass
+    
+    logger = get_logger(__name__) 
+    logger.warning("⚠️ 서버 환경 감지: GUI 모듈을 Mocking 처리했습니다.")
+
 from enhanced_screener import EnhancedCPUPredictor
 from logger_config import get_logger
 
