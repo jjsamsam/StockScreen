@@ -4,6 +4,7 @@
   "batch_delay": 1.0,
   "min_data_days": 200,
   "use_arima_validation": false,
+  "cpu_cores": 1,
   "models_enabled": {
     "xgboost": true,
     "lightgbm": false,

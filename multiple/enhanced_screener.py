@@ -147,6 +147,10 @@ class EnhancedCPUPredictor:
 
         self.load_settings()
         
+        # CPU 스레드 설정 (기본값: 1 - 안전 모드)
+        cpu_cores = self.settings.get('cpu_cores', 1)
+        logger.info(f"모델 학습 스레드 제한: {cpu_cores}개 코어 사용")
+
         # CPU 최적화 모델들
         self.models = {
             'xgboost': xgb.XGBRegressor(
@@ -158,8 +162,9 @@ class EnhancedCPUPredictor:
                 reg_alpha=0.01,          # 0.1 → 0.01 ⭐ (정규화 완화)
                 reg_lambda=0.01,         # 0.1 → 0.01 ⭐
                 random_state=42,
-                n_jobs=1,
-                verbosity=0
+                n_jobs=cpu_cores,
+                verbosity=0,
+                nthread=cpu_cores  # CPU 코어 수 동적 할당
             ),
             
             'lightgbm': lgb.LGBMRegressor(
@@ -171,7 +176,8 @@ class EnhancedCPUPredictor:
                 reg_alpha=0.01,          # 0.1 → 0.01 ⭐
                 reg_lambda=0.01,         # 0.1 → 0.01 ⭐
                 random_state=42,
-                n_jobs=1,
+                n_jobs=cpu_cores,
+                num_threads=cpu_cores,  # CPU 코어 수 동적 할당
                 device='cpu',
                 verbose=-1
             ),
@@ -182,7 +188,7 @@ class EnhancedCPUPredictor:
                 min_samples_split=2,     # 5 → 2 ⭐
                 min_samples_leaf=1,      # 2 → 1 ⭐
                 max_features=0.8,        # 0.7 → 0.8
-                n_jobs=1,
+                n_jobs=cpu_cores,
                 random_state=42
             ),
             
@@ -193,7 +199,7 @@ class EnhancedCPUPredictor:
                 min_samples_leaf=1,      # 4 → 1 ⭐
                 max_features=0.8,        # 0.6 → 0.8
                 bootstrap=False,
-                n_jobs=1,
+                n_jobs=cpu_cores,
                 random_state=42
             ),
             
@@ -327,6 +333,7 @@ class EnhancedCPUPredictor:
     def reconfigure_models(self, forecast_days):
         """예측 기간에 따라 모델 재구성"""
         config = self.get_model_config_for_period(forecast_days)
+        cpu_cores = self.settings.get('cpu_cores', 1)
 
         logger.debug(f"{forecast_days}일 예측을 위한 모델 재구성:")
         logger.debug(f"   • 시퀀스 길이: {config['sequence_length']}일")
@@ -337,15 +344,15 @@ class EnhancedCPUPredictor:
         for model_name, params in config['models'].items():
             if model_name == 'xgboost':
                 self.models['xgboost'] = xgb.XGBRegressor(
-                    random_state=42, n_jobs=1, verbosity=0, **params
+                    random_state=42, n_jobs=cpu_cores, nthread=cpu_cores, verbosity=0, **params
                 )
             elif model_name == 'lightgbm':
                 self.models['lightgbm'] = lgb.LGBMRegressor(
-                    random_state=42, n_jobs=1, device='cpu', verbose=-1, **params
+                    random_state=42, n_jobs=cpu_cores, num_threads=cpu_cores, device='cpu', verbose=-1, **params
                 )
             elif model_name == 'random_forest':
                 self.models['random_forest'] = RandomForestRegressor(
-                    random_state=42, n_jobs=1, **params
+                    random_state=42, n_jobs=cpu_cores, **params
                 )
         
         return config
@@ -358,6 +365,7 @@ class EnhancedCPUPredictor:
             'batch_delay': 1.0,
             'min_data_days': 300,
             'use_arima_validation': True,
+            'cpu_cores': 1,  # 기본값 1 (안전제일)
             'models_enabled': {
                 'xgboost': True,
                 'lightgbm': True,
