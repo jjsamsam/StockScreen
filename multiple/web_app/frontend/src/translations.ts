@@ -5,7 +5,7 @@ export const translations = {
         // App
         tabScreening: '📊 스크리닝',
         tabPrediction: '🤖 AI 예측',
-        tabChart: '📈 차트 보기',
+        tabChart: '📈 차트/분석',
 
         headerSubtitle: 'AI 기반 주식 스크리닝 & 예측 시스템',
 
@@ -69,6 +69,22 @@ export const translations = {
         noteLowConfidenceCautious: '낮은 신뢰도 - 신중 판단 필요',
         noteLowConfidenceUncertain: '낮은 신뢰도 - 불확실한 예측',
 
+        // Async Prediction
+        predictionProgress: '예측 진행률',
+        cancelPrediction: '취소',
+        predictionQueued: '예측 대기 중...',
+        predictionRunning: '예측 진행 중...',
+        predictionCompleted: '예측 완료!',
+        predictionFailed: '예측 실패',
+        predictionCancelled: '예측 취소됨',
+        predictionTimeout: '시간 초과',
+        retryPrediction: '다시 시도',
+        preparingData: '데이터 준비 중...',
+        trainingModels: '모델 학습 중...',
+        calculatingPrediction: '예측 계산 중...',
+        elapsedTime: '소요 시간',
+        seconds: '초',
+
         // StockSearch
         searchAndCharts: '종목 검색 및 차트',
         enterTicker: '종목 코드 입력',
@@ -103,7 +119,7 @@ export const translations = {
         // App
         tabScreening: '📊 Screening',
         tabPrediction: '🤖 AI Prediction',
-        tabChart: '📈 Chart View',
+        tabChart: '📈 Chart/Analysis',
 
         headerSubtitle: 'AI-Powered Stock Screening & Prediction System',
 
@@ -166,6 +182,22 @@ export const translations = {
         noteHighConfidence: 'High Confidence',
         noteLowConfidenceCautious: 'Low Confidence - Cautious approach needed',
         noteLowConfidenceUncertain: 'Low Confidence - Uncertain prediction',
+
+        // Async Prediction
+        predictionProgress: 'Prediction Progress',
+        cancelPrediction: 'Cancel',
+        predictionQueued: 'Queued...',
+        predictionRunning: 'Running...',
+        predictionCompleted: 'Completed!',
+        predictionFailed: 'Failed',
+        predictionCancelled: 'Cancelled',
+        predictionTimeout: 'Timeout',
+        retryPrediction: 'Retry',
+        preparingData: 'Preparing data...',
+        trainingModels: 'Training models...',
+        calculatingPrediction: 'Calculating...',
+        elapsedTime: 'Elapsed',
+        seconds: 's',
 
         // StockSearch
         searchAndCharts: 'Stock Search & Charts',

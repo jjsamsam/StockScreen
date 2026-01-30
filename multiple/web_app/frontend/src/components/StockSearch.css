@@ -99,13 +99,13 @@
 
 .results-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 15px;
 }
 
 .stock-card {
     background: var(--bg-tertiary);
-    padding: 20px;
+    padding: 16px;
     border-radius: 10px;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -119,28 +119,102 @@
     box-shadow: 0 6px 20px rgba(99, 102, 241, 0.3);
 }
 
-.stock-symbol {
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--primary);
+.stock-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 8px;
 }
 
+.stock-symbol {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--primary);
+}
+
 .stock-name {
-    font-size: 16px;
+    font-size: 14px;
     color: var(--text-primary);
-    margin-bottom: 6px;
+    margin-bottom: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .stock-market {
-    font-size: 12px;
+    font-size: 10px;
     color: var(--text-secondary);
     text-transform: uppercase;
     font-weight: 600;
-    padding: 4px 8px;
+    padding: 3px 6px;
     background: var(--bg-secondary);
     border-radius: 4px;
-    display: inline-block;
+}
+
+/* Stock Quote Styles */
+.stock-quote {
+    background: var(--bg-secondary);
+    padding: 10px;
+    border-radius: 6px;
+    margin-top: 8px;
+}
+
+.quote-loading {
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.quote-loading .loading-dot {
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 0.3;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
+.quote-price {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.quote-change {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.quote-change.positive {
+    color: var(--success);
+}
+
+.quote-change.negative {
+    color: var(--error);
+}
+
+.quote-percent {
+    font-size: 12px;
+    margin-left: 4px;
+    opacity: 0.9;
+}
+
+.quote-volume {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.quote-unavailable {
+    color: var(--text-secondary);
+    text-align: center;
 }
 
 .no-results {
@@ -167,5 +241,122 @@
 
     .results-grid {
         grid-template-columns: 1fr;
+    }
+}
+
+/* ========================================
+   Chart + Analysis Layout
+   차트 + 분석 레이아웃
+   ======================================== */
+.chart-analysis-container {
+    margin-top: 20px;
+}
+
+.view-toggle {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.view-toggle .toggle-btn {
+    padding: 10px 16px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.view-toggle .toggle-btn:hover {
+    border-color: var(--primary);
+    color: var(--text-primary);
+}
+
+.view-toggle .toggle-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.view-toggle .close-btn {
+    margin-left: auto;
+    padding: 10px 16px;
+    background: var(--error);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.view-toggle .close-btn:hover {
+    background: #dc2626;
+}
+
+.chart-analysis-layout {
+    display: grid;
+    gap: 20px;
+}
+
+.chart-analysis-layout.chart-only {
+    grid-template-columns: 1fr;
+}
+
+.chart-analysis-layout.with-analysis {
+    grid-template-columns: 1fr 380px;
+}
+
+.chart-wrapper {
+    min-height: 500px;
+}
+
+.analysis-wrapper {
+    max-height: 800px;
+    overflow-y: auto;
+}
+
+/* Analysis wrapper scrollbar styling */
+.analysis-wrapper::-webkit-scrollbar {
+    width: 8px;
+}
+
+.analysis-wrapper::-webkit-scrollbar-track {
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+}
+
+.analysis-wrapper::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
+
+.analysis-wrapper::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}
+
+@media (max-width: 1200px) {
+    .chart-analysis-layout.with-analysis {
+        grid-template-columns: 1fr;
+    }
+
+    .analysis-wrapper {
+        max-height: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .view-toggle {
+        flex-direction: column;
+    }
+
+    .view-toggle .close-btn {
+        margin-left: 0;
+        width: 100%;
     }
 }

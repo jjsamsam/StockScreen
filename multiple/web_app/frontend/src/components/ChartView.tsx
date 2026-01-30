@@ -2,6 +2,7 @@
 import api from '../api'
 import { createChart, ColorType, CandlestickSeries, LineSeries, HistogramSeries } from 'lightweight-charts'
 import './ChartView.css'
+import StockAnalysis from './StockAnalysis'
 
 import { Language, translations } from '../translations'
 
@@ -9,6 +10,23 @@ interface ChartViewProps {
   symbol: string
   onClose: () => void
   language: Language
+}
+
+// 지표 가시성 상태
+interface IndicatorVisibility {
+  ma: boolean
+  bb: boolean
+  volume: boolean
+  rsi: boolean
+}
+
+// 현재가 정보 인터페이스
+interface QuoteData {
+  price: number
+  change: number
+  change_percent: number
+  volume: number
+  name: string
 }
 
 function ChartView({ symbol, onClose, language }: ChartViewProps) {
@@ -20,6 +38,59 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
   const chartRef = useRef<any>(null)
   const legendRef = useRef<HTMLDivElement>(null)
   const t = translations[language];
+
+  // 🆕 현재가 정보 상태
+  const [quote, setQuote] = useState<QuoteData | null>(null)
+
+  // 🆕 지표 토글 상태
+  const [indicators, setIndicators] = useState<IndicatorVisibility>({
+    ma: true,
+    bb: true,
+    volume: true,
+    rsi: true
+  })
+
+  // 🆕 분석 패널 표시 상태
+  const [showAnalysis, setShowAnalysis] = useState(false)
+
+  // 시리즈 참조 저장
+  const seriesRef = useRef<{
+    ma20?: any; ma60?: any; ma120?: any; ma240?: any;
+    bbUpper?: any; bbMiddle?: any; bbLower?: any;
+    volume?: any; rsi?: any;
+  }>({})
+
+  // 🆕 토글 핸들러
+  const toggleIndicator = (indicator: keyof IndicatorVisibility) => {
+    setIndicators(prev => {
+      const newState = { ...prev, [indicator]: !prev[indicator] }
+
+      // 시리즈 가시성 즉시 업데이트
+      const series = seriesRef.current
+      const chart = chartRef.current
+
+      if (chart) {
+        if (indicator === 'ma') {
+          series.ma20?.applyOptions({ visible: newState.ma })
+          series.ma60?.applyOptions({ visible: newState.ma })
+          series.ma120?.applyOptions({ visible: newState.ma })
+          series.ma240?.applyOptions({ visible: newState.ma })
+        } else if (indicator === 'bb') {
+          series.bbUpper?.applyOptions({ visible: newState.bb })
+          series.bbMiddle?.applyOptions({ visible: newState.bb })
+          series.bbLower?.applyOptions({ visible: newState.bb })
+        } else if (indicator === 'volume') {
+          series.volume?.applyOptions({ visible: newState.volume })
+          chart.priceScale('volume').applyOptions({ visible: newState.volume })
+        } else if (indicator === 'rsi') {
+          series.rsi?.applyOptions({ visible: newState.rsi })
+          chart.priceScale('rsi').applyOptions({ visible: newState.rsi })
+        }
+      }
+
+      return newState
+    })
+  }
 
   const loadChartData = async (selectedPeriod: string) => {
     setLoading(true)
@@ -117,7 +188,7 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           },
           grid: {
             vertLines: { visible: false },
-            horzLines: { color: '#1e293b', visible: true }, // 배경 그리드 복구 (아주 연하게)
+            horzLines: { color: '#1e293b', visible: true },
           },
           width: chartContainerRef.current.clientWidth || 800,
           height: isFullScreen ? window.innerHeight - 250 : 600,
@@ -143,8 +214,8 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           wickUpColor: '#ef4444',
           wickDownColor: '#2563eb',
           priceScaleId: 'right',
-          priceLineVisible: false, // 현재가 표시선 제거
-          lastValueVisible: false, // Y축 라벨 숨김
+          priceLineVisible: false,
+          lastValueVisible: false,
         })
         candlestickSeries.setData(candlestickData)
 
@@ -156,6 +227,7 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           priceScaleId: 'right',
           priceLineVisible: false,
           lastValueVisible: false,
+          visible: indicators.bb,
         })
         bbUpperSeries.setData(bbUpperData)
 
@@ -166,6 +238,7 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           priceScaleId: 'right',
           priceLineVisible: false,
           lastValueVisible: false,
+          visible: indicators.bb,
         })
         bbMiddleSeries.setData(bbMiddleData)
 
@@ -176,6 +249,7 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           priceScaleId: 'right',
           priceLineVisible: false,
           lastValueVisible: false,
+          visible: indicators.bb,
         })
         bbLowerSeries.setData(bbLowerData)
 
@@ -186,24 +260,27 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           priceScaleId: 'right',
           priceLineVisible: false,
           lastValueVisible: false,
+          visible: indicators.ma,
         })
         ma20Series.setData(ma20Data)
 
         const ma60Series = chart.addSeries(LineSeries, {
-          color: '#0000ff', // 파란색
+          color: '#0000ff',
           lineWidth: 2,
           priceScaleId: 'right',
           priceLineVisible: false,
           lastValueVisible: false,
+          visible: indicators.ma,
         })
         ma60Series.setData(ma60Data)
 
         const ma120Series = chart.addSeries(LineSeries, {
-          color: '#ff0000', // 빨간색
+          color: '#ff0000',
           lineWidth: 2,
           priceScaleId: 'right',
           priceLineVisible: false,
           lastValueVisible: false,
+          visible: indicators.ma,
         })
         ma120Series.setData(ma120Data)
 
@@ -213,6 +290,7 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           priceScaleId: 'right',
           priceLineVisible: false,
           lastValueVisible: false,
+          visible: indicators.ma,
         })
         ma240Series.setData(ma240Data)
 
@@ -223,11 +301,13 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           priceScaleId: 'volume',
           priceLineVisible: false,
           lastValueVisible: false,
+          visible: indicators.volume,
         })
         volumeSeries.setData(volumeData)
 
         chart.priceScale('volume').applyOptions({
           scaleMargins: { top: 0.65, bottom: 0.20 },
+          visible: indicators.volume,
         })
 
         // 3. RSI 영역
@@ -237,30 +317,35 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           priceScaleId: 'rsi',
           priceLineVisible: false,
           lastValueVisible: false,
+          visible: indicators.rsi,
         })
         rsiSeries.setData(rsiData)
 
-        // RSI 기준선 제거 (사용자 요청)
-
         chart.priceScale('rsi').applyOptions({
           scaleMargins: { top: 0.85, bottom: 0.05 },
-          visible: true,
+          visible: indicators.rsi,
           borderVisible: false,
         })
 
-        // =========================================================
-        // 💫 다이나믹 툴팁 (크로스헤어 핸들러)
-        // =========================================================
+        // 시리즈 참조 저장
+        seriesRef.current = {
+          ma20: ma20Series,
+          ma60: ma60Series,
+          ma120: ma120Series,
+          ma240: ma240Series,
+          bbUpper: bbUpperSeries,
+          bbMiddle: bbMiddleSeries,
+          bbLower: bbLowerSeries,
+          volume: volumeSeries,
+          rsi: rsiSeries,
+        }
+
+        // 다이나믹 툴팁
         const updateLegend = (param: any) => {
           if (!legendRef.current) return;
 
-
-
-
-          // 데이터 가져오기
           const seriesPrices = param.seriesData || new Map();
 
-          // Helper
           const getVal = (series: any) => {
             const val = seriesPrices.get(series);
             return val ? (val.value !== undefined ? val.value : val.close) : null;
@@ -268,10 +353,8 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
 
           const candleVal = seriesPrices.get(candlestickSeries);
 
-          // 날짜 포맷팅
           let dateStr = '';
           if (param.time) {
-            // param.time이 string일 수도 있고 object일 수도 있음 (lightweight-charts 버전에 따라 다름)
             dateStr = typeof param.time === 'string' ? param.time :
               `${param.time.year}-${String(param.time.month).padStart(2, '0')}-${String(param.time.day).padStart(2, '0')}`;
           }
@@ -282,13 +365,10 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
             const high = candleVal.high;
             const low = candleVal.low;
 
-            // ✅ 전일 종가 대비 등락폭 계산 (Change from Previous Close)
-            // candlestickData 배열에서 현재 날짜의 인덱스를 찾고, 그 전날 데이터를 가져옴
-            let prevClose = open; // 데이터가 없으면 시가를 기준으로 (당일 등락) -> 0%로 시작
+            let prevClose = open;
             let change = 0;
             let changePercent = 0;
 
-            // 현재 데이터의 인덱스 찾기 (시간 기준)
             const currentIndex = candlestickData.findIndex((d: any) => d.time === param.time);
 
             if (currentIndex > 0) {
@@ -296,7 +376,6 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
               change = close - prevClose;
               changePercent = (change / prevClose) * 100;
             } else {
-              // 첫 날인 경우: 시가 기준 등락폭 (오늘 얼마나 움직였나) or 0
               change = close - open;
               changePercent = (change / open) * 100;
             }
@@ -330,17 +409,17 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
                  <div>Vol: <span style="color: #cbd5e1">${volStr}</span></div>
                </div>
 
-               <div style="margin-top: 8px; border-top: 1px dotted #475569; padding-top: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 12px;">
+               ${indicators.ma ? `<div style="margin-top: 8px; border-top: 1px dotted #475569; padding-top: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 12px;">
                  <div style="color: #f59e0b;">MA20: ${ma20 ? ma20.toFixed(0) : '-'}</div>
                  <div style="color: #0000ff;">MA60: ${ma60 ? ma60.toFixed(0) : '-'}</div>
                  <div style="color: #ff0000;">MA120: ${ma120 ? ma120.toFixed(0) : '-'}</div>
                  <div style="color: #14b8a6;">MA240: ${ma240 ? ma240.toFixed(0) : '-'}</div>
-               </div>
+               </div>` : ''}
 
-               <div style="margin-top: 4px; display: grid; grid-template-columns: 1fr; gap: 2px; font-size: 12px;">
-                 <div style="color: #a855f7;">BB: ${bbUp ? bbUp.toFixed(0) : '-'} ~ ${bbLow ? bbLow.toFixed(0) : '-'}</div>
-                 <div style="color: #facc15;">RSI: ${rsi ? rsi.toFixed(1) : '-'}</div>
-               </div>
+               ${indicators.bb || indicators.rsi ? `<div style="margin-top: 4px; display: grid; grid-template-columns: 1fr; gap: 2px; font-size: 12px;">
+                 ${indicators.bb ? `<div style="color: #a855f7;">BB: ${bbUp ? bbUp.toFixed(0) : '-'} ~ ${bbLow ? bbLow.toFixed(0) : '-'}</div>` : ''}
+                 ${indicators.rsi ? `<div style="color: #facc15;">RSI: ${rsi ? rsi.toFixed(1) : '-'}</div>` : ''}
+               </div>` : ''}
              `;
           }
         };
@@ -398,6 +477,21 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
     }
   }, [period])
 
+  // 🆕 현재가 정보 로드
+  useEffect(() => {
+    const fetchQuote = async () => {
+      try {
+        const response = await api.get(`/quote/${symbol}`)
+        if (response.data.success) {
+          setQuote(response.data.data)
+        }
+      } catch (err) {
+        console.warn('현재가 조회 실패:', err)
+      }
+    }
+    fetchQuote()
+  }, [symbol])
+
   const handlePeriodChange = (newPeriod: string) => {
     if (newPeriod !== period) {
       setPeriod(newPeriod)
@@ -422,7 +516,18 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
     <div className={`chart-overlay ${isFullScreen ? 'full-screen-mode' : ''}`} onClick={onClose}>
       <div className={`chart-modal ${isFullScreen ? 'is-full' : ''}`} onClick={(e) => e.stopPropagation()}>
         <div className="chart-header">
-          <h2>📈 {symbol}</h2>
+          <div className="header-title">
+            <h2>📈 {symbol}</h2>
+            {quote && (
+              <div className="header-quote">
+                <span className="quote-price">{quote.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className={`quote-change ${quote.change >= 0 ? 'positive' : 'negative'}`}>
+                  {quote.change >= 0 ? '+' : ''}{quote.change.toFixed(2)} ({quote.change_percent >= 0 ? '+' : ''}{quote.change_percent.toFixed(2)}%)
+                </span>
+                <span className="quote-vol">Vol: {quote.volume >= 1e6 ? (quote.volume / 1e6).toFixed(1) + 'M' : quote.volume >= 1e3 ? (quote.volume / 1e3).toFixed(1) + 'K' : quote.volume}</span>
+              </div>
+            )}
+          </div>
           <div className="header-actions">
             <button className="maximize-btn" onClick={toggleFullScreen} title={isFullScreen ? (language === 'ko' ? "축소" : "Minimize") : (language === 'ko' ? "확대" : "Maximize")}>
               {isFullScreen ? '🔳' : '⬜'}
@@ -431,6 +536,7 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           </div>
         </div>
 
+        {/* 기간 선택 */}
         <div className="period-selector">
           {['1mo', '3mo', '6mo', '1y', '2y', '5y'].map(p => (
             <button
@@ -443,7 +549,51 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           ))}
         </div>
 
+        {/* 🆕 지표 토글 버튼 */}
+        <div className="indicator-toggles">
+          <button
+            className={`toggle-btn ${indicators.ma ? 'active' : ''}`}
+            onClick={() => toggleIndicator('ma')}
+          >
+            📊 {language === 'ko' ? '이동평균' : 'MA'}
+          </button>
+          <button
+            className={`toggle-btn ${indicators.bb ? 'active' : ''}`}
+            onClick={() => toggleIndicator('bb')}
+          >
+            📈 {language === 'ko' ? '볼린저' : 'BB'}
+          </button>
+          <button
+            className={`toggle-btn ${indicators.volume ? 'active' : ''}`}
+            onClick={() => toggleIndicator('volume')}
+          >
+            📶 {language === 'ko' ? '거래량' : 'Vol'}
+          </button>
+          <button
+            className={`toggle-btn ${indicators.rsi ? 'active' : ''}`}
+            onClick={() => toggleIndicator('rsi')}
+          >
+            ⚡ RSI
+          </button>
+
+          {/* 🆕 분석 패널 토글 버튼 */}
+          <button
+            className={`toggle-btn analysis-toggle ${showAnalysis ? 'active' : ''}`}
+            onClick={() => setShowAnalysis(!showAnalysis)}
+            style={{ marginLeft: 'auto' }}
+          >
+            📊 {language === 'ko' ? '기술적 분석' : 'Analysis'}
+          </button>
+        </div>
+
         {error && <div className="chart-error">❌ {error}</div>}
+
+        {/* 🆕 분석 패널 표시 */}
+        {showAnalysis && (
+          <div className="analysis-panel-container">
+            <StockAnalysis ticker={symbol} language={language} />
+          </div>
+        )}
 
         <div className="chart-container" style={{
           visibility: loading ? 'hidden' : 'visible',
@@ -454,10 +604,10 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           <div ref={chartContainerRef} style={{
             width: '100%',
             height: isFullScreen ? '100%' : '500px',
-            touchAction: 'none',        // 스크롤 방지
-            userSelect: 'none',         // 텍스트 선택 방지
-            WebkitUserSelect: 'none',   // iOS 텍스트 선택 방지
-            WebkitTouchCallout: 'none'  // iOS 꾹 누르기 메뉴 방지
+            touchAction: 'none',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+            WebkitTouchCallout: 'none'
           }} />
 
           {!error && (
@@ -469,19 +619,18 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
                 top: '10px',
                 left: '10px',
                 zIndex: 20,
-                backgroundColor: 'rgba(15, 23, 42, 0.9)', // 어두운 반투명 배경
+                backgroundColor: 'rgba(15, 23, 42, 0.9)',
                 border: '1px solid #334155',
                 borderRadius: '8px',
                 padding: '12px',
                 color: '#cbd5e1',
-                pointerEvents: 'none', // 마우스 통과 (차트 조작 가능)
+                pointerEvents: 'none',
                 boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
                 minWidth: '200px',
                 backdropFilter: 'blur(4px)',
                 transition: 'opacity 0.1s ease',
               }}
             >
-              {/* 초기 안내 메시지 */}
               <div style={{ fontSize: '12px', color: '#64748b' }}>
                 {language === 'ko' ? '👆 차트를 터치하여 정보 확인' : '👆 Touch chart for details'}
               </div>

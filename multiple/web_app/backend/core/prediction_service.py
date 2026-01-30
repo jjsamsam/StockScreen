@@ -87,9 +87,52 @@ class PredictionService:
             logger.info("예측 서비스 초기화 중...")
             PredictionService._predictor = EnhancedCPUPredictor()
             logger.info("예측 서비스 초기화 완료")
+        
+        # 모드별 모델 설정 프리셋
+        self.mode_presets = {
+            "fast": {
+                "models_enabled": {
+                    "xgboost": True,
+                    "lightgbm": False,
+                    "random_forest": False,
+                    "extra_trees": False,
+                    "gradient_boosting": False
+                },
+                "description": "빠른 예측 (XGBoost만 사용)",
+                "estimated_time": "5-15초"
+            },
+            "standard": {
+                "models_enabled": {
+                    "xgboost": True,
+                    "lightgbm": True,
+                    "random_forest": True,
+                    "extra_trees": False,
+                    "gradient_boosting": False
+                },
+                "description": "표준 예측 (3개 모델)",
+                "estimated_time": "15-40초"
+            },
+            "precise": {
+                "models_enabled": {
+                    "xgboost": True,
+                    "lightgbm": True,
+                    "random_forest": True,
+                    "extra_trees": True,
+                    "gradient_boosting": True
+                },
+                "description": "정밀 예측 (5개 모델)",
+                "estimated_time": "40-90초"
+            }
+        }
     
-    def predict(self, ticker: str, forecast_days: int = 7) -> dict:
-        """주식 예측 실행"""
+    def predict(self, ticker: str, forecast_days: int = 7, mode: str = "standard") -> dict:
+        """주식 예측 실행
+        
+        Args:
+            ticker: 종목 코드
+            forecast_days: 예측 기간 (기본 7일)
+            mode: 예측 모드 - "fast" (빠름), "standard" (표준), "precise" (정밀)
+        """
         try:
             # ✅ 한국 티커 자동 보완 (숫자 6자리인 경우 .KS 추가)
             if ticker.isdigit() and len(ticker) == 6:
@@ -97,12 +140,26 @@ class PredictionService:
                 ticker = f"{ticker}.KS"
                 logger.info(f"티커 보완: {original_ticker} -> {ticker}")
 
+            # ✅ 모드에 따른 모델 설정 적용
+            if mode in self.mode_presets:
+                preset = self.mode_presets[mode]
+                original_settings = self._predictor.settings.get('models_enabled', {}).copy()
+                self._predictor.settings['models_enabled'] = preset['models_enabled']
+                logger.info(f"예측 모드: {mode} ({preset['description']})")
+            else:
+                original_settings = None
+                logger.warning(f"알 수 없는 모드 '{mode}', 기본 설정 사용")
+
             logger.info(f"예측 요청: {ticker}, {forecast_days}일")
             
             result, error = self._predictor.predict_stock(
                 ticker=ticker,
                 forecast_days=forecast_days
             )
+            
+            # ✅ 설정 복원
+            if original_settings is not None:
+                self._predictor.settings['models_enabled'] = original_settings
             
             if error:
                 logger.error(f"예측 실패: {error}")
@@ -114,6 +171,9 @@ class PredictionService:
             logger.info(f"예측 성공: {ticker}")
             # JSON 직렬화를 위해 Numpy 타입을 파이썬 타입으로 변환
             python_result = convert_numpy_to_python(result)
+            
+            # 모드 정보 추가
+            python_result['prediction_mode'] = mode
             
             return {
                 'success': True,
