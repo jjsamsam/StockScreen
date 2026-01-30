@@ -395,30 +395,30 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
             const volStr = vol ? (vol >= 1000000 ? `${(vol / 1000000).toFixed(1)}M` : (vol >= 1000 ? `${(vol / 1000).toFixed(1)}K` : vol)) : '-';
 
             legendRef.current.innerHTML = `
-               <div style="font-size: 14px; font-weight: bold; margin-bottom: 6px; color: #e2e8f0; border-bottom: 1px solid #334155; padding-bottom: 4px;">📅 ${dateStr}</div>
+               <div class="legend-date">📅 ${dateStr}</div>
                
-               <div style="display: flex; gap: 12px; align-items: baseline; margin-bottom: 8px;">
-                 <span style="font-size: 20px; font-weight: bold; color: ${color};">${close.toLocaleString()}</span>
-                 <span style="color: ${color}; font-size: 14px;">${sign}${change.toLocaleString()} (${sign}${changePercent.toFixed(2)}%)</span>
+               <div class="legend-price">
+                 <span class="price-value" style="color: ${color};">${close.toLocaleString()}</span>
+                 <span class="price-change" style="color: ${color};">${sign}${change.toLocaleString()} (${sign}${changePercent.toFixed(2)}%)</span>
                </div>
 
-               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: x 16px; row-gap: 2px; font-size: 12px; color: #94a3b8; margin-bottom: 8px;">
-                 <div>O: <span style="color: #cbd5e1">${open.toLocaleString()}</span></div>
-                 <div>H: <span style="color: #cbd5e1">${high.toLocaleString()}</span></div>
-                 <div>L: <span style="color: #cbd5e1">${low.toLocaleString()}</span></div>
-                 <div>Vol: <span style="color: #cbd5e1">${volStr}</span></div>
+               <div class="legend-ohlc">
+                 <span>O: ${open.toLocaleString()}</span>
+                 <span>H: ${high.toLocaleString()}</span>
+                 <span>L: ${low.toLocaleString()}</span>
+                 <span>V: ${volStr}</span>
                </div>
 
-               ${indicators.ma ? `<div style="margin-top: 8px; border-top: 1px dotted #475569; padding-top: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 12px;">
-                 <div style="color: #f59e0b;">MA20: ${ma20 ? ma20.toFixed(0) : '-'}</div>
-                 <div style="color: #0000ff;">MA60: ${ma60 ? ma60.toFixed(0) : '-'}</div>
-                 <div style="color: #ff0000;">MA120: ${ma120 ? ma120.toFixed(0) : '-'}</div>
-                 <div style="color: #14b8a6;">MA240: ${ma240 ? ma240.toFixed(0) : '-'}</div>
+               ${indicators.ma ? `<div class="legend-ma">
+                 <span style="color: #f59e0b;">MA20: ${ma20 ? ma20.toFixed(0) : '-'}</span>
+                 <span style="color: #0000ff;">MA60: ${ma60 ? ma60.toFixed(0) : '-'}</span>
+                 <span style="color: #ff0000;">MA120: ${ma120 ? ma120.toFixed(0) : '-'}</span>
+                 <span style="color: #14b8a6;">MA240: ${ma240 ? ma240.toFixed(0) : '-'}</span>
                </div>` : ''}
 
-               ${indicators.bb || indicators.rsi ? `<div style="margin-top: 4px; display: grid; grid-template-columns: 1fr; gap: 2px; font-size: 12px;">
-                 ${indicators.bb ? `<div style="color: #a855f7;">BB: ${bbUp ? bbUp.toFixed(0) : '-'} ~ ${bbLow ? bbLow.toFixed(0) : '-'}</div>` : ''}
-                 ${indicators.rsi ? `<div style="color: #facc15;">RSI: ${rsi ? rsi.toFixed(1) : '-'}</div>` : ''}
+               ${indicators.bb || indicators.rsi ? `<div class="legend-indicators">
+                 ${indicators.bb ? `<span style="color: #a855f7;">BB: ${bbUp ? bbUp.toFixed(0) : '-'}~${bbLow ? bbLow.toFixed(0) : '-'}</span>` : ''}
+                 ${indicators.rsi ? `<span style="color: #facc15;">RSI: ${rsi ? rsi.toFixed(1) : '-'}</span>` : ''}
                </div>` : ''}
              `;
           }
@@ -622,11 +622,10 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
                 backgroundColor: 'rgba(15, 23, 42, 0.9)',
                 border: '1px solid #334155',
                 borderRadius: '8px',
-                padding: '12px',
+                padding: '10px',
                 color: '#cbd5e1',
                 pointerEvents: 'none',
                 boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
-                minWidth: '200px',
                 backdropFilter: 'blur(4px)',
                 transition: 'opacity 0.1s ease',
               }}
