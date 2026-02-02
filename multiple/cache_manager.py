@@ -92,6 +92,13 @@ class StockDataCache:
             data = ticker.history(period=period, interval=interval)
 
             if data is not None and not data.empty:
+                # 0 또는 음수 가격 데이터 제거 (Yahoo Finance 데이터 오류 대응)
+                data = data[(data['Close'] > 0) & (data['Open'] > 0)]
+
+                if data.empty:
+                    logger.error(f"Data for {symbol} became empty after filtering zero prices")
+                    return None
+
                 # Remove today's incomplete data if market hasn't closed yet
                 data = self._remove_incomplete_today_data(data, symbol)
 
