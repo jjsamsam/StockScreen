@@ -87,7 +87,18 @@ class StockDataCache:
 
             if data is not None and not data.empty:
                 # 0 또는 음수 가격 데이터 제거 (Yahoo Finance 데이터 오류 대응)
-                data = data[(data['Close'] > 0) & (data['Open'] > 0)]
+                # 0 또는 음수 가격 데이터 처리
+                # Close가 0이하인 행은 제거
+                data = data[data['Close'] > 0]
+                
+                # Open, High, Low가 0인 경우 Close 값으로 대체 (캔들 깨짐 방지)
+                # 특히 한국 주식의 경우 최신 일자 데이터에서 종종 발생함
+                cols_to_fix = ['Open', 'High', 'Low']
+                for col in cols_to_fix:
+                    mask = data[col] <= 0
+                    if mask.any():
+                        logger.warning(f"Found non-positive {col} values for {symbol}, patching with Close prices.")
+                        data.loc[mask, col] = data.loc[mask, 'Close']
 
                 if data.empty:
                     logger.error(f"Data for {symbol} became empty after filtering zero prices")
@@ -238,6 +249,10 @@ class StockDataCache:
         """
         if data is None or data.empty:
             return data
+            
+        # [임시 수정] 오늘 데이터 강제 포함
+        # 야후 파이낸스 데이터 갱신 문제로 인해, 데이터가 있으면 무조건 사용하는 것으로 변경
+        return data
 
         try:
             # Get market info from symbol suffix
@@ -403,8 +418,9 @@ class StockDataCache:
                 return False
 
             # Check for zero or negative prices
-            if (data['Close'] <= 0).any() or (data['Open'] <= 0).any():
-                logger.warning(f"Data validation failed for {symbol}: Zero or negative prices")
+            # Check for zero or negative prices
+            if (data['Close'] <= 0).any():
+                logger.warning(f"Data validation failed for {symbol}: Zero or negative prices in Close column")
                 return False
 
             # Check for suspicious price jumps (potential stock splits not adjusted)
