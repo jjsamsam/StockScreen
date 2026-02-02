@@ -129,10 +129,10 @@ class StockAnalysisService:
                 data.index = data.index.tz_convert('UTC').tz_localize(None)
             
             # 무효 데이터 필터링
-            invalid_mask = (
-                (data['Close'] == 0) | (data['Close'].isna()) |
-                (data['Open'] == 0) | (data['Open'].isna())
-            )
+            # 무효 데이터 필터링
+            # Close가 0이거나 NaN인 경우만 제거 (Open/High/Low는 0이어도 Close가 있으면 유효한 것으로 간주)
+            invalid_mask = (data['Close'] == 0) | (data['Close'].isna())
+            
             if invalid_mask.any():
                 data = data[~invalid_mask].copy()
             
