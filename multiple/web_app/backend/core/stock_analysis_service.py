@@ -126,7 +126,9 @@ class StockAnalysisService:
             
             # 시간대 처리
             if data.index.tz is not None:
-                data.index = data.index.tz_convert('UTC').tz_localize(None)
+                # UTC로 변환하지 않고 바로 시간대 정보만 제거하여 해당 시장의 로컬 날짜 유지
+                # 예: 2026-02-02 00:00 KST -> 2026-02-02 00:00 (UTC 변환 시 2026-02-01 15:00이 되어 날짜가 하루 밀림 방지)
+                data.index = data.index.tz_localize(None)
             
             # 무효 데이터 필터링
             # 무효 데이터 필터링
