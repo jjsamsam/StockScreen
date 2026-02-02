@@ -5,7 +5,6 @@ Optimizes performance by avoiding redundant API calls and calculations
 
 import yfinance as yf
 import pandas as pd
-import requests  # 세션 관리를 위해 추가
 
 from datetime import datetime, timedelta
 from functools import lru_cache
@@ -40,11 +39,6 @@ class StockDataCache:
         self._cache_dir.mkdir(exist_ok=True)
         self._memory_cache = {}
         self._indicator_cache = {}
-        # yfinance 세션 최적화: 연권 안정성 향상
-        self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        })
 
 
     def get_stock_data(self, symbol, period="1y", interval="1d", force_refresh=False, validate_cache=True):
@@ -88,7 +82,7 @@ class StockDataCache:
 
         # Fetch fresh data from API
         try:
-            ticker = yf.Ticker(symbol, session=self.session)
+            ticker = yf.Ticker(symbol)
             data = ticker.history(period=period, interval=interval)
 
             if data is not None and not data.empty:
@@ -145,7 +139,7 @@ class StockDataCache:
 
         # Fetch fresh data
         try:
-            ticker = yf.Ticker(symbol, session=self.session)
+            ticker = yf.Ticker(symbol)
             info = ticker.info
 
             if info:

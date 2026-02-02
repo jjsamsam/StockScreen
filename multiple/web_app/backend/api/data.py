@@ -139,14 +139,6 @@ async def get_stock_analysis(
 # =============================================================================
 
 import yfinance as yf
-import requests
-
-# yfinance 세션 최적화
-_session = requests.Session()
-_session.headers.update({
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-})
-
 
 
 @router.get("/quote/{symbol}")
@@ -172,7 +164,7 @@ async def get_stock_quote(symbol: str):
         - market_cap: 시가총액
     """
     try:
-        ticker = yf.Ticker(symbol, session=_session)
+        ticker = yf.Ticker(symbol)
         info = ticker.info or {}  # info가 None인 경우 빈 딕셔너리로 대응
 
         
