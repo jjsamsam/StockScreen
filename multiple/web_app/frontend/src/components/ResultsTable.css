@@ -174,6 +174,25 @@ td {
     color: var(--text-secondary);
 }
 
+.score-cell {
+    min-width: 72px;
+}
+
+.score-value {
+    display: block;
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.rr-value {
+    display: block;
+    margin-top: 3px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
 .conditions {
     font-size: 13px;
     color: var(--text-secondary);

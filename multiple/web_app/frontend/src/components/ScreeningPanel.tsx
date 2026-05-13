@@ -17,6 +17,7 @@ function ScreeningPanel({ market, onResults, language, onProcessStart, onProcess
     const [loading, setLoading] = useState(false)
     const [stockLimit, setStockLimit] = useState(100)
     const [matchMode, setMatchMode] = useState<'all' | 'any'>('any')
+    const [universeSource, setUniverseSource] = useState<'csv' | 'dynamic' | 'hybrid'>('csv')
     const t = translations[language];
 
     const availableConditions = {
@@ -27,13 +28,17 @@ function ScreeningPanel({ market, onResults, language, onProcessStart, onProcess
             { id: 'enhanced_ma_buy', label: t.cond_enhanced_ma_buy },
             { id: 'enhanced_bb_rsi_buy', label: t.cond_enhanced_bb_rsi_buy },
             { id: 'enhanced_macd_volume_buy', label: t.cond_enhanced_macd_volume_buy },
-            { id: 'enhanced_momentum_buy', label: t.cond_enhanced_momentum_buy }
+            { id: 'enhanced_momentum_buy', label: t.cond_enhanced_momentum_buy },
+            { id: 'balanced_buy', label: t.cond_balanced_buy },
+            { id: 'ichimoku_bullish', label: t.cond_ichimoku_bullish }
         ],
         sell: [
             { id: 'death_cross', label: t.cond_death_cross },
             { id: 'rsi_overbought', label: t.cond_rsi_overbought },
             { id: 'enhanced_technical_sell', label: t.cond_enhanced_technical_sell },
-            { id: 'enhanced_bb_rsi_sell', label: t.cond_enhanced_bb_rsi_sell }
+            { id: 'enhanced_bb_rsi_sell', label: t.cond_enhanced_bb_rsi_sell },
+            { id: 'balanced_sell', label: t.cond_balanced_sell },
+            { id: 'ichimoku_bearish', label: t.cond_ichimoku_bearish }
         ]
     }
 
@@ -64,7 +69,7 @@ function ScreeningPanel({ market, onResults, language, onProcessStart, onProcess
         try {
             // 먼저 종목 리스트 가져오기
             const stocksResponse = await api.get(`/stocks/${market}`, {
-                params: { limit: stockLimit }
+                params: { limit: stockLimit, source: universeSource }
             })
 
             console.log('Stocks response:', stocksResponse.data)
@@ -166,6 +171,33 @@ function ScreeningPanel({ market, onResults, language, onProcessStart, onProcess
                             title={language === 'ko' ? '선택한 모든 조건이 맞아야 추출' : 'Extract only if all selected conditions match'}
                         >
                             {t.matchAll}
+                        </button>
+                    </div>
+                </div>
+
+                <div className="setting-item">
+                    <label>{t.universeSource}</label>
+                    <div className="match-mode-selector">
+                        <button
+                            className={`mode-btn ${universeSource === 'csv' ? 'active' : ''}`}
+                            onClick={() => setUniverseSource('csv')}
+                            title={language === 'ko' ? '로컬 마스터 CSV 사용' : 'Use local master CSV'}
+                        >
+                            {t.sourceCsv}
+                        </button>
+                        <button
+                            className={`mode-btn ${universeSource === 'dynamic' ? 'active' : ''}`}
+                            onClick={() => setUniverseSource('dynamic')}
+                            title={language === 'ko' ? '대표 종목을 실시간 거래대금으로 정렬' : 'Rank a live representative universe by turnover'}
+                        >
+                            {t.sourceDynamic}
+                        </button>
+                        <button
+                            className={`mode-btn ${universeSource === 'hybrid' ? 'active' : ''}`}
+                            onClick={() => setUniverseSource('hybrid')}
+                            title={language === 'ko' ? '동적 소스 실패 시 CSV로 전환' : 'Use dynamic source with CSV fallback'}
+                        >
+                            {t.sourceHybrid}
                         </button>
                     </div>
                 </div>

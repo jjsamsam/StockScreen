@@ -476,6 +476,13 @@
     color: var(--text-secondary);
 }
 
+.history-note {
+    margin-top: 10px;
+    color: var(--warning);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
 .confidence-bar {
     height: 8px;
     background: var(--bg-primary);
@@ -487,6 +494,32 @@
     height: 100%;
     transition: width 0.5s ease;
     border-radius: 4px;
+}
+
+.quality-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.quality-item {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.quality-item span {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 12px;
+    margin-bottom: 6px;
+}
+
+.quality-item strong {
+    color: var(--text-primary);
+    font-size: 16px;
 }
 
 @media (max-width: 768px) {

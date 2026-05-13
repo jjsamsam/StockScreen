@@ -84,8 +84,12 @@ class ScreeningService:
                 "enhanced_bb_rsi_buy": "강화된 BB+RSI 매수",
                 "enhanced_macd_volume_buy": "강화된 MACD+거래량",
                 "enhanced_momentum_buy": "강화된 모멘텀 매수",
+                "balanced_buy": "균형형 매수 점수",
+                "ichimoku_bullish": "일목 상승 전환",
                 "enhanced_technical_sell": "강화된 기술적 매도",
-                "enhanced_bb_rsi_sell": "강화된 BB+RSI 매도"
+                "enhanced_bb_rsi_sell": "강화된 BB+RSI 매도",
+                "balanced_sell": "균형형 매도 점수",
+                "ichimoku_bearish": "일목 하락 전환"
             }
             
             for symbol in symbols:
@@ -111,6 +115,7 @@ class ScreeningService:
                     if buy_conditions:
                         matched = self._check_conditions(data, buy_conditions, symbol, match_mode)
                         if matched:
+                            score_info = self._calculate_signal_score(data)
                             # ID를 한글명으로 변환
                             readable_conditions = [condition_names.get(c, c) for c in matched]
                             buy_results.append({
@@ -119,13 +124,17 @@ class ScreeningService:
                                 'current_price': float(data['Close'].iloc[-1]),
                                 'volume': int(data['Volume'].iloc[-1]),
                                 'matched_conditions': readable_conditions,
-                                'matched_ids': matched
+                                'matched_ids': matched,
+                                'screening_score': score_info['buy_score'],
+                                'risk_reward': score_info['risk_reward'],
+                                'signal_details': score_info['buy_reasons']
                             })
                     
                     # 매도 조건 체크
                     if sell_conditions:
                         matched = self._check_conditions(data, sell_conditions, symbol, match_mode)
                         if matched:
+                            score_info = self._calculate_signal_score(data)
                             readable_conditions = [condition_names.get(c, c) for c in matched]
                             sell_results.append({
                                 'symbol': symbol,
@@ -133,7 +142,10 @@ class ScreeningService:
                                 'current_price': float(data['Close'].iloc[-1]),
                                 'volume': int(data['Volume'].iloc[-1]),
                                 'matched_conditions': readable_conditions,
-                                'matched_ids': matched
+                                'matched_ids': matched,
+                                'screening_score': score_info['sell_score'],
+                                'risk_reward': score_info['risk_reward'],
+                                'signal_details': score_info['sell_reasons']
                             })
                 
                 except Exception as e:
@@ -241,12 +253,26 @@ class ScreeningService:
             
             elif condition == "enhanced_momentum_buy":
                 return self.enhanced_conditions.check_momentum_buy_condition_enhanced(data, latest, prev)
+
+            elif condition == "balanced_buy":
+                score_info = self._calculate_signal_score(data)
+                return score_info['buy_score'] >= 65, f"균형형 매수 점수 {score_info['buy_score']}"
+
+            elif condition == "ichimoku_bullish":
+                return self._check_ichimoku_signal(data, latest, prev, bullish=True)
             
             elif condition == "enhanced_technical_sell":
                 return self.enhanced_conditions.check_technical_sell_condition_enhanced(data, latest, prev)
             
             elif condition == "enhanced_bb_rsi_sell":
                 return self.enhanced_conditions.check_bb_rsi_sell_condition_enhanced(data, latest, prev)
+
+            elif condition == "balanced_sell":
+                score_info = self._calculate_signal_score(data)
+                return score_info['sell_score'] >= 65, f"균형형 매도 점수 {score_info['sell_score']}"
+
+            elif condition == "ichimoku_bearish":
+                return self._check_ichimoku_signal(data, latest, prev, bullish=False)
 
             # 알 수 없는 조건
             else:
@@ -256,6 +282,124 @@ class ScreeningService:
         except Exception as e:
             logger.error(f"조건 체크 오류 ({condition}): {str(e)}")
             return False, None
+
+    def _check_ichimoku_signal(self, data: pd.DataFrame, latest, prev, bullish: bool) -> Tuple[bool, Optional[str]]:
+        """일목균형표 기반 추세 전환 확인."""
+        required = ['Ichimoku_Tenkan', 'Ichimoku_Kijun', 'Ichimoku_Span_A', 'Ichimoku_Span_B']
+        if any(col not in data.columns for col in required):
+            return False, None
+
+        close = float(latest['Close'])
+        prev_close = float(prev['Close'])
+        tenkan = float(latest['Ichimoku_Tenkan'])
+        kijun = float(latest['Ichimoku_Kijun'])
+        prev_tenkan = float(prev['Ichimoku_Tenkan'])
+        prev_kijun = float(prev['Ichimoku_Kijun'])
+        cloud_top = max(float(latest['Ichimoku_Span_A']), float(latest['Ichimoku_Span_B']))
+        cloud_bottom = min(float(latest['Ichimoku_Span_A']), float(latest['Ichimoku_Span_B']))
+
+        if bullish:
+            price_above_cloud = close > cloud_top and prev_close <= cloud_top
+            tk_cross = tenkan > kijun and prev_tenkan <= prev_kijun
+            trend_filter = close > float(latest.get('MA60', close))
+            return (price_above_cloud or tk_cross) and trend_filter, "일목 상승 전환"
+
+        price_below_cloud = close < cloud_bottom and prev_close >= cloud_bottom
+        tk_cross_down = tenkan < kijun and prev_tenkan >= prev_kijun
+        trend_filter = close < float(latest.get('MA60', close))
+        return (price_below_cloud or tk_cross_down) and trend_filter, "일목 하락 전환"
+
+    def _calculate_signal_score(self, data: pd.DataFrame) -> Dict:
+        """여러 지표를 종합한 보수적 스크리닝 점수."""
+        current = data.iloc[-1]
+        prev = data.iloc[-2]
+        close = float(current['Close'])
+        atr = float(current.get('ATR', 0) or 0)
+        rsi = float(current.get('RSI', 50) or 50)
+        adx = float(current.get('ADX', 0) or 0)
+        volume_ratio = float(current.get('Volume_Ratio', 1) or 1)
+        macd = float(current.get('MACD', 0) or 0)
+        macd_signal = float(current.get('MACD_Signal', 0) or 0)
+        macd_prev = float(prev.get('MACD', 0) or 0)
+        macd_signal_prev = float(prev.get('MACD_Signal', 0) or 0)
+        ma20 = float(current.get('MA20', close) or close)
+        ma60 = float(current.get('MA60', close) or close)
+        ma120 = float(current.get('MA120', close) or close)
+
+        buy_score = 0
+        sell_score = 0
+        buy_reasons = []
+        sell_reasons = []
+
+        if close > ma20 > ma60 and ma60 >= ma120:
+            buy_score += 25
+            buy_reasons.append("정배열 추세")
+        if close < ma20 < ma60 and ma60 <= ma120:
+            sell_score += 25
+            sell_reasons.append("역배열 추세")
+
+        if 45 <= rsi <= 65:
+            buy_score += 15
+            buy_reasons.append("RSI 건전 구간")
+        elif rsi < 35 and close > ma60:
+            buy_score += 10
+            buy_reasons.append("상승추세 내 과매도")
+        elif rsi >= 72:
+            sell_score += 15
+            sell_reasons.append("RSI 과열")
+        elif rsi <= 38 and close < ma60:
+            sell_score += 15
+            sell_reasons.append("약세 RSI")
+
+        if macd > macd_signal and macd_prev <= macd_signal_prev:
+            buy_score += 20
+            buy_reasons.append("MACD 상승 전환")
+        elif macd < macd_signal and macd_prev >= macd_signal_prev:
+            sell_score += 20
+            sell_reasons.append("MACD 하락 전환")
+        elif macd > macd_signal:
+            buy_score += 10
+            buy_reasons.append("MACD 상승 우위")
+        else:
+            sell_score += 10
+            sell_reasons.append("MACD 하락 우위")
+
+        if 1.1 <= volume_ratio <= 3.0:
+            buy_score += 15
+            buy_reasons.append("거래량 확인")
+        elif volume_ratio > 3.0 and close < float(prev['Close']):
+            sell_score += 15
+            sell_reasons.append("하락 대량거래")
+
+        if adx >= 20 and close > ma60:
+            buy_score += 10
+            buy_reasons.append("추세 강도 양호")
+        elif adx >= 20 and close < ma60:
+            sell_score += 10
+            sell_reasons.append("하락 추세 강도")
+
+        cloud_top = max(float(current.get('Ichimoku_Span_A', close) or close), float(current.get('Ichimoku_Span_B', close) or close))
+        cloud_bottom = min(float(current.get('Ichimoku_Span_A', close) or close), float(current.get('Ichimoku_Span_B', close) or close))
+        if close > cloud_top:
+            buy_score += 15
+            buy_reasons.append("일목 구름 상단")
+        elif close < cloud_bottom:
+            sell_score += 15
+            sell_reasons.append("일목 구름 하단")
+
+        risk_reward = 1.5
+        if atr > 0:
+            stop_loss = close - (atr * 2)
+            take_profit = close + (atr * 3)
+            risk_reward = (take_profit - close) / max(close - stop_loss, 1e-9)
+
+        return {
+            'buy_score': min(100, int(buy_score)),
+            'sell_score': min(100, int(sell_score)),
+            'buy_reasons': buy_reasons[:5],
+            'sell_reasons': sell_reasons[:5],
+            'risk_reward': round(float(risk_reward), 2)
+        }
 
 
 # 전역 인스턴스

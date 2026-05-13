@@ -29,18 +29,23 @@ async def get_markets():
 
 
 @router.get("/stocks/{market}")
-async def get_stocks(market: str, limit: Optional[int] = Query(None, ge=1, le=10000)):
+async def get_stocks(
+    market: str,
+    limit: Optional[int] = Query(None, ge=1, le=10000),
+    source: str = Query("csv", regex="^(csv|dynamic|hybrid)$")
+):
     """
     특정 시장의 종목 리스트
     
     Args:
         market: 시장 이름 (korea, usa, sweden)
         limit: 최대 종목 수
+        source: csv, dynamic, hybrid
     
     Returns:
         종목 리스트
     """
-    result = data_service.get_stocks(market, limit)
+    result = data_service.get_stocks_by_source(market, limit, source)
     
     if not result['success']:
         raise HTTPException(status_code=404, detail=result.get('error', 'Market not found'))

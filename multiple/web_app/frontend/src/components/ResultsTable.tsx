@@ -28,6 +28,8 @@ function ResultsTable({ results, language }: ResultsTableProps) {
             language === 'ko' ? '종목명' : 'Stock Name',
             t.colPrice,
             t.colVolume,
+            language === 'ko' ? '점수' : 'Score',
+            language === 'ko' ? '손익비' : 'R/R',
             t.colCondition,
             'Type'
         ]
@@ -37,6 +39,8 @@ function ResultsTable({ results, language }: ResultsTableProps) {
                 `"${s.name.replace(/"/g, '""')}"`,
                 s.current_price,
                 s.volume,
+                s.screening_score ?? '',
+                s.risk_reward ?? '',
                 `"${(s.matched_ids ? s.matched_ids.map((id: string) => getConditionLabel(id, id)) : s.matched_conditions).join(', ')}"`,
                 'BUY'
             ]),
@@ -45,6 +49,8 @@ function ResultsTable({ results, language }: ResultsTableProps) {
                 `"${s.name.replace(/"/g, '""')}"`,
                 s.current_price,
                 s.volume,
+                s.screening_score ?? '',
+                s.risk_reward ?? '',
                 `"${(s.matched_ids ? s.matched_ids.map((id: string) => getConditionLabel(id, id)) : s.matched_conditions).join(', ')}"`,
                 'SELL'
             ])
@@ -102,6 +108,7 @@ function ResultsTable({ results, language }: ResultsTableProps) {
                                     <th>{t.colStock}</th>
                                     <th>{t.colPrice}</th>
                                     <th>{t.colVolume}</th>
+                                    <th>{language === 'ko' ? '점수' : 'Score'}</th>
                                     <th>{t.colCondition}</th>
                                 </tr>
                             </thead>
@@ -119,6 +126,14 @@ function ResultsTable({ results, language }: ResultsTableProps) {
                                         </td>
                                         <td className="price">{language === 'ko' ? '' : '$'}{signal.current_price.toLocaleString(undefined, { minimumFractionDigits: language === 'ko' ? 0 : 2 })}{language === 'ko' ? '원' : ''}</td>
                                         <td className="volume">{signal.volume.toLocaleString()}</td>
+                                        <td className="score-cell">
+                                            {signal.screening_score !== undefined ? (
+                                                <>
+                                                    <span className="score-value">{signal.screening_score}</span>
+                                                    {signal.risk_reward && <span className="rr-value">R/R {signal.risk_reward}</span>}
+                                                </>
+                                            ) : '-'}
+                                        </td>
                                         <td className="conditions">
                                             <div className="condition-wrapper">
                                                 <span className="condition-count">{signal.matched_conditions.length}</span>
@@ -149,6 +164,7 @@ function ResultsTable({ results, language }: ResultsTableProps) {
                                     <th>{t.colStock}</th>
                                     <th>{t.colPrice}</th>
                                     <th>{t.colVolume}</th>
+                                    <th>{language === 'ko' ? '점수' : 'Score'}</th>
                                     <th>{t.colCondition}</th>
                                 </tr>
                             </thead>
@@ -166,6 +182,14 @@ function ResultsTable({ results, language }: ResultsTableProps) {
                                         </td>
                                         <td className="price">{language === 'ko' ? '' : '$'}{signal.current_price.toLocaleString(undefined, { minimumFractionDigits: language === 'ko' ? 0 : 2 })}{language === 'ko' ? '원' : ''}</td>
                                         <td className="volume">{signal.volume.toLocaleString()}</td>
+                                        <td className="score-cell">
+                                            {signal.screening_score !== undefined ? (
+                                                <>
+                                                    <span className="score-value">{signal.screening_score}</span>
+                                                    {signal.risk_reward && <span className="rr-value">R/R {signal.risk_reward}</span>}
+                                                </>
+                                            ) : '-'}
+                                        </td>
                                         <td className="conditions">
                                             <div className="condition-wrapper">
                                                 <span className="condition-count">{signal.matched_conditions.length}</span>

@@ -25,6 +25,7 @@ class TechnicalAnalysis:
         data['MA20'] = data['Close'].rolling(20).mean()
         data['MA60'] = data['Close'].rolling(60).mean()
         data['MA120'] = data['Close'].rolling(120).mean()
+        data['MA240'] = data['Close'].rolling(240).mean()
 
         # RSI
         delta = data['Close'].diff()
@@ -45,6 +46,20 @@ class TechnicalAnalysis:
         data['MACD'] = ema12 - ema26
         data['MACD_Signal'] = data['MACD'].ewm(span=9, adjust=False).mean()
         data['MACD_Histogram'] = data['MACD'] - data['MACD_Signal']
+
+        # 일목균형표
+        period9_high = data['High'].rolling(9).max()
+        period9_low = data['Low'].rolling(9).min()
+        period26_high = data['High'].rolling(26).max()
+        period26_low = data['Low'].rolling(26).min()
+        period52_high = data['High'].rolling(52).max()
+        period52_low = data['Low'].rolling(52).min()
+
+        data['Ichimoku_Tenkan'] = (period9_high + period9_low) / 2
+        data['Ichimoku_Kijun'] = (period26_high + period26_low) / 2
+        data['Ichimoku_Span_A'] = ((data['Ichimoku_Tenkan'] + data['Ichimoku_Kijun']) / 2).shift(26)
+        data['Ichimoku_Span_B'] = ((period52_high + period52_low) / 2).shift(26)
+        data['Ichimoku_Chikou'] = data['Close'].shift(-26)
 
         # 스토캐스틱
         low_14 = data['Low'].rolling(14).min()

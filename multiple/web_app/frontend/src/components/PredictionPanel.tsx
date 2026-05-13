@@ -12,6 +12,23 @@ interface PredictionResult {
     recommendation: string
     confidence_note: string
     forecast_days: number
+    data_points?: number
+    min_data_days?: number
+    recommended_min_data_days?: number
+    limited_history?: boolean
+    quality?: {
+        model_agreement: number
+        risk_adjusted_return: number
+        scenario: string
+        return_range: {
+            downside: number
+            upside: number
+        }
+        price_range: {
+            downside: number
+            upside: number
+        }
+    }
 }
 
 interface TaskStatus {
@@ -442,6 +459,13 @@ function PredictionPanel({ language, onProcessStart, onProcessEnd }: PredictionP
                         <div className="confidence-note">
                             {translateNote(result.confidence_note)}
                         </div>
+                        {result.limited_history && (
+                            <div className="history-note">
+                                {language === 'ko'
+                                    ? `이력이 짧아 제한적 데이터로 예측했습니다 (${result.data_points ?? '-'}일 / 권장 ${result.recommended_min_data_days ?? result.min_data_days ?? '-'}일).`
+                                    : `Limited history forecast (${result.data_points ?? '-'} days / recommended ${result.recommended_min_data_days ?? result.min_data_days ?? '-'} days).`}
+                            </div>
+                        )}
                     </div>
 
                     <div className="confidence-bar">
@@ -453,6 +477,27 @@ function PredictionPanel({ language, onProcessStart, onProcessEnd }: PredictionP
                             }}
                         />
                     </div>
+
+                    {result.quality && (
+                        <div className="quality-grid">
+                            <div className="quality-item">
+                                <span>{language === 'ko' ? '모델 합의도' : 'Model Agreement'}</span>
+                                <strong>{(result.quality.model_agreement * 100).toFixed(1)}%</strong>
+                            </div>
+                            <div className="quality-item">
+                                <span>{language === 'ko' ? '리스크 조정 수익률' : 'Risk-Adj. Return'}</span>
+                                <strong style={{ color: getReturnColor(result.quality.risk_adjusted_return) }}>
+                                    {(result.quality.risk_adjusted_return * 100).toFixed(2)}%
+                                </strong>
+                            </div>
+                            <div className="quality-item">
+                                <span>{language === 'ko' ? '예상 범위' : 'Expected Range'}</span>
+                                <strong>
+                                    {(result.quality.return_range.downside * 100).toFixed(1)}% ~ {(result.quality.return_range.upside * 100).toFixed(1)}%
+                                </strong>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="result-actions">
                         <button className="download-btn-compact" onClick={downloadCSV}>

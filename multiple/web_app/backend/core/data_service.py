@@ -9,6 +9,7 @@ import sys
 import os
 import pandas as pd
 from typing import List, Dict, Optional
+import yfinance as yf
 
 # ✅ 프로젝트 루트 디렉토리를 Python 경로에 추가
 current_dir = os.path.dirname(os.path.abspath(__file__))  # core
@@ -21,6 +22,7 @@ if project_root not in sys.path:
 
 from csv_manager import CSVDataManager
 from cache_manager import get_stock_data, get_ticker_info
+from technical_analysis import TechnicalAnalysis
 from logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -51,7 +53,45 @@ class DataService:
             dict: 종목 리스트
         """
         try:
-            # 마스터 데이터에서 해당 시장 가져오기
+            return self._get_csv_stocks(market, limit)
+            
+        except Exception as e:
+            logger.error(f"종목 리스트 조회 오류: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    def get_stocks_by_source(self, market: str, limit: Optional[int] = None, source: str = "csv") -> Dict:
+        """시장별 종목 리스트 조회.
+
+        source:
+            csv: 기존 마스터 CSV 사용
+            dynamic: 내장 대표 종목을 yfinance 거래대금 기준으로 정렬
+            hybrid: dynamic 실패 시 csv로 자동 폴백
+        """
+        source = (source or "csv").lower()
+        if source == "csv":
+            return self._get_csv_stocks(market, limit)
+
+        if source in {"dynamic", "hybrid"}:
+            dynamic = self._get_dynamic_stocks(market, limit)
+            if dynamic.get("success") or source == "dynamic":
+                return dynamic
+            logger.warning(f"{market}: 동적 유니버스 실패, CSV로 폴백: {dynamic.get('error')}")
+            fallback = self._get_csv_stocks(market, limit)
+            fallback["source"] = "csv_fallback"
+            fallback["source_warning"] = dynamic.get("error")
+            return fallback
+
+        return {
+            'success': False,
+            'error': f"지원하지 않는 종목 소스: {source}"
+        }
+
+    def _get_csv_stocks(self, market: str, limit: Optional[int] = None) -> Dict:
+        """마스터 CSV 기반 종목 리스트 반환"""
+        try:
             if market not in self.master_data:
                 return {
                     'success': False,
@@ -76,6 +116,7 @@ class DataService:
             return {
                 'success': True,
                 'market': market,
+                'source': 'csv',
                 'count': len(stocks_list),
                 'stocks': stocks_list
             }
@@ -86,6 +127,106 @@ class DataService:
                 'success': False,
                 'error': str(e)
             }
+
+    def _get_dynamic_stocks(self, market: str, limit: Optional[int] = None) -> Dict:
+        """CSV 없이 대표 종목을 최근 거래대금 기준으로 구성.
+
+        완전한 거래소 전 종목 대체는 아니지만, 도커 환경에서 별도 파일 갱신 없이
+        유동성이 높은 감시 목록을 바로 만들 수 있는 실용적인 보조 소스입니다.
+        """
+        try:
+            symbols = self._get_dynamic_seed_symbols(market)
+            if not symbols:
+                return {'success': False, 'error': f'{market} 동적 유니버스 미지원'}
+
+            requested_limit = limit or len(symbols)
+            symbols = symbols[:max(requested_limit * 2, requested_limit)]
+
+            hist = yf.download(
+                tickers=symbols,
+                period="1mo",
+                interval="1d",
+                group_by="ticker",
+                auto_adjust=True,
+                threads=True,
+                progress=False
+            )
+
+            csv_names = self._build_symbol_name_map()
+            rows = []
+            for symbol in symbols:
+                try:
+                    if isinstance(hist.columns, pd.MultiIndex):
+                        stock_hist = hist[symbol].dropna(how="all") if symbol in hist.columns.get_level_values(0) else pd.DataFrame()
+                    else:
+                        stock_hist = hist.dropna(how="all")
+
+                    if stock_hist.empty or "Close" not in stock_hist or "Volume" not in stock_hist:
+                        continue
+
+                    latest = stock_hist.iloc[-1]
+                    avg_turnover = float((stock_hist["Close"] * stock_hist["Volume"]).tail(20).mean())
+                    rows.append({
+                        'ticker': symbol,
+                        'name': csv_names.get(symbol, symbol),
+                        'avg_turnover_20d': avg_turnover,
+                        'last_close': float(latest["Close"]),
+                        'source': 'dynamic'
+                    })
+                except Exception as symbol_error:
+                    logger.debug(f"{symbol}: 동적 유니버스 계산 스킵: {symbol_error}")
+
+            if not rows:
+                return {'success': False, 'error': '동적 종목 데이터를 가져오지 못했습니다'}
+
+            rows = sorted(rows, key=lambda x: x.get('avg_turnover_20d', 0), reverse=True)
+            rows = rows[:requested_limit]
+
+            return {
+                'success': True,
+                'market': market,
+                'source': 'dynamic',
+                'count': len(rows),
+                'stocks': rows
+            }
+        except Exception as e:
+            logger.error(f"동적 종목 리스트 조회 오류: {str(e)}")
+            return {'success': False, 'error': str(e)}
+
+    def _build_symbol_name_map(self) -> Dict[str, str]:
+        symbol_to_name = {}
+        for stocks in self.master_data.values():
+            if stocks is None or stocks.empty:
+                continue
+            if 'ticker' not in stocks or 'name' not in stocks:
+                continue
+            for _, row in stocks.iterrows():
+                symbol_to_name[str(row['ticker'])] = str(row['name'])
+        return symbol_to_name
+
+    def _get_dynamic_seed_symbols(self, market: str) -> List[str]:
+        seeds = {
+            'usa': [
+                'AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'META', 'TSLA', 'AVGO', 'BRK-B', 'JPM',
+                'LLY', 'V', 'UNH', 'XOM', 'MA', 'COST', 'WMT', 'HD', 'PG', 'NFLX',
+                'AMD', 'BAC', 'CRM', 'KO', 'PEP', 'ADBE', 'CSCO', 'ORCL', 'MCD', 'TMO',
+                'INTC', 'QCOM', 'IBM', 'GE', 'CAT', 'GS', 'NOW', 'AMAT', 'TXN', 'SPY',
+                'QQQ', 'IWM', 'DIA', 'XLK', 'XLF', 'SMH'
+            ],
+            'korea': [
+                '005930.KS', '000660.KS', '373220.KS', '207940.KS', '005380.KS', '000270.KS',
+                '068270.KS', '035420.KS', '105560.KS', '012330.KS', '055550.KS', '028260.KS',
+                '035720.KS', '066570.KS', '032830.KS', '086790.KS', '003550.KS', '015760.KS',
+                '017670.KS', '051910.KS', '096770.KS', '034020.KS', '009150.KS', '316140.KS'
+            ],
+            'sweden': [
+                'VOLV-B.ST', 'ERIC-B.ST', 'ATCO-A.ST', 'ASSA-B.ST', 'INVE-B.ST', 'SEB-A.ST',
+                'SHB-A.ST', 'SWED-A.ST', 'HM-B.ST', 'SAND.ST', 'SKF-B.ST', 'TELIA.ST',
+                'ALFA.ST', 'EPI-A.ST', 'ABB.ST', 'AZN.ST', 'ESSITY-B.ST', 'HEXA-B.ST',
+                'SCA-B.ST', 'SAAB-B.ST'
+            ]
+        }
+        return seeds.get(market, [])
     
     def get_stock_data(
         self,
@@ -114,26 +255,9 @@ class DataService:
                 }
             
             # ✅ 기술적 지표 계산
-            # 이동평균선
-            data['MA5'] = data['Close'].rolling(window=5).mean()
-            data['MA10'] = data['Close'].rolling(window=10).mean()
-            data['MA20'] = data['Close'].rolling(window=20).mean()
-            data['MA60'] = data['Close'].rolling(window=60).mean()
-            data['MA120'] = data['Close'].rolling(window=120).mean()
-            data['MA240'] = data['Close'].rolling(window=240).mean()
-            
-            # 볼린저 밴드 (20일 기준)
-            data['BB_Middle'] = data['Close'].rolling(window=20).mean()
-            bb_std = data['Close'].rolling(window=20).std()
-            data['BB_Upper'] = data['BB_Middle'] + (bb_std * 2)
-            data['BB_Lower'] = data['BB_Middle'] - (bb_std * 2)
-
-            # RSI (14일 기준)
-            delta = data['Close'].diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-            rs = gain / loss
-            data['RSI'] = 100 - (100 / (1 + rs))
+            data = TechnicalAnalysis.calculate_all_indicators(data)
+            ichimoku_span_a_dates, ichimoku_span_a = self._build_ichimoku_forward_series(data, 'Ichimoku_Span_A')
+            ichimoku_span_b_dates, ichimoku_span_b = self._build_ichimoku_forward_series(data, 'Ichimoku_Span_B')
             
             # DataFrame을 JSON 형식으로 변환
             data_dict = {
@@ -154,6 +278,13 @@ class DataService:
                 'bb_middle': data['BB_Middle'].fillna(0).tolist(),
                 'bb_lower': data['BB_Lower'].fillna(0).tolist(),
                 'rsi': data['RSI'].fillna(0).tolist(),
+                'ichimoku_tenkan': data['Ichimoku_Tenkan'].fillna(0).tolist(),
+                'ichimoku_kijun': data['Ichimoku_Kijun'].fillna(0).tolist(),
+                'ichimoku_chikou': data['Ichimoku_Chikou'].fillna(0).tolist(),
+                'ichimoku_span_a_dates': ichimoku_span_a_dates,
+                'ichimoku_span_a': ichimoku_span_a,
+                'ichimoku_span_b_dates': ichimoku_span_b_dates,
+                'ichimoku_span_b': ichimoku_span_b,
             }
             
             return {
@@ -169,6 +300,32 @@ class DataService:
                 'success': False,
                 'error': str(e)
             }
+
+    def _build_ichimoku_forward_series(self, data: pd.DataFrame, column: str, forward_periods: int = 26):
+        """일목 선행스팬을 미래 날짜까지 확장한 차트용 배열로 변환."""
+        if data.empty or column not in data:
+            return [], []
+
+        base_dates = list(data.index)
+        if not base_dates:
+            return [], []
+
+        future_dates = pd.bdate_range(
+            start=base_dates[-1] + pd.offsets.BDay(1),
+            periods=forward_periods
+        ).to_pydatetime().tolist()
+        extended_dates = base_dates + future_dates
+        values = [0.0] * len(extended_dates)
+
+        raw_values = data[column].shift(-forward_periods)
+        for idx, value in enumerate(raw_values.tolist()):
+            target_idx = idx + forward_periods
+            if target_idx >= len(values) or pd.isna(value):
+                continue
+            values[target_idx] = float(value)
+
+        date_strings = [pd.Timestamp(d).strftime('%Y-%m-%d') for d in extended_dates]
+        return date_strings, values
     
     def search_stocks(self, query: str, limit: int = 10) -> Dict:
         """

@@ -12,6 +12,7 @@ import os
 import sys
 import json
 import random
+import math
 import numpy as np
 import pandas as pd
 import yfinance as yf
@@ -376,11 +377,18 @@ class EnhancedCPUPredictor:
         }
         
         try:
-            if os.path.exists('prediction_settings.json'):
-                with open('prediction_settings.json', 'r', encoding='utf-8') as f:
+            settings_candidates = [
+                'prediction_settings.json',
+                os.path.join(os.path.dirname(os.path.abspath(__file__)), 'prediction_settings.json'),
+                '/app/parent/prediction_settings.json',
+            ]
+            settings_path = next((path for path in settings_candidates if os.path.exists(path)), None)
+
+            if settings_path:
+                with open(settings_path, 'r', encoding='utf-8') as f:
                     saved_settings = json.load(f)
                 default_settings.update(saved_settings)
-                logger.info(f"설정 로드 완료: 예측기간 {saved_settings.get('forecast_days', 7)}일")
+                logger.info(f"설정 로드 완료: {settings_path} (예측기간 {saved_settings.get('forecast_days', 7)}일)")
             else:
                 logger.warning("설정 파일 없음, 기본값 사용")
         except Exception as e:
@@ -439,6 +447,30 @@ class EnhancedCPUPredictor:
 
         self._data_cache[ticker] = (data.copy(), datetime.now())
         logger.debug(f"캐시 저장: {ticker} ({len(data)}개 데이터)")
+
+    def _get_download_period_for_training(self, min_data_days, forecast_days, sequence_length):
+        """필요 거래일을 확보하기 위한 yfinance 기간 계산."""
+        trading_days_needed = int(min_data_days + forecast_days + sequence_length + 80)
+        calendar_days = int(math.ceil(trading_days_needed * 365 / 252))
+
+        if calendar_days <= 730:
+            return f"{max(calendar_days, 365)}d"
+        if calendar_days <= 1095:
+            return "3y"
+        if calendar_days <= 1825:
+            return "5y"
+        return "10y"
+
+    def _get_minimum_usable_days(self, forecast_days, sequence_length):
+        """예측을 완전히 중단해야 하는 최소 데이터 기준."""
+        if forecast_days <= 5:
+            floor = 120
+        elif forecast_days <= 14:
+            floor = 180
+        else:
+            floor = 220
+
+        return max(floor, sequence_length + forecast_days + 60)
     
     def clear_cache(self):
         """캐시 전체 삭제 (메모리 정리용)
@@ -463,8 +495,16 @@ class EnhancedCPUPredictor:
         # 설정에서 가져온 값 업데이트
         if min_data_days is None:
             min_data_days = config['min_data_days']
+
+        settings_min_data_days = self.settings.get('min_data_days')
+        if settings_min_data_days:
+            min_data_days = min(min_data_days, int(settings_min_data_days))
         
         sequence_length = config['sequence_length']
+        minimum_usable_days = self._get_minimum_usable_days(forecast_days, sequence_length)
+        min_data_days = max(min_data_days, minimum_usable_days)
+        configured_min_data_days = min_data_days
+        limited_history = False
 
         logger.info(f"{ticker} 예측 시작:")
         logger.info(f"   • 예측 기간: {forecast_days}일 ({'단기' if forecast_days <= 5 else '중기' if forecast_days <= 14 else '장기'})")
@@ -491,11 +531,17 @@ class EnhancedCPUPredictor:
             # 2. 캐시 확인 (내부 캐시)
             data = self.get_cached_data(ticker)
 
+            if data is not None and len(data) < min_data_days:
+                logger.info(f"캐시 데이터 부족: {len(data)}개 < {min_data_days}개, 더 긴 기간으로 재다운로드")
+                data = None
+
             if data is None:
                 logger.info(f"{ticker} 데이터 다운로드 중...")
 
-                days_needed = min_data_days + 100
-                period_param = f'{days_needed}d'
+                period_param = self._get_download_period_for_training(
+                    min_data_days, forecast_days, sequence_length
+                )
+                logger.info(f"학습 데이터 기간 요청: {period_param} (목표 {min_data_days}거래일)")
 
                 # 캐싱 매니저 사용 (중복 API 호출 방지)
                 data = get_stock_data(ticker, period=period_param)
@@ -510,9 +556,17 @@ class EnhancedCPUPredictor:
                 # 캐시된 데이터 사용
                 logger.info(f"캐시 데이터 사용: {len(data)}개 행")
             
-            # 3. 데이터 길이 확인 (기존과 동일)
+            # 3. 데이터 길이 확인
             if len(data) < min_data_days:
-                return None, f"데이터 부족 (필요: {min_data_days}일, 현재: {len(data)}일)"
+                if len(data) >= minimum_usable_days:
+                    logger.warning(f"제한적 이력으로 예측 진행: 권장 {min_data_days}일, 현재 {len(data)}일")
+                    min_data_days = len(data)
+                    limited_history = True
+                else:
+                    return None, (
+                        f"데이터 부족 (권장: {configured_min_data_days}거래일, "
+                        f"최소: {minimum_usable_days}거래일, 현재: {len(data)}거래일)"
+                    )
             
             # 데이터 정렬 및 정리 (일관성 보장) - 기존 코드 그대로
             data = data.sort_index().round(4)
@@ -557,7 +611,7 @@ class EnhancedCPUPredictor:
             
             # 시퀀스 데이터 준비 - 기존 코드 그대로
             X, y = self.prepare_sequences_deterministic(features, future_returns, 
-                                                    sequence_length=15, 
+                                                    sequence_length=sequence_length, 
                                                     forecast_horizon=forecast_days)
 
             logger.debug(f"\n===== 데이터 진단 =====")
@@ -704,6 +758,9 @@ class EnhancedCPUPredictor:
 
                 # ✅ 설정 정보 추가 (새로 추가된 부분)
                 'min_data_days': min_data_days,  # 실제 사용된 최소 데이터 일수
+                'recommended_min_data_days': configured_min_data_days,
+                'minimum_usable_days': minimum_usable_days,
+                'limited_history': limited_history,
                 'active_models': [name for name, enabled in models_enabled.items() if enabled],
                 'settings_applied': True,  # 설정 적용 여부 표시
                 'settings_source': 'prediction_settings.json'  # 설정 출처

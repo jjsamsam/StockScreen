@@ -16,6 +16,7 @@ interface ChartViewProps {
 interface IndicatorVisibility {
   ma: boolean
   bb: boolean
+  ichimoku: boolean
   volume: boolean
   rsi: boolean
 }
@@ -46,6 +47,7 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
   const [indicators, setIndicators] = useState<IndicatorVisibility>({
     ma: true,
     bb: true,
+    ichimoku: false,
     volume: true,
     rsi: true
   })
@@ -57,6 +59,7 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
   const seriesRef = useRef<{
     ma20?: any; ma60?: any; ma120?: any; ma240?: any;
     bbUpper?: any; bbMiddle?: any; bbLower?: any;
+    tenkan?: any; kijun?: any; spanA?: any; spanB?: any; chikou?: any;
     volume?: any; rsi?: any;
   }>({})
 
@@ -79,6 +82,12 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           series.bbUpper?.applyOptions({ visible: newState.bb })
           series.bbMiddle?.applyOptions({ visible: newState.bb })
           series.bbLower?.applyOptions({ visible: newState.bb })
+        } else if (indicator === 'ichimoku') {
+          series.tenkan?.applyOptions({ visible: newState.ichimoku })
+          series.kijun?.applyOptions({ visible: newState.ichimoku })
+          series.spanA?.applyOptions({ visible: newState.ichimoku })
+          series.spanB?.applyOptions({ visible: newState.ichimoku })
+          series.chikou?.applyOptions({ visible: newState.ichimoku })
         } else if (indicator === 'volume') {
           series.volume?.applyOptions({ visible: newState.volume })
           chart.priceScale('volume').applyOptions({ visible: newState.volume })
@@ -167,6 +176,31 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
       const rsiData = data.dates.map((date: string, index: number) => ({
         time: date,
         value: data.rsi[index],
+      })).filter((d: any) => d.value && d.value !== 0)
+
+      const tenkanData = data.dates.map((date: string, index: number) => ({
+        time: date,
+        value: data.ichimoku_tenkan?.[index],
+      })).filter((d: any) => d.value && d.value !== 0)
+
+      const kijunData = data.dates.map((date: string, index: number) => ({
+        time: date,
+        value: data.ichimoku_kijun?.[index],
+      })).filter((d: any) => d.value && d.value !== 0)
+
+      const chikouData = data.dates.map((date: string, index: number) => ({
+        time: date,
+        value: data.ichimoku_chikou?.[index],
+      })).filter((d: any) => d.value && d.value !== 0)
+
+      const spanAData = (data.ichimoku_span_a_dates || []).map((date: string, index: number) => ({
+        time: date,
+        value: data.ichimoku_span_a?.[index],
+      })).filter((d: any) => d.value && d.value !== 0)
+
+      const spanBData = (data.ichimoku_span_b_dates || []).map((date: string, index: number) => ({
+        time: date,
+        value: data.ichimoku_span_b?.[index],
       })).filter((d: any) => d.value && d.value !== 0)
 
       // 차트 생성
@@ -294,6 +328,59 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
         })
         ma240Series.setData(ma240Data)
 
+        // 일목균형표
+        const tenkanSeries = chart.addSeries(LineSeries, {
+          color: '#22c55e',
+          lineWidth: 1,
+          priceScaleId: 'right',
+          priceLineVisible: false,
+          lastValueVisible: false,
+          visible: indicators.ichimoku,
+        })
+        tenkanSeries.setData(tenkanData)
+
+        const kijunSeries = chart.addSeries(LineSeries, {
+          color: '#f97316',
+          lineWidth: 1,
+          priceScaleId: 'right',
+          priceLineVisible: false,
+          lastValueVisible: false,
+          visible: indicators.ichimoku,
+        })
+        kijunSeries.setData(kijunData)
+
+        const spanASeries = chart.addSeries(LineSeries, {
+          color: '#16a34a',
+          lineWidth: 1,
+          lineStyle: 1,
+          priceScaleId: 'right',
+          priceLineVisible: false,
+          lastValueVisible: false,
+          visible: indicators.ichimoku,
+        })
+        spanASeries.setData(spanAData)
+
+        const spanBSeries = chart.addSeries(LineSeries, {
+          color: '#dc2626',
+          lineWidth: 1,
+          lineStyle: 1,
+          priceScaleId: 'right',
+          priceLineVisible: false,
+          lastValueVisible: false,
+          visible: indicators.ichimoku,
+        })
+        spanBSeries.setData(spanBData)
+
+        const chikouSeries = chart.addSeries(LineSeries, {
+          color: '#38bdf8',
+          lineWidth: 1,
+          priceScaleId: 'right',
+          priceLineVisible: false,
+          lastValueVisible: false,
+          visible: indicators.ichimoku,
+        })
+        chikouSeries.setData(chikouData)
+
         // 2. 거래량 영역
         const volumeSeries = chart.addSeries(HistogramSeries, {
           color: '#26a69a',
@@ -336,6 +423,11 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
           bbUpper: bbUpperSeries,
           bbMiddle: bbMiddleSeries,
           bbLower: bbLowerSeries,
+          tenkan: tenkanSeries,
+          kijun: kijunSeries,
+          spanA: spanASeries,
+          spanB: spanBSeries,
+          chikou: chikouSeries,
           volume: volumeSeries,
           rsi: rsiSeries,
         }
@@ -391,6 +483,8 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
             const ma240 = getVal(ma240Series);
             const bbUp = getVal(bbUpperSeries);
             const bbLow = getVal(bbLowerSeries);
+            const tenkan = getVal(tenkanSeries);
+            const kijun = getVal(kijunSeries);
 
             const volStr = vol ? (vol >= 1000000 ? `${(vol / 1000000).toFixed(1)}M` : (vol >= 1000 ? `${(vol / 1000).toFixed(1)}K` : vol)) : '-';
 
@@ -419,6 +513,11 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
                ${indicators.bb || indicators.rsi ? `<div class="legend-indicators">
                  ${indicators.bb ? `<span style="color: #a855f7;">BB: ${bbUp ? bbUp.toFixed(0) : '-'}~${bbLow ? bbLow.toFixed(0) : '-'}</span>` : ''}
                  ${indicators.rsi ? `<span style="color: #facc15;">RSI: ${rsi ? rsi.toFixed(1) : '-'}</span>` : ''}
+               </div>` : ''}
+
+               ${indicators.ichimoku ? `<div class="legend-indicators">
+                 <span style="color: #22c55e;">Tenkan: ${tenkan ? tenkan.toFixed(0) : '-'}</span>
+                 <span style="color: #f97316;">Kijun: ${kijun ? kijun.toFixed(0) : '-'}</span>
                </div>` : ''}
              `;
           }
@@ -562,6 +661,12 @@ function ChartView({ symbol, onClose, language }: ChartViewProps) {
             onClick={() => toggleIndicator('bb')}
           >
             📈 {language === 'ko' ? '볼린저' : 'BB'}
+          </button>
+          <button
+            className={`toggle-btn ${indicators.ichimoku ? 'active' : ''}`}
+            onClick={() => toggleIndicator('ichimoku')}
+          >
+            ☁ {language === 'ko' ? '일목' : 'Ichimoku'}
           </button>
           <button
             className={`toggle-btn ${indicators.volume ? 'active' : ''}`}

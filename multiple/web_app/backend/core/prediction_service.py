@@ -174,6 +174,7 @@ class PredictionService:
             
             # 모드 정보 추가
             python_result['prediction_mode'] = mode
+            python_result['quality'] = self._build_prediction_quality(python_result)
             
             return {
                 'success': True,
@@ -198,6 +199,49 @@ class PredictionService:
         if self._predictor:
             return self._predictor.settings
         return {}
+
+    def _build_prediction_quality(self, result: dict) -> dict:
+        """예측 결과를 해석하기 쉬운 품질 지표로 보강."""
+        predictions = result.get('individual_predictions') or []
+        expected_return = float(result.get('expected_return', 0) or 0)
+        confidence = float(result.get('confidence', 0) or 0)
+        current_price = float(result.get('current_price', 0) or 0)
+
+        if predictions:
+            prediction_array = np.array(predictions, dtype=float)
+            disagreement = float(np.std(prediction_array))
+            model_agreement = float(max(0.0, min(1.0, 1.0 - disagreement / max(abs(expected_return), 0.02))))
+            downside = float(np.percentile(prediction_array, 20))
+            upside = float(np.percentile(prediction_array, 80))
+        else:
+            disagreement = 0.0
+            model_agreement = 0.5
+            downside = expected_return
+            upside = expected_return
+
+        risk_adjusted_return = expected_return * confidence * model_agreement
+        scenario = "base"
+        if risk_adjusted_return > 0.015 and confidence >= 0.6:
+            scenario = "constructive"
+        elif risk_adjusted_return < -0.015 and confidence >= 0.6:
+            scenario = "defensive"
+        elif model_agreement < 0.45:
+            scenario = "mixed"
+
+        return {
+            'model_agreement': round(model_agreement, 4),
+            'model_disagreement': round(disagreement, 6),
+            'risk_adjusted_return': round(risk_adjusted_return, 6),
+            'scenario': scenario,
+            'return_range': {
+                'downside': round(downside, 6),
+                'upside': round(upside, 6),
+            },
+            'price_range': {
+                'downside': round(current_price * (1 + downside), 4) if current_price else 0,
+                'upside': round(current_price * (1 + upside), 4) if current_price else 0,
+            }
+        }
 
 
 # 전역 인스턴스

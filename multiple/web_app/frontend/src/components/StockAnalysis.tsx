@@ -42,9 +42,20 @@ interface AnalysisData {
         ma20: number
         ma60: number
         ma120: number
+        ma240: number
         signal: string
         description: string
         trend_strength: string
+    }
+    ichimoku: {
+        tenkan: number
+        kijun: number
+        span_a: number
+        span_b: number
+        cloud_top: number
+        cloud_bottom: number
+        signal: string
+        description: string
     }
     volume: {
         current: number
@@ -67,11 +78,13 @@ interface AnalysisData {
         bearish_points: number
         signal: string
         description: string
+        confirmation: number
     }
     risk_management: {
         stop_loss: number
         take_profit: number
         risk_reward_ratio: number
+        atr_percent: number
     }
 }
 
@@ -105,6 +118,9 @@ function StockAnalysis({ ticker, language }: StockAnalysisProps) {
         volumeRatio: language === 'ko' ? '평균 대비' : 'vs Avg',
         bollingerBand: language === 'ko' ? '볼린저밴드' : 'Bollinger Band',
         movingAverage: language === 'ko' ? '이동평균선' : 'Moving Avg',
+        ichimoku: language === 'ko' ? '일목균형표' : 'Ichimoku',
+        confirmation: language === 'ko' ? '확인 점수' : 'Confirmation',
+        atrPercent: language === 'ko' ? 'ATR 변동성' : 'ATR Volatility',
         bullishDominant: language === 'ko' ? '📈 상승 우세' : '📈 Bullish',
         bearishDominant: language === 'ko' ? '📉 하락 우세' : '📉 Bearish',
     }
@@ -136,6 +152,12 @@ function StockAnalysis({ ticker, language }: StockAnalysisProps) {
             '완전 역배열 (강한 하락 추세)': 'Reverse Alignment (Strong Downtrend)',
             '부분 역배열 (단기 하락 추세)': 'Partial Reverse (Short-term Downtrend)',
             '혼재 (방향성 불분명)': 'Mixed (No Clear Direction)',
+            // Ichimoku
+            '구름 상단 돌파/유지 (상승 추세 우위)': 'Above Cloud (Bullish Trend Bias)',
+            '구름 하단 이탈/유지 (하락 추세 우위)': 'Below Cloud (Bearish Trend Bias)',
+            '전환선이 기준선을 상향 돌파': 'Tenkan Crossed Above Kijun',
+            '전환선이 기준선을 하향 이탈': 'Tenkan Crossed Below Kijun',
+            '구름 내부/혼조 구간': 'Inside Cloud / Mixed',
             // Volume
             '대량 거래 (주목 필요)': 'Heavy Volume (Attention Needed)',
             '높은 거래량 (관심 증가)': 'High Volume (Rising Interest)',
@@ -307,6 +329,7 @@ function StockAnalysis({ ticker, language }: StockAnalysisProps) {
                 <div className="summary-points">
                     <span className="bullish">{t.bullishPoints}: {data.summary.bullish_points}</span>
                     <span className="bearish">{t.bearishPoints}: {data.summary.bearish_points}</span>
+                    <span>{t.confirmation}: {data.summary.confirmation > 0 ? '+' : ''}{data.summary.confirmation}</span>
                 </div>
             </section>
 
@@ -339,6 +362,13 @@ function StockAnalysis({ ticker, language }: StockAnalysisProps) {
                     <span className="indicator-name">{t.movingAverage}</span>
                     <span className="indicator-signal">
                         {getSignalEmoji(data.moving_averages.signal)} {translateDescription(data.moving_averages.description)}
+                    </span>
+                </div>
+
+                <div className="indicator-row">
+                    <span className="indicator-name">{t.ichimoku}</span>
+                    <span className="indicator-signal">
+                        {getSignalEmoji(data.ichimoku.signal)} {translateDescription(data.ichimoku.description)}
                     </span>
                 </div>
             </section>
@@ -386,6 +416,10 @@ function StockAnalysis({ ticker, language }: StockAnalysisProps) {
                     <div className="risk-item">
                         <span className="label">{t.riskReward}</span>
                         <span className="value">1:{formatNumber(data.risk_management.risk_reward_ratio, 1)}</span>
+                    </div>
+                    <div className="risk-item">
+                        <span className="label">{t.atrPercent}</span>
+                        <span className="value">{formatNumber(data.risk_management.atr_percent, 2)}%</span>
                     </div>
                 </div>
             </section>

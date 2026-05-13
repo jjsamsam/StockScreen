@@ -69,12 +69,16 @@ async def get_available_conditions():
             {"id": "enhanced_ma_buy", "name": "강화된 MA 매수"},
             {"id": "enhanced_bb_rsi_buy", "name": "강화된 BB+RSI 매수"},
             {"id": "enhanced_macd_volume_buy", "name": "강화된 MACD+거래량"},
-            {"id": "enhanced_momentum_buy", "name": "강화된 모멘텀 매수"}
+            {"id": "enhanced_momentum_buy", "name": "강화된 모멘텀 매수"},
+            {"id": "balanced_buy", "name": "균형형 매수 점수"},
+            {"id": "ichimoku_bullish", "name": "일목 상승 전환"}
         ],
         "sell_conditions": [
             {"id": "death_cross", "name": "데드 크로스"},
             {"id": "rsi_overbought", "name": "RSI 과매수"},
             {"id": "enhanced_technical_sell", "name": "강화된 기술적 매도"},
-            {"id": "enhanced_bb_rsi_sell", "name": "강화된 BB+RSI 매도"}
+            {"id": "enhanced_bb_rsi_sell", "name": "강화된 BB+RSI 매도"},
+            {"id": "balanced_sell", "name": "균형형 매도 점수"},
+            {"id": "ichimoku_bearish", "name": "일목 하락 전환"}
         ]
     }

@@ -29,6 +29,22 @@ from logger_config import get_logger
 logger = get_logger(__name__)
 
 
+def _json_safe(value: Any) -> Any:
+    """FastAPI JSON 응답에서 허용되지 않는 NaN/inf 값을 제거."""
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, tuple):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, (np.integer,)):
+        return int(value)
+    if isinstance(value, (np.floating, float)):
+        value = float(value)
+        return value if np.isfinite(value) else 0.0
+    return value
+
+
 class TechnicalIndicators:
     """기술적 지표 계산 유틸리티"""
     
@@ -41,6 +57,7 @@ class TechnicalIndicators:
         df['MA20'] = df['Close'].rolling(window=20).mean()
         df['MA60'] = df['Close'].rolling(window=60).mean()
         df['MA120'] = df['Close'].rolling(window=120).mean()
+        df['MA240'] = df['Close'].rolling(window=240).mean()
         
         # 볼린저 밴드 (20일 기준)
         df['BB_Middle'] = df['Close'].rolling(window=20).mean()
@@ -61,6 +78,19 @@ class TechnicalIndicators:
         df['MACD'] = ema12 - ema26
         df['MACD_Signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
         df['MACD_Histogram'] = df['MACD'] - df['MACD_Signal']
+
+        # 일목균형표
+        high_9 = df['High'].rolling(window=9).max()
+        low_9 = df['Low'].rolling(window=9).min()
+        high_26 = df['High'].rolling(window=26).max()
+        low_26 = df['Low'].rolling(window=26).min()
+        high_52 = df['High'].rolling(window=52).max()
+        low_52 = df['Low'].rolling(window=52).min()
+        df['Ichimoku_Tenkan'] = (high_9 + low_9) / 2
+        df['Ichimoku_Kijun'] = (high_26 + low_26) / 2
+        df['Ichimoku_Span_A'] = ((df['Ichimoku_Tenkan'] + df['Ichimoku_Kijun']) / 2).shift(26)
+        df['Ichimoku_Span_B'] = ((high_52 + low_52) / 2).shift(26)
+        df['Ichimoku_Chikou'] = df['Close'].shift(-26)
         
         # ADX (14일 기준) - 간략화된 버전
         high = df['High']
@@ -274,6 +304,7 @@ class StockAnalysisService:
         ma20 = float(current.get('MA20', 0))
         ma60 = float(current.get('MA60', 0))
         ma120 = float(current.get('MA120', 0))
+        ma240 = float(current.get('MA240', 0))
         
         if ma20 > ma60 > ma120 and ma120 > 0:
             ma_signal = "strong_bullish"
@@ -300,9 +331,51 @@ class StockAnalysisService:
             'ma20': ma20,
             'ma60': ma60,
             'ma120': ma120,
+            'ma240': ma240,
             'signal': ma_signal,
             'description': ma_desc,
             'trend_strength': trend_strength
+        }
+
+        # === 일목균형표 분석 ===
+        tenkan = float(current.get('Ichimoku_Tenkan', 0) or 0)
+        kijun = float(current.get('Ichimoku_Kijun', 0) or 0)
+        span_a = float(current.get('Ichimoku_Span_A', 0) or 0)
+        span_b = float(current.get('Ichimoku_Span_B', 0) or 0)
+        cloud_top = max(span_a, span_b)
+        cloud_bottom = min(span_a, span_b)
+        prev_tenkan = float(prev.get('Ichimoku_Tenkan', 0) or 0)
+        prev_kijun = float(prev.get('Ichimoku_Kijun', 0) or 0)
+        price = float(current['Close'])
+
+        tk_cross_up = tenkan > kijun and prev_tenkan <= prev_kijun
+        tk_cross_down = tenkan < kijun and prev_tenkan >= prev_kijun
+
+        if cloud_top > 0 and price > cloud_top and tenkan >= kijun:
+            ichimoku_signal = "bullish"
+            ichimoku_desc = "구름 상단 돌파/유지 (상승 추세 우위)"
+        elif cloud_bottom > 0 and price < cloud_bottom and tenkan <= kijun:
+            ichimoku_signal = "bearish"
+            ichimoku_desc = "구름 하단 이탈/유지 (하락 추세 우위)"
+        elif tk_cross_up:
+            ichimoku_signal = "golden_cross"
+            ichimoku_desc = "전환선이 기준선을 상향 돌파"
+        elif tk_cross_down:
+            ichimoku_signal = "death_cross"
+            ichimoku_desc = "전환선이 기준선을 하향 이탈"
+        else:
+            ichimoku_signal = "neutral"
+            ichimoku_desc = "구름 내부/혼조 구간"
+
+        ichimoku_info = {
+            'tenkan': tenkan,
+            'kijun': kijun,
+            'span_a': span_a,
+            'span_b': span_b,
+            'cloud_top': cloud_top,
+            'cloud_bottom': cloud_bottom,
+            'signal': ichimoku_signal,
+            'description': ichimoku_desc
         }
         
         # === 거래량 분석 ===
@@ -367,12 +440,16 @@ class StockAnalysisService:
         if ma_signal == 'strong_bullish': bullish_points += 2
         elif ma_signal == 'bullish': bullish_points += 1
         if vol_ratio > 1.5: bullish_points += 1
+        if ichimoku_signal in ['golden_cross', 'bullish']: bullish_points += 1
+        if adx_value > 20 and plus_di > minus_di: bullish_points += 1
         
         if macd_signal in ['death_cross', 'bearish']: bearish_points += 1
         if rsi > 70: bearish_points += 1
         if bb_position > 0.8: bearish_points += 1
         if ma_signal == 'strong_bearish': bearish_points += 2
         elif ma_signal == 'bearish': bearish_points += 1
+        if ichimoku_signal in ['death_cross', 'bearish']: bearish_points += 1
+        if adx_value > 20 and minus_di > plus_di: bearish_points += 1
         
         if bullish_points >= 4:
             overall_signal = "strong_buy"
@@ -394,7 +471,8 @@ class StockAnalysisService:
             'bullish_points': bullish_points,
             'bearish_points': bearish_points,
             'signal': overall_signal,
-            'description': overall_desc
+            'description': overall_desc,
+            'confirmation': bullish_points - bearish_points
         }
         
         # === 리스크 관리 ===
@@ -410,11 +488,12 @@ class StockAnalysisService:
         risk_management = {
             'stop_loss': stop_loss,
             'take_profit': take_profit,
-            'risk_reward_ratio': risk_reward
+            'risk_reward_ratio': risk_reward,
+            'atr_percent': (atr_value / float(current['Close']) * 100) if current['Close'] else 0.0
         }
         
         # 최종 결과
-        return {
+        return _json_safe({
             'symbol': symbol,
             'last_update': data.index[-1].strftime('%Y-%m-%d'),
             'price': price_info,
@@ -422,11 +501,12 @@ class StockAnalysisService:
             'macd': macd_info,
             'bollinger': bollinger_info,
             'moving_averages': ma_info,
+            'ichimoku': ichimoku_info,
             'volume': volume_info,
             'trend': trend_info,
             'summary': summary,
             'risk_management': risk_management
-        }
+        })
 
 
 # 전역 인스턴스
